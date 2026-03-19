@@ -1,0 +1,12 @@
+.icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+  }
+  
+  .sm { width: 16px; height: 16px; }
+  .md { width: 20px; height: 20px; }
+  .lg { width: 28px; height: 28px; }
+  .xs { width: 12px; height: 12px; }
+  .xl { width: 32px; height: 32px; }

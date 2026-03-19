@@ -1,3 +1,14 @@
-/* You can add global styles to this file, and also import other style files */
+
+*, ::before, ::after {
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+    scroll-behavior: smooth;
+    user-select: none;
+    -webkit-user-select: none;
+    text-decoration: none;
+}
 
 @import 'tailwindcss';
+
+@import './shared/themes/theme.css';
+@import './shared/themes/inputs.css';

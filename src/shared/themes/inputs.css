@@ -1,0 +1,199 @@
+/* --- Input wrapper with optional icons --- */
+.field-wrapper {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 2.5rem;
+}
+
+.field-wrapper input[type='text'],
+.field-wrapper input[type='email'],
+.field-wrapper input[type='password'],
+.field-wrapper input[type='number'],
+.field-wrapper input[type='tel'],
+.field-wrapper input[type='url'],
+.field-wrapper input[type='search'],
+.field-wrapper textarea,
+.field-wrapper select {
+  width: 100%;
+  border-radius: 0.75rem;
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  z-index: 100;
+}
+
+.field-icon * {
+  color: var(--color-placeholder);
+}
+
+.field-wrapper span.field-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  height: 100%;
+  top: 0;
+  z-index: 101;
+}
+
+.field-wrapper .field-icon.before {
+  padding-left: 0.75rem;
+  left: 0;
+}
+
+.field-wrapper .field-icon.after {
+  padding-right: 0.75rem;
+  right: 0;
+}
+
+.field-wrapper.before input[type='text'],
+.field-wrapper.before input[type='email'],
+.field-wrapper.before input[type='password'],
+.field-wrapper.before input[type='number'],
+.field-wrapper.before input[type='tel'],
+.field-wrapper.before input[type='url'],
+.field-wrapper.before input[type='search'],
+.field-wrapper.before textarea,
+.field-wrapper.before select {
+  padding-left: 2.5rem;
+}
+
+.field-wrapper.after input[type='text'],
+.field-wrapper.after input[type='email'],
+.field-wrapper.after input[type='password'],
+.field-wrapper.after input[type='number'],
+.field-wrapper.after input[type='tel'],
+.field-wrapper.after input[type='url'],
+.field-wrapper.after input[type='search'],
+.field-wrapper.after textarea,
+.field-wrapper.after select {
+  padding-right: 2.5rem;
+}
+
+
+/* Input styles */
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='tel'],
+input[type='url'],
+input[type='search'],
+textarea,
+select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  outline: none;
+  font-size: 0.9rem;
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  box-sizing: border-box;
+  appearance: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: rgba(148, 163, 184, 0.16);
+  color: var(--color-placeholder);
+  cursor: not-allowed;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-placeholder);
+  opacity: 1;
+}
+
+input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type='checkbox']:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  accent-color: var(--color-primary);
+}
+
+/* Button styles */
+button {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  color: var(--color-button-text);
+  background-color: var(--color-button-bg);
+}
+
+
+button[severity='primary'] {
+  color: var(--color-button-text);
+  background-color: var(--color-button-bg);
+}
+
+button[severity='primary']:hover {
+  background-color: var(--color-button-hover-bg);
+  color: var(--color-button-hover-text);
+}
+
+button[severity='secondary'] {
+  color: var(--color-secondary-button-text);
+  background-color: var(--color-secondary-button-bg);
+  border: 1px solid var(--color-secondary-button-border);
+}
+
+button[severity='secondary']:hover {
+  background-color: var(--color-secondary-button-hover-bg);
+  color: var(--color-secondary-button-hover-text);
+  border: 1px solid var(--color-secondary-button-hover-border);
+}
+
+/* Anchor styles */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: none;
+}
+
+/* Border styles */
+.border-primary {
+  border: 1px solid var(--color-border-primary);
+}
+
+.border-secondary {
+  border: 1px solid var(--color-border-secondary);
+}
+
+/* Text styles */
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-secondary {
+  color: var(--color-secondary);
+}
