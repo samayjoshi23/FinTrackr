@@ -1,14 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-*, ::before, ::after {
-    box-sizing: border-box;
-    font-family: 'Poppins', sans-serif;
-    scroll-behavior: smooth;
-    user-select: none;
-    -webkit-user-select: none;
-    text-decoration: none;
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  font-family: 'DM Sans', sans-serif;
+  scroll-behavior: smooth;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 @import 'tailwindcss';
-
 @import './shared/themes/theme.css';
 @import './shared/themes/inputs.css';
+
+/* Layout themes */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.title-font {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-primary-light {
+  background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.bg-primary-soft {
+  background-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+
+.bg-secondary-light {
+  background-color: color-mix(in srgb, var(--color-secondary) 20%, transparent);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-secondary {
+  color: var(--color-secondary);
+}
+
+.card {
+  background-color: var(--color-bg-elevated);
+}
+
+.selected-card {
+  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 60%, transparent);
+}

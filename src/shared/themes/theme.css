@@ -1,74 +1,133 @@
 :root {
-    /* Light theme (default) using Tailwind tokens */
-    --color-bg: var(--color-slate-50);
-    --color-bg-elevated: var(--color-white);
-    --color-border: var(--color-slate-200);
-    --color-border-strong: var(--color-slate-300);
-    --color-text: var(--color-slate-900);
-    --color-text-muted: var(--color-slate-500);
-    --color-placeholder: var(--color-slate-400);
-    --color-primary: var(--color-emerald-600);
-    --color-secondary: var(--color-slate-600);
-    --color-secondary-hover: var(--color-slate-700);
-    --color-primary-hover: var(--color-emerald-600);
-    --color-primary-soft: color-mix(in srgb, var(--color-emerald-600) 20%, transparent);
-    --color-danger: var(--color-rose-500);
+  /* Light theme (default) using Tailwind tokens */
+  --color-bg: var(--color-slate-50);
+  --color-bg-elevated: var(--color-slate-200);
+  --color-text: var(--color-slate-900);
+  --color-text-muted: var(--color-slate-400);
+  --color-placeholder: var(--color-slate-500);
+  --color-primary: var(--color-emerald-600);
+  --color-secondary: var(--color-slate-600);
+  --color-secondary-hover: var(--color-slate-600);
+  --color-primary-hover: var(--color-emerald-600);
+  --color-primary-soft: color-mix(in srgb, var(--color-emerald-600) 20%, transparent);
+  --color-danger: var(--color-rose-500);
 
-    /* Button colors */
-    --color-button-bg: var(--color-emerald-600);
-    --color-button-text: var(--color-white);
-    --color-button-hover-bg: var(--color-emerald-700);
-    --color-button-hover-text: var(--color-white);
-    --color-button-border: var(--color-emerald-600);
+  /* Button colors */
+  --color-button-bg: var(--color-emerald-600);
+  --color-button-text: var(--color-white);
+  --color-button-hover-bg: var(--color-emerald-700);
+  --color-button-hover-text: var(--color-white);
+  --color-button-border: var(--color-emerald-600);
 
-    --color-secondary-button-bg: var(--color-white);
-    --color-secondary-button-text: var(--color-black);
-    --color-secondary-button-hover-bg: var(--color-slate-100);
-    --color-secondary-button-hover-text: var(--color-black);
-    --color-secondary-button-border: var(--color-slate-200);
-    --color-secondary-button-hover-border: var(--color-slate-300);
+  --color-secondary-button-bg: var(--color-white);
+  --color-secondary-button-text: var(--color-black);
+  --color-secondary-button-hover-bg: var(--color-slate-100);
+  --color-secondary-button-hover-text: var(--color-black);
+  --color-secondary-button-border: var(--color-slate-200);
+  --color-secondary-button-hover-border: var(--color-slate-300);
 
-    /* Border colors */
-    --color-border-primary: var(--color-emerald-600);
-    --color-border-secondary: var(--color-gray-300);
+  /* Border colors */
+  --color-border: var(--color-slate-200);
+  --color-border-strong: var(--color-slate-300);
+  --color-border-primary: var(--color-emerald-600);
+  --color-border-secondary: var(--color-gray-300);
+
+  /* Title font */
+  --color-title-font: var(--color-black);
 }
 
 .theme-dark {
-    /* Dark theme overrides using Tailwind tokens */
-    --color-bg: var(--color-slate-950);
-    --color-bg-elevated: var(--color-slate-950);
-    --color-border: var(--color-slate-700);
-    --color-border-strong: var(--color-slate-00);
-    --color-text: var(--color-slate-50);
-    --color-text-muted: var(--color-slate-400);
-    --color-placeholder: var(--color-slate-500);
-    --color-primary: var(--color-emerald-500);
-    --color-primary-hover: var(--color-emerald-500);
-    --color-secondary: var(--color-slate-500);
-    --color-secondary-hover: var(--color-slate-600);
-    --color-primary-soft: color-mix(in srgb, var(--color-emerald-500) 28%, transparent);
-    --color-danger: var(--color-rose-400);
+  /* Dark theme overrides using Tailwind tokens */
+  --color-bg: var(--color-slate-950);
+  --color-bg-elevated: var(--color-slate-800);
+  --color-text: var(--color-slate-50);
+  --color-text-muted: var(--color-slate-400);
+  --color-placeholder: var(--color-slate-500);
+  --color-primary: var(--color-emerald-500);
+  --color-primary-hover: var(--color-emerald-500);
+  --color-secondary: var(--color-slate-400);
+  --color-secondary-hover: var(--color-slate-600);
+  --color-primary-soft: color-mix(in srgb, var(--color-emerald-500) 28%, transparent);
+  --color-danger: var(--color-rose-400);
 
-    /* Button colors */
-    --color-button-bg: var(--color-emerald-500);
-    --color-button-text: var(--color-black);
-    --color-button-border: var(--color-emerald-500);
-    --color-button-hover-bg: var(--color-emerald-600);
-    --color-button-hover-text: var(--color-black);
+  /* Button colors */
+  --color-button-bg: var(--color-emerald-500);
+  --color-button-text: var(--color-black);
+  --color-button-border: var(--color-emerald-500);
+  --color-button-hover-bg: var(--color-emerald-600);
+  --color-button-hover-text: var(--color-black);
 
-    --color-secondary-button-bg: var(--color-slate-900);
-    --color-secondary-button-text: var(--color-white);
-    --color-secondary-button-hover-bg: var(--color-slate-800);
-    --color-secondary-button-hover-text: var(--color-white);
-    --color-secondary-button-border: var(--color-slate-700);
-    --color-secondary-button-hover-border: var(--color-slate-600);
+  --color-secondary-button-bg: var(--color-slate-900);
+  --color-secondary-button-text: var(--color-white);
+  --color-secondary-button-hover-bg: var(--color-slate-800);
+  --color-secondary-button-hover-text: var(--color-white);
+  --color-secondary-button-border: var(--color-slate-700);
+  --color-secondary-button-hover-border: var(--color-slate-600);
 
-    /* Border colors */
-    --color-border-primary: var(--color-emerald-600);
-    --color-border-secondary: var(--color-gray-700);
+  /* Border colors */
+  --color-border: var(--color-slate-700);
+  --color-border-strong: var(--color-slate-00);
+  --color-border-primary: var(--color-emerald-600);
+  --color-border-secondary: var(--color-gray-700);
+
+  /* Title font */
+  --color-title-font: var(--color-white);
 }
 
-body {
-    background-color: var(--color-bg);
-    color: var(--color-text);
+/* ============= Other Colors ============= */
+
+/* Orange */
+.button-orange {
+  background-color: color-mix(in srgb, var(--color-orange-400) 20%, transparent);
+  color: var(--color-orange-500);
 }
+
+.theme-dark .button-orange {
+  background-color: color-mix(in srgb, var(--color-orange-600) 20%, transparent);
+  color: var(--color-orange-400);
+}
+
+/* Violet */
+.button-violet {
+  background-color: color-mix(in srgb, var(--color-violet-400) 20%, transparent);
+  color: var(--color-violet-500);
+}
+
+.theme-dark .button-violet {
+  background-color: color-mix(in srgb, var(--color-violet-600) 20%, transparent);
+  color: var(--color-violet-400);
+}
+
+/* Yellow */
+.button-yellow {
+  background-color: color-mix(in srgb, var(--color-yellow-400) 20%, transparent);
+  color: var(--color-yellow-500);
+}
+
+.theme-dark .button-yellow {
+  background-color: color-mix(in srgb, var(--color-yellow-600) 20%, transparent);
+  color: var(--color-yellow-400);
+}
+
+/* Blue */
+.button-blue {
+  background-color: color-mix(in srgb, var(--color-blue-400) 20%, transparent);
+  color: var(--color-blue-500);
+}
+.theme-dark .button-blue {
+  background-color: color-mix(in srgb, var(--color-blue-600) 20%, transparent);
+  color: var(--color-blue-400);
+}
+
+/* Red */
+.button-red {
+  background-color: color-mix(in srgb, var(--color-red-400) 20%, transparent);
+  color: var(--color-red-500);
+}
+
+.theme-dark .button-red {
+  background-color: color-mix(in srgb, var(--color-red-600) 20%, transparent);
+  color: var(--color-red-400);
+}
+
+/* ============= End of Other Colors ============= */

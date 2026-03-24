@@ -1,73 +1,96 @@
-<div class="w-full flex flex-col items-center justify-center h-dvh p-3 md:p-5">
-  <div class="flex items-center flex-col justify-center h-16 gap-2">
-    <div class="flex gap-2">
-      <img src="app-logo.png" alt="FinTrackr" class="h-9 w-9" />
-      <h1 class="text-[2rem] leading-none font-bold">
-        <span class="text-mauve-600">Fin</span>
-        <span class="text-emerald-600">Trackr</span>
-      </h1>
-    </div>
-    <p class="text-sm text-secondary">Track your finances effortlessly</p>
-  </div>
-  <div class="flex-1 flex w-full justify-center items-center">
-    <div
-      class="border border-secondary rounded-xl p-3 md:p-5 gap-3 md:gap-5 max-w-150 w-full flex flex-col"
+<div class="gap-3 w-full flex flex-col h-full justify-center items-start p-4 md:p-5">
+  <div class="flex gap-2">
+    <img src="app-logo.png" alt="FinTrackr" class="h-7 w-7" />
+    <h1
+      class="text-[1.5rem] underline underline-offset-4 decoration-2 decoration-mauve-600 font-bold"
     >
-      <h1 class="text-2xl font-bold text-center text-primary">Login</h1>
-      <form class="flex flex-col gap-4">
-        <div class="flex flex-col gap-2">
-          <label for="email" class="text-sm text-gray-500">Email</label>
-          <div class="field-wrapper before">
-            <span class="field-icon before">
-              <ico name="envelope" size="sm"></ico>
-            </span>
-            <input type="email" placeholder="Enter your email" name="email" required />
-          </div>
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="password" class="text-sm text-gray-500">Password</label>
-          <div class="field-wrapper before after">
-            <span class="field-icon before">
-              <ico name="lock" size="sm"></ico>
-            </span>
-            <input
-              type="password"
-              id="password"
-              placeholder="Enter your password"
-              name="password"
-              required
-              #passwordInput
-            />
-            @if (passwordInput.type === 'password') {
-              <span class="field-icon after cursor-pointer" (click)="passwordInput.type = 'text'">
-                <ico name="eye-open" size="sm"></ico>
-              </span>
-            } @else {
-              <span
-                class="field-icon after cursor-pointer"
-                (click)="passwordInput.type = 'password'"
-              >
-                <ico name="eye-closed" size="sm"></ico>
-              </span>
-            }
-          </div>
-        </div>
-        <div class="text-end">
-          <a href="/forgot-password" class="text-sm">Forgot password?</a>
-        </div>
-        <button type="submit" severity="primary" class="mt-5 rounded-xl py-2 md:py-3">Login</button>
+      <span class="text-mauve-600">Fin</span>
+      <span class="text-emerald-600">Trackr</span>
+    </h1>
+  </div>
+  <div class="flex flex-col mb-6">
+    <h1 class="text-2xl title-font font-medium">Welcome back</h1>
+    <p class="text-sm text-secondary font-light">Sign in to your FinTrackr account</p>
+  </div>
+  <form [formGroup]="loginForm" class="gap-4 max-w-150 w-full flex flex-col">
+    <!-- Email -->
+    <div class="flex flex-col gap-1">
+      <label for="email" class="text-xs text-gray-400">Email</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="envelope" size="sm"></ico>
+        </span>
+        <input
+          type="email"
+          class="w-full"
+          placeholder="Enter your email"
+          id="email"
+          formControlName="email"
+        />
+      </div>
+    </div>
 
-        <div class="flex items-center justify-center text-sm text-gray-400">or continue with</div>
-        <div class="flex items-center justify-center">
-          <button class="overflow-hidden rounded-full cursor-pointer">
-            <img src="assets/login-providers/google.png" alt="Google" class="h-7 w-7" />
-          </button>
-        </div>
-      </form>
-      <p class="text-sm text-gray-500 text-center">
+    <!-- Password -->
+    <div class="flex flex-col gap-1">
+      <label for="password" class="text-xs text-gray-400">Password</label>
+      <div class="field-wrapper before after">
+        <span class="field-icon before">
+          <ico name="lock" size="sm"></ico>
+        </span>
+        <input
+          type="password"
+          id="password"
+          class="w-full"
+          placeholder="Enter your password"
+          formControlName="password"
+          #passwordInput
+        />
+        @if (passwordInput.type === 'password') {
+          <span class="field-icon after cursor-pointer" (click)="passwordInput.type = 'text'">
+            <ico name="eye-open" size="sm"></ico>
+          </span>
+        } @else {
+          <span class="field-icon after cursor-pointer" (click)="passwordInput.type = 'password'">
+            <ico name="eye-closed" size="sm"></ico>
+          </span>
+        }
+      </div>
+    </div>
+
+    <!-- Forgot password -->
+    <div class="text-end">
+      <a type="button" class="text-xs text-gray-400 cursor-pointer" (click)="onForgotPassword()">
+        Forgot password?
+      </a>
+    </div>
+
+    <!-- Login -->
+    <button
+      type="button"
+      severity="primary"
+      class="rounded-xl py-3 flex items-center justify-center gap-2"
+      [disabled]="isSubmitting()"
+      (click)="onSubmit()"
+    >
+      Login
+      <ico name="right-arrow" size="sm"></ico>
+    </button>
+
+    <!-- Additional options -->
+    <div class="flex flex-col gap-4 items-center justify-center">
+      <p class="text-sm text-gray-400">or continue with</p>
+      <button
+        type="button"
+        class="overflow-hidden rounded-full cursor-pointer"
+        [disabled]="isSubmitting()"
+        (click)="onGoogleLogin()"
+      >
+        <img src="assets/login-providers/google.png" alt="Google" class="h-7 w-7" />
+      </button>
+      <p class="text-sm text-gray-500">
         Don't have an account?
-        <a href="/register">Sign up</a>
+        <a routerLink="/register">Sign up</a>
       </p>
     </div>
-  </div>
+  </form>
 </div>

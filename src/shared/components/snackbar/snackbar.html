@@ -1,0 +1,22 @@
+<div class="flex items-center justify-between gap-2 h-full w-full bg-[var(--color-bg)] relative">
+  @for (route of routes(); track route.path) {
+    <div
+      class="flex items-center justify-between flex-col gap-1"
+      [class.text-primary]="route.selected"
+      [class.text-secondary]="!route.selected"
+      (click)="onChangeRoute(route.path)"
+    >
+      <div class="h-1 w-8 rounded-b-full" [class.bg-primary]="route.selected"></div>
+      <ico [name]="route.icon" size="md"></ico>
+      <p class="text-xs font-light">{{ route.name }}</p>
+    </div>
+  }
+  <div
+    class="absolute bottom-0 left-[50%] translate-x-[-50%] left-0"
+    (click)="onChangeRoute('/user/transactions/add')"
+  >
+    <div class="h-12 w-12 bg-primary display-text rounded-full flex items-center justify-center">
+      <ico [name]="'plus-circle'" size="lg" class="text-white"></ico>
+    </div>
+  </div>
+</div>

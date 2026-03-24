@@ -72,7 +72,6 @@
   padding-right: 2.5rem;
 }
 
-
 /* Input styles */
 
 input[type='text'],
@@ -86,10 +85,10 @@ textarea,
 select {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--color-border);
+  border: none;
   border-radius: 0.75rem;
   outline: none;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   background-color: var(--color-bg-elevated);
   color: var(--color-text);
   transition:
@@ -97,6 +96,7 @@ select {
     box-shadow 0.2s;
   box-sizing: border-box;
   appearance: none;
+  font-weight: 300;
 }
 
 input:focus,
@@ -127,7 +127,9 @@ input[type='checkbox'] {
   border: 1px solid var(--color-border);
   background-color: var(--color-bg-elevated);
   color: var(--color-text);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 input[type='checkbox']:checked {
@@ -136,16 +138,38 @@ input[type='checkbox']:checked {
   accent-color: var(--color-primary);
 }
 
+input[type='date'] {
+  appearance: textfield;
+  -webkit-appearance: textfield;
+  -moz-appearance: textfield;
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text);
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  outline: none;
+  font-size: 0.85rem;
+  border-radius: 0.75rem;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  box-sizing: border-box;
+  appearance: none;
+  font-weight: 300;
+}
+
 /* Button styles */
 button {
   border: none;
   outline: none;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
   color: var(--color-button-text);
   background-color: var(--color-button-bg);
+  font-size: 0.85rem;
 }
-
 
 button[severity='primary'] {
   color: var(--color-button-text);

@@ -1,0 +1,15 @@
+<div [class]="'notifier-container ' + position()">
+  @for (notification of notifier.notifications(); track notification.id) {
+    <div class="toast" [class]="'toast toast-' + notification.severity">
+      <p class="toast-message">{{ notification.message }}</p>
+      <button
+        class="toast-close"
+        type="button"
+        (click)="notifier.dismiss(notification.id)"
+        aria-label="Close notification"
+      >
+        x
+      </button>
+    </div>
+  }
+</div>

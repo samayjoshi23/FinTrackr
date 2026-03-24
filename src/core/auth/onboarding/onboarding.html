@@ -1,0 +1,270 @@
+<form class="gap-4 flex flex-col h-full justify-between p-4 md:p-5">
+  <div class="step-wrapper flex flex-col gap-1 w-full justify-between">
+    <div class="flex items-center justify-between">
+      <p class="text-sm text-secondary font-light">
+        Step {{ currentPage() }} of {{ pages().length }}
+      </p>
+      @if (currentPage() > 1) {
+        <a
+          class="text-sm text-primary font-light flex items-center gap-1 cursor-pointer hover:text-primary-hover hover:gap-2 transition-all duration-300"
+          (click)="goToPreviousStep()"
+        >
+          <ico name="left-arrow" size="xs"></ico>
+          Back
+        </a>
+      }
+    </div>
+    <div class="flex gap-2 w-full justify-between">
+      @for (page of pages(); track page.sequence) {
+        <div
+          class="step-content min-h-1 w-full"
+          [ngClass]="{
+            'bg-primary': page.sequence <= currentPage(),
+            'bg-secondary': page.sequence > currentPage(),
+          }"
+        ></div>
+      }
+    </div>
+  </div>
+  <div class="flex flex-col">
+    <div class="flex flex-col mb-6">
+      <h1 class="text-2xl title-font font-medium">{{ pages()[currentPage() - 1].title }}</h1>
+      <p class="text-sm text-secondary font-light">
+        {{ pages()[currentPage() - 1].description }}
+      </p>
+    </div>
+    @switch (currentPage()) {
+      @case (1) {
+        <div class="flex flex-col gap-3">
+          <!-- Profile Picture -->
+          <div class="w-full flex justify-center">
+            <div
+              class="relative h-25 w-25 flex items-center justify-center rounded-full bg-primary"
+            >
+              @if (initialText()) {
+                <p class="text-white text-2xl font-semibold title-font">{{ initialText() }}</p>
+              } @else {
+                <ico name="user" size="lg" class="text-white"></ico>
+              }
+
+              <div
+                class="w-8 h-8 rounded-full bg-gray-100 border-1 border-gray-200 absolute bottom-0 right-0 flex items-center justify-center"
+                (click)="onChangeProfilePicture()"
+              >
+                <ico name="camera" size="sm" class="text-primary"></ico>
+              </div>
+            </div>
+          </div>
+          <!-- Full Name -->
+          <div class="flex flex-col gap-1">
+            <label for="fullName" class="text-xs text-gray-400">Full Name</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="user" size="sm"></ico>
+              </span>
+              <input
+                type="text"
+                class="w-full"
+                id="fullName"
+                placeholder="Enter your name"
+                name="fullName"
+                [(ngModel)]="formModel.user.fullName"
+                (input)="updateProfileInitialText()"
+              />
+            </div>
+          </div>
+        </div>
+      }
+      @case (2) {
+        <div class="flex flex-col gap-3">
+          <!-- Account Name -->
+          <div class="flex flex-col gap-1">
+            <label for="accountName" class="text-xs text-gray-400">Account Name</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="office-building" size="sm"></ico>
+              </span>
+              <input
+                type="text"
+                class="w-full"
+                id="accountName"
+                placeholder="Enter your account name"
+                name="accountName"
+                [(ngModel)]="formModel.account.name"
+              />
+            </div>
+          </div>
+
+          <!-- Balance -->
+          <div class="flex flex-col gap-1">
+            <label for="balance" class="text-xs text-gray-400">Balance</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="dollar-sign" size="sm"></ico>
+              </span>
+              <input
+                type="number"
+                class="w-full"
+                id="balance"
+                placeholder="Enter your balance"
+                name="balance"
+                [(ngModel)]="formModel.account.balance"
+              />
+            </div>
+          </div>
+        </div>
+      }
+      @case (3) {
+        <div class="flex flex-col gap-3">
+          <!-- Currency -->
+          <div class="flex flex-col gap-1">
+            @for (currency of currencies(); track $index) {
+              <div
+                class="card rounded-xl p-4"
+                [ngClass]="{
+                  'selected-card': currency.isSelected,
+                }"
+                (click)="onSelectCurrency(currency.value)"
+              >
+                <p class="text-sm font-light" [class.font-semibold]="currency.isSelected">
+                  {{ currency.label }}
+                </p>
+              </div>
+            }
+          </div>
+        </div>
+      }
+      @case (4) {
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-1">
+            <label for="monthlyBudget" class="text-xs text-gray-400">Monthly Budget</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="bullseye" size="sm"></ico>
+              </span>
+              <input
+                type="number"
+                class="w-full"
+                id="monthlyBudget"
+                [placeholder]="
+                  'eg. ' + (10000 | currency: formModel.account.currency : 'symbol' : '1.0-0')
+                "
+                name="monthlyBudgetLimit"
+                [(ngModel)]="formModel.budget.limit"
+              />
+            </div>
+          </div>
+
+          <div class="flex gap-1">
+            @for (suggestion of budgetSuggestions(); track $index) {
+              <div
+                class="card rounded-full py-2 px-3 w-full"
+                [ngClass]="{ 'selected-card': suggestion.isSelected }"
+                (click)="onSelectBudgetSuggestion(suggestion.amount)"
+              >
+                <p
+                  class="text-xs font-light text-secondary text-center"
+                  [class.font-semibold]="suggestion.isSelected"
+                >
+                  {{
+                    suggestion.amount | currency: formModel.account.currency : 'symbol' : '1.0-0'
+                  }}
+                </p>
+              </div>
+            }
+          </div>
+        </div>
+      }
+      @case (5) {
+        <div class="flex flex-col gap-3">
+          <!-- Goal Name -->
+          <div class="flex flex-col gap-1">
+            <label for="goalName" class="text-xs text-gray-400">Goal Name</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="target" size="sm"></ico>
+              </span>
+              <input
+                type="text"
+                class="w-full"
+                id="goalName"
+                placeholder="Enter your goal name"
+                name="goalName"
+                [(ngModel)]="formModel.goal.name"
+              />
+            </div>
+          </div>
+          <!-- Target Amount -->
+          <div class="flex flex-col gap-1">
+            <label for="goalTarget" class="text-xs text-gray-400">Target Amount</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="dollar-sign" size="sm"></ico>
+              </span>
+              <input
+                type="number"
+                class="w-full"
+                id="goalTarget"
+                placeholder="Enter your target amount"
+                name="goalTarget"
+                [(ngModel)]="formModel.goal.target"
+              />
+            </div>
+          </div>
+          <!-- Due Date -->
+          <div class="flex flex-col gap-1">
+            <label for="goalDueDate" class="text-xs text-gray-400">Due Date</label>
+            <div class="field-wrapper">
+              <input
+                type="date"
+                class="w-full"
+                id="goalDueDate"
+                placeholder="Select due date"
+                name="goalDueDate"
+                [(ngModel)]="formModel.goal.dueDate"
+              />
+            </div>
+          </div>
+          <!-- Current Amount -->
+          <div class="flex flex-col gap-1">
+            <label for="goalCurrentAmount" class="text-xs text-gray-400">Current Amount</label>
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="dollar-sign" size="sm"></ico>
+              </span>
+              <input
+                type="number"
+                class="w-full"
+                id="goalCurrentAmount"
+                [placeholder]="
+                  'eg. ' + (5000 | currency: formModel.account.currency : 'symbol' : '1.0-0')
+                "
+                name="goalCurrentAmount"
+                [(ngModel)]="formModel.goal.currentAmount"
+              />
+            </div>
+          </div>
+        </div>
+      }
+    }
+  </div>
+  <div class="flex flex-col gap-2">
+    <button
+      severity="primary"
+      class="rounded-xl py-3 w-full flex items-center justify-center gap-2"
+      (click)="goToNextStep(false)"
+    >
+      {{ currentPage() < pages().length ? 'Continue' : 'Get started' }}
+      <ico name="right-arrow" size="sm"></ico>
+    </button>
+    @if (pages()[currentPage() - 1].skippable) {
+      <p
+        class="text-sm text-secondary font-light w-full flex items-center justify-center gap-2 cursor-pointer"
+        (click)="goToNextStep(true)"
+      >
+        <ico name="forward" size="sm"></ico>
+        <span class="text-sm font-light">Skip for now</span>
+      </p>
+    }
+  </div>
+</form>
