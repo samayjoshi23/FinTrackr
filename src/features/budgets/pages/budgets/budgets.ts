@@ -48,7 +48,9 @@ export class Budgets {
   categories = signal<Category[]>([]);
 
   monthLabel = computed(() => {
-    const monthFromBudgets = this.budgets().map((b) => (b.month ?? '').trim()).filter(Boolean);
+    const monthFromBudgets = this.budgets()
+      .map((b) => (b.month ?? '').trim())
+      .filter(Boolean);
     const first = monthFromBudgets[0];
     if (first) return first;
     return new Date().toLocaleString('en-US', { month: 'long' });
@@ -126,9 +128,9 @@ export class Budgets {
 
     try {
       const [budgets, txs, cats] = await Promise.all([
-        this.budgetsService.getBudgets(account.id ?? account.uid ?? ''),
-        this.transactionsService.getTransactionsByAccount(account.uid ?? account.id ?? ''),
-        this.categoriesService.getCategories(account.id ?? account.uid ?? ''),
+        this.budgetsService.getBudgets(),
+        this.transactionsService.getTransactions(),
+        this.categoriesService.getCategories(),
       ]);
       this.budgets.set(budgets ?? []);
       this.transactions.set(txs ?? []);
@@ -144,7 +146,6 @@ export class Budgets {
   onNewBudget() {
     this.router.navigateByUrl('/user/budgets/new');
   }
-
 
   private isInMonth(date: Date | null, monthLabel: string): boolean {
     if (!date) return false;
@@ -166,4 +167,3 @@ export class Budgets {
 
   // (intentionally no extra formatting helpers; template uses the Angular currency pipe)
 }
-

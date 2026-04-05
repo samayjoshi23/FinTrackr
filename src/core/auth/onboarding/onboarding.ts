@@ -204,7 +204,7 @@ export class Onboarding {
     }
 
     if (this.currentPage() === this.pages().length) {
-      await this.categoriesService.addDefaultCategories(this.ids().accountId);
+      await this.categoriesService.addDefaultCategories();
       const uid = this.userProfile()?.['uid'] as string;
       if (uid) {
         await this.authService.markOnboarded(uid);
@@ -281,11 +281,10 @@ export class Onboarding {
 
   private async createOrUpdateFirstBudget() {
     let budgetForm = this.rawForm.budget;
-    let currentAccount = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account;
     let budgetData: BudgetCreateInput = {
       limit: budgetForm.limit,
       month: budgetForm.month,
-      accountId: currentAccount.id,
+      accountId: this.ids().accountId,
     };
     if (this.ids().budgetId) {
       await this.budgetsService.updateBudget(this.ids().budgetId, {
@@ -300,13 +299,12 @@ export class Onboarding {
 
   private async createOrUpdateFirstGoal() {
     let goalForm = this.rawForm.goal;
-    let currentAccount = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account;
     let goalData: GoalCreateInput = {
       name: goalForm.name,
       target: goalForm.target,
       dueDate: goalForm.dueDate,
       currentAmount: goalForm.currentAmount,
-      accountId: currentAccount.id,
+      accountId: this.ids().accountId,
     };
     let goal = await this.goalsService.createGoal(goalData as GoalCreateInput);
     this.ids.set({ ...this.ids(), goalId: goal.id });

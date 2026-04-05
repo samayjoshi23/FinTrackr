@@ -26,9 +26,7 @@ export class NewGoal {
   currentAmount: number | string = 0;
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as
-      | Account
-      | null;
+    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.selectedAccount.set(account);
     this.currency.set(account?.currency ?? 'INR');
 
@@ -59,4 +57,3 @@ export class NewGoal {
     this.router.navigateByUrl('/user/goals');
   }
 }
-

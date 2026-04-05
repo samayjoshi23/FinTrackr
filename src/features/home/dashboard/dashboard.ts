@@ -43,7 +43,7 @@ export class Dashboard {
     this.currency.set(account?.currency ?? 'INR');
     console.log('selectedAccount', this.selectedAccount());
     if (this.selectedAccount()) {
-      await this.loadTransactionsForAccount(this.selectedAccount()?.uid ?? '');
+      await this.loadTransactionsForAccount();
     }
   }
 
@@ -52,9 +52,9 @@ export class Dashboard {
     this.router.navigateByUrl(`/${clean}`);
   }
 
-  private async loadTransactionsForAccount(accountId: string) {
+  private async loadTransactionsForAccount() {
     try {
-      const rows = await this.transactionsService.getTransactionsByAccount(accountId);
+      const rows = await this.transactionsService.getTransactions();
       this.recentTransactions.set(rows.slice(0, 10).map((t) => this.mapTransactionRow(t)));
       console.log('recentTransactions', this.recentTransactions());
     } catch (error) {

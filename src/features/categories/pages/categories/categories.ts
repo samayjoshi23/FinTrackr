@@ -21,8 +21,7 @@ export class Categories {
   async ngOnInit() {
     const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     if (!account) return;
-    const accountId = account.id ?? account.uid ?? '';
-    const rows = await this.categoriesService.getCategories(accountId).catch(() => []);
+    const rows = await this.categoriesService.getCategories().catch(() => []);
     this.categories.set(rows ?? []);
   }
 

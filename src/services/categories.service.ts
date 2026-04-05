@@ -19,6 +19,7 @@ import {
   CategoryUpdateInput,
   DEFAULT_CATEGORIES,
 } from '../features/categories/types';
+import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 
 const CATEGORIES_COLLECTION = 'categories';
@@ -29,20 +30,34 @@ export class CategoriesService {
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
 
-  async getCategories(accountId?: string): Promise<Category[]> {
+  private get currentAccount(): Account | null {
+    return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+  }
+
+  private selectedAccountKey(): string | null {
+    const a = this.currentAccount;
+    return a?.uid ?? a?.id ?? null;
+  }
+
+  private requireSelectedAccountKey(): string {
+    const id = this.selectedAccountKey();
+    if (!id) throw new Error('No account selected.');
+    return id;
+  }
+
+  async getCategories(): Promise<Category[]> {
     const uid = this.requireUid();
+    const accountId = this.selectedAccountKey();
+    if (!accountId) return [];
     return this.offlineCrud.fetchAll<Category>(
       'categories',
       async () => {
         const base = collection(this.firestore, CATEGORIES_COLLECTION);
-        const constraints = [where('ownerId', '==', uid)];
-        if (accountId) {
-          constraints.push(where('accountId', '==', accountId));
-        }
+        const constraints = [where('ownerId', '==', uid), where('accountId', '==', accountId)];
         const snap = await getDocs(query(base, ...constraints));
         return snap.docs.map((d) => this.mapCategory(d.id, d.data()));
       },
-      accountId ? { indexName: 'accountId', value: accountId } : undefined,
+      { indexName: 'accountId', value: accountId },
     );
   }
 
@@ -59,13 +74,14 @@ export class CategoriesService {
 
   async createCategory(data: CategoryCreateInput, userId?: string): Promise<Category> {
     const uid = userId ?? this.requireUid();
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
     return this.offlineCrud.create<Category>(
       'categories',
       'uid',
       async () => {
         const ref = await addDoc(collection(this.firestore, CATEGORIES_COLLECTION), {
           ownerId: uid,
-          accountId: data.accountId,
+          accountId,
           name: data.name.trim(),
           description: (data.description ?? '').trim(),
           icon: (data.icon ?? 'tags').trim() || 'tags',
@@ -80,7 +96,7 @@ export class CategoriesService {
       },
       {
         ownerId: uid,
-        accountId: data.accountId,
+        accountId,
         name: data.name.trim(),
         description: (data.description ?? '').trim(),
         icon: (data.icon ?? 'tags').trim() || 'tags',
@@ -105,7 +121,6 @@ export class CategoriesService {
     if (patch.description !== undefined)
       patchRecord['description'] = (patch.description ?? '').trim();
     if (patch.icon !== undefined) patchRecord['icon'] = (patch.icon ?? 'tags').trim() || 'tags';
-    if (patch.accountId !== undefined) patchRecord['accountId'] = patch.accountId;
 
     await this.offlineCrud.update<Category>(
       'categories',
@@ -156,7 +171,8 @@ export class CategoriesService {
     };
   }
 
-  async addDefaultCategories(accountId: string) {
+  async addDefaultCategories() {
+    const accountId = this.requireSelectedAccountKey();
     DEFAULT_CATEGORIES.forEach(async (category: Category) => {
       let categoryData: CategoryCreateInput = {
         name: category.name,

@@ -27,9 +27,7 @@ export class NewCategory {
   selectedIcon = 'tags';
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as
-      | Account
-      | null;
+    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.selectedAccount.set(account);
   }
 

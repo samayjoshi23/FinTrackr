@@ -33,7 +33,7 @@ export class Goals {
     if (!account) return;
     this.currency.set(account.currency ?? 'INR');
 
-    const rows = await this.goalsService.getGoals(account.id ?? account.uid ?? '').catch(() => []);
+    const rows = await this.goalsService.getGoals().catch(() => []);
     this.goals.set(rows ?? []);
   }
 

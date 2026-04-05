@@ -29,14 +29,10 @@ export class NewBudget {
   monthLabel = new Date().toLocaleString('en-US', { month: 'long' });
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as
-      | Account
-      | null;
+    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.selectedAccount.set(account);
 
-    const cats = await this.categoriesService
-      .getCategories(account?.id ?? account?.uid ?? '')
-      .catch(() => []);
+    const cats = await this.categoriesService.getCategories().catch(() => []);
     this.categories.set(cats ?? []);
     if (!this.selectedCategory && (cats?.[0]?.name ?? '')) {
       this.selectedCategory = cats[0].name;
@@ -63,4 +59,3 @@ export class NewBudget {
     this.router.navigateByUrl('/user/budgets');
   }
 }
-

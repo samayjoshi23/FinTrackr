@@ -57,8 +57,7 @@ export class AccountDetails {
         return;
       }
       this.account.set(row);
-      const aid = row.uid || row.id;
-      const txs = await this.transactionsService.getTransactionsByAccount(aid).catch(() => []);
+      const txs = await this.transactionsService.getTransactions().catch(() => []);
       this.recentActivity.set((txs ?? []).slice(0, 8));
     } catch (e) {
       console.error(e);
@@ -70,7 +69,9 @@ export class AccountDetails {
   }
 
   private refreshCurrentStored() {
-    this.currentStored.set(JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null);
+    this.currentStored.set(
+      JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null,
+    );
   }
 
   onBack() {

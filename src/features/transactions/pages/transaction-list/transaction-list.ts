@@ -114,7 +114,7 @@ export class TransactionList {
     this.currency.set(account?.currency ?? 'INR');
 
     try {
-      const cats = await this.categoriesService.getCategories(account?.id ?? account?.uid ?? '');
+      const cats = await this.categoriesService.getCategories();
       this.categories.set(cats ?? []);
     } catch {
       this.categories.set([]);
@@ -126,7 +126,7 @@ export class TransactionList {
     }
 
     try {
-      const rows = await this.transactionsService.getTransactionsByAccount(account.uid);
+      const rows = await this.transactionsService.getTransactions();
       this.transactions.set(rows);
     } catch (e) {
       console.error(e);

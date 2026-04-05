@@ -63,7 +63,7 @@ export class SettingsHome {
     let balanceSum = 0;
     for (const a of rows ?? []) {
       const aid = a.uid || a.id;
-      const txs = await this.transactionsService.getTransactionsByAccount(aid).catch(() => []);
+      const txs = await this.transactionsService.getTransactions().catch(() => []);
       txTotal += txs.length;
       balanceSum += Number(a.balance ?? 0);
     }

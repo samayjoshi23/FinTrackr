@@ -63,9 +63,7 @@ export class AddTransaction {
     let account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.selectedAccount.set(account);
     this.currency.set(account?.currency ?? 'INR');
-    let categories = await this.categoriesService.getCategories(
-      account?.id ?? account?.uid ?? '',
-    );
+    let categories = await this.categoriesService.getCategories();
     this.categories.set(categories);
     let symbolString = new CurrencyPipe('en-IN').transform(
       0,

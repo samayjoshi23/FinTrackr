@@ -35,17 +35,30 @@ export class TransactionsService {
     return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
   }
 
+  /** Firestore `accountId` on child docs — matches selected account (`uid`, then `id`). */
+  private selectedAccountKey(): string | null {
+    const a = this.currentAccount;
+    return a?.uid ?? a?.id ?? null;
+  }
+
+  private requireSelectedAccountKey(): string {
+    const id = this.selectedAccountKey();
+    if (!id) throw new Error('No account selected.');
+    return id;
+  }
+
   async createTransaction(
     data: TransactionCreateInput,
     userId?: string,
   ): Promise<TransactionRecord> {
     const uid = userId ?? this.requireUid();
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
     return this.offlineCrud.create<TransactionRecord>(
       'transactions',
       'uid',
       async () => {
         const ref = await addDoc(collection(this.firestore, TRANSACTIONS_COLLECTION), {
-          accountId: data.accountId,
+          accountId,
           amount: Number(data.amount),
           description: data.description?.trim() ?? '',
           category: data.category?.trim() ?? '',
@@ -63,7 +76,7 @@ export class TransactionsService {
         return row;
       },
       {
-        accountId: data.accountId,
+        accountId,
         amount: Number(data.amount),
         description: data.description?.trim() ?? '',
         category: data.category?.trim() ?? '',
@@ -81,7 +94,9 @@ export class TransactionsService {
       'transactions',
       transactionId,
       async () => {
-        const snap = await getDoc(doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`));
+        const snap = await getDoc(
+          doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`),
+        );
         if (!snap.exists()) return null;
         return this.mapTransaction(snap.id, snap.data());
       },
@@ -92,7 +107,6 @@ export class TransactionsService {
     }
 
     const patchRecord: Record<string, unknown> = {};
-    if (patch.accountId !== undefined) patchRecord['accountId'] = patch.accountId;
     if (patch.amount !== undefined) patchRecord['amount'] = Number(patch.amount);
     if (patch.description !== undefined) patchRecord['description'] = patch.description.trim();
     if (patch.category !== undefined) patchRecord['category'] = patch.category?.trim() ?? '';
@@ -121,61 +135,39 @@ export class TransactionsService {
   }
 
   async deleteTransaction(transactionId: string): Promise<void> {
-    await this.offlineCrud.remove(
-      'transactions',
-      transactionId,
-      async () => {
-        const uid = this.requireUid();
-        const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
-        const existing = await getDoc(transactionRef);
-        if (!existing.exists() || existing.data()['ownerId'] !== uid) {
-          throw new Error('Transaction not found or access denied.');
-        }
-        await deleteDoc(transactionRef);
-      },
-    );
+    await this.offlineCrud.remove('transactions', transactionId, async () => {
+      const uid = this.requireUid();
+      const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
+      const existing = await getDoc(transactionRef);
+      if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+        throw new Error('Transaction not found or access denied.');
+      }
+      await deleteDoc(transactionRef);
+    });
   }
 
   async getTransaction(transactionId: string): Promise<TransactionRecord | null> {
     if (!this.currentAccount) return null;
-    return this.offlineCrud.fetchOne<TransactionRecord>(
-      'transactions',
-      transactionId,
-      async () => this.getTransactionDirect(transactionId),
+    return this.offlineCrud.fetchOne<TransactionRecord>('transactions', transactionId, async () =>
+      this.getTransactionDirect(transactionId),
     );
   }
 
   async getTransactions(): Promise<TransactionRecord[]> {
-    if (!this.currentAccount) return [];
+    const accountKey = this.selectedAccountKey();
+    if (!accountKey) return [];
     const results = await this.offlineCrud.fetchAll<TransactionRecord>(
       'transactions',
       async () => {
         const snap = await getDocs(
           query(
             collection(this.firestore, TRANSACTIONS_COLLECTION),
-            where('accountId', '==', this.currentAccount!.uid),
+            where('accountId', '==', accountKey),
           ),
         );
         return this.sortByCreatedAtDesc(snap.docs.map((d) => this.mapTransaction(d.id, d.data())));
       },
-      { indexName: 'accountId', value: this.currentAccount.uid },
-    );
-    return this.sortByCreatedAtDesc(results);
-  }
-
-  async getTransactionsByAccount(accountId: string): Promise<TransactionRecord[]> {
-    const results = await this.offlineCrud.fetchAll<TransactionRecord>(
-      'transactions',
-      async () => {
-        const snap = await getDocs(
-          query(
-            collection(this.firestore, TRANSACTIONS_COLLECTION),
-            where('accountId', '==', accountId),
-          ),
-        );
-        return this.sortByCreatedAtDesc(snap.docs.map((d) => this.mapTransaction(d.id, d.data())));
-      },
-      { indexName: 'accountId', value: accountId },
+      { indexName: 'accountId', value: accountKey },
     );
     return this.sortByCreatedAtDesc(results);
   }
@@ -188,12 +180,13 @@ export class TransactionsService {
   async createRecurringTransaction(
     data: RecurringTransactionCreateInput,
   ): Promise<RecurringTransactionRecord> {
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
     return this.offlineCrud.create<RecurringTransactionRecord>(
       'recurring-transactions',
       'uid',
       async () => {
         const ref = await addDoc(collection(this.firestore, RECURRING_TRANSACTIONS_COLLECTION), {
-          accountId: data.accountId,
+          accountId,
           transactionId: data.transactionId,
           lastPaymentDate: data.lastPaymentDate,
           nextPaymentDate: data.nextPaymentDate,
@@ -207,7 +200,7 @@ export class TransactionsService {
         return row;
       },
       {
-        accountId: data.accountId,
+        accountId,
         transactionId: data.transactionId,
         lastPaymentDate: data.lastPaymentDate,
         nextPaymentDate: data.nextPaymentDate,
@@ -228,12 +221,13 @@ export class TransactionsService {
   // ─── Direct Firestore reads (bypass offline layer, used after creates) ───
 
   private async getTransactionDirect(transactionId: string): Promise<TransactionRecord | null> {
-    if (!this.currentAccount) return null;
+    const expected = this.selectedAccountKey();
+    if (!expected) return null;
     const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
     const snap = await getDoc(transactionRef);
     if (!snap.exists()) return null;
     const data = snap.data();
-    if (data['accountId'] !== this.currentAccount.uid) return null;
+    if (data['accountId'] !== expected) return null;
     return this.mapTransaction(snap.id, data);
   }
 
