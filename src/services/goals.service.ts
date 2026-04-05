@@ -13,6 +13,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Goal, GoalCreateInput, GoalUpdateInput } from '../shared/models/goal.model';
+import { OfflineCrudService } from '../core/offline/offline-crud.service';
 
 const GOALS_COLLECTION = 'goals';
 
@@ -20,62 +21,124 @@ const GOALS_COLLECTION = 'goals';
 export class GoalsService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
+  private readonly offlineCrud = inject(OfflineCrudService);
 
   async createGoal(data: GoalCreateInput, userId?: string): Promise<Goal> {
     const uid = userId ?? this.requireUid();
-    const ref = await addDoc(collection(this.firestore, GOALS_COLLECTION), {
-      ownerId: uid,
-      accountId: data.accountId,
-      name: data.name.trim(),
-      target: Number(data.target),
-      dueDate: data.dueDate,
-      currentAmount: Number(data.currentAmount),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    const goal = await this.getGoal(ref.id);
-    if (!goal) {
-      throw new Error('Failed to read goal after creation.');
-    }
-    return goal;
+    return this.offlineCrud.create<Goal>(
+      'goals',
+      'id',
+      async () => {
+        const ref = await addDoc(collection(this.firestore, GOALS_COLLECTION), {
+          ownerId: uid,
+          accountId: data.accountId,
+          name: data.name.trim(),
+          target: Number(data.target),
+          dueDate: data.dueDate,
+          currentAmount: Number(data.currentAmount),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        const goal = await this.getGoalDirect(ref.id, uid);
+        if (!goal) {
+          throw new Error('Failed to read goal after creation.');
+        }
+        return goal;
+      },
+      {
+        ownerId: uid,
+        accountId: data.accountId,
+        name: data.name.trim(),
+        target: Number(data.target),
+        dueDate: data.dueDate,
+        currentAmount: Number(data.currentAmount),
+      },
+    );
   }
 
   async updateGoal(goalId: string, patch: GoalUpdateInput): Promise<void> {
     const uid = this.requireUid();
-    const goalRef = doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`);
-    const existing = await getDoc(goalRef);
-    if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+    const cached = await this.offlineCrud.fetchOne<Goal>(
+      'goals',
+      goalId,
+      async () => {
+        const snap = await getDoc(doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`));
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        if (data['ownerId'] !== uid) return null;
+        return this.mapGoal(snap.id, data);
+      },
+    );
+
+    if (!cached) {
       throw new Error('Goal not found or access denied.');
     }
 
-    const updates: Record<string, unknown> = {
-      updatedAt: serverTimestamp(),
-    };
-    if (patch.name !== undefined) updates['name'] = patch.name.trim();
-    if (patch.target !== undefined) updates['target'] = Number(patch.target);
-    if (patch.dueDate !== undefined) updates['dueDate'] = patch.dueDate;
-    if (patch.currentAmount !== undefined) updates['currentAmount'] = Number(patch.currentAmount);
-    await updateDoc(goalRef, updates);
+    const patchRecord: Record<string, unknown> = {};
+    if (patch.name !== undefined) patchRecord['name'] = patch.name.trim();
+    if (patch.target !== undefined) patchRecord['target'] = Number(patch.target);
+    if (patch.dueDate !== undefined) patchRecord['dueDate'] = patch.dueDate;
+    if (patch.currentAmount !== undefined) patchRecord['currentAmount'] = Number(patch.currentAmount);
+
+    await this.offlineCrud.update<Goal>(
+      'goals',
+      goalId,
+      async () => {
+        const goalRef = doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`);
+        const existing = await getDoc(goalRef);
+        if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+          throw new Error('Goal not found or access denied.');
+        }
+        const updates: Record<string, unknown> = {
+          updatedAt: serverTimestamp(),
+          ...patchRecord,
+        };
+        await updateDoc(goalRef, updates);
+      },
+      patchRecord,
+      cached as unknown as Record<string, unknown>,
+    );
   }
 
   async getGoal(goalId: string): Promise<Goal | null> {
+    return this.offlineCrud.fetchOne<Goal>(
+      'goals',
+      goalId,
+      async () => {
+        const uid = this.requireUid();
+        const snap = await getDoc(doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`));
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        if (data['ownerId'] !== uid) return null;
+        return this.mapGoal(snap.id, data);
+      },
+    );
+  }
+
+  async getGoals(accountId?: string): Promise<Goal[]> {
     const uid = this.requireUid();
+    return this.offlineCrud.fetchAll<Goal>(
+      'goals',
+      async () => {
+        const base = collection(this.firestore, GOALS_COLLECTION);
+        const constraints = [where('ownerId', '==', uid)];
+        if (accountId) {
+          constraints.push(where('accountId', '==', accountId));
+        }
+        const snap = await getDocs(query(base, ...constraints));
+        return snap.docs.map((d) => this.mapGoal(d.id, d.data()));
+      },
+      accountId ? { indexName: 'accountId', value: accountId } : undefined,
+    );
+  }
+
+  /** Direct Firestore read bypassing offline layer (used internally after create). */
+  private async getGoalDirect(goalId: string, uid: string): Promise<Goal | null> {
     const snap = await getDoc(doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`));
     if (!snap.exists()) return null;
     const data = snap.data();
     if (data['ownerId'] !== uid) return null;
     return this.mapGoal(snap.id, data);
-  }
-
-  async getGoals(accountId?: string): Promise<Goal[]> {
-    const uid = this.requireUid();
-    const base = collection(this.firestore, GOALS_COLLECTION);
-    const constraints = [where('ownerId', '==', uid)];
-    if (accountId) {
-      constraints.push(where('accountId', '==', accountId));
-    }
-    const snap = await getDocs(query(base, ...constraints));
-    return snap.docs.map((d) => this.mapGoal(d.id, d.data()));
   }
 
   private requireUid(): string {

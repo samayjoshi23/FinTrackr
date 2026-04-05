@@ -9,8 +9,10 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
+import { provideIndexedDb } from 'ngx-indexed-db';
 import { environment } from '../environment/environment';
 import { authInterceptor } from '../core/interceptors/auth.interceptor';
+import { indexedDbConfig } from '../core/offline/indexed-db.config';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -31,5 +33,6 @@ export const appConfig: ApplicationConfig = {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),
+    provideIndexedDb(indexedDbConfig),
   ],
 };

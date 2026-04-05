@@ -1,0 +1,104 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold title-font">Budgets &amp; Goals</h1>
+    <div
+      class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
+      (click)="onNewBudget()"
+      aria-label="New category"
+    >
+      <ico name="plus" size="md"></ico>
+    </div>
+  </div>
+
+  @if (budgets().length === 0) {
+    <div class="card rounded-2xl p-4 flex flex-col gap-2">
+      <p class="text-sm font-light">No budgets yet</p>
+      <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
+        Create your first budget
+      </button>
+    </div>
+  } @else {
+    <!-- Summary -->
+    <div class="bg-primary-light rounded-2xl p-4 flex flex-col gap-3">
+      <div class="flex items-end justify-between">
+        <p class="text-xs font-light">{{ summary().monthLabel }} Budget</p>
+        <div class="flex items-center gap-2">
+          <p class="text-xs font-light"></p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <p class="text-3xl font-medium title-font">
+          {{ summary().totalLimit | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+        </p>
+        <div class="text-xs font-light flex items-center gap-2">
+          <span>
+            / {{ summary().totalSpent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
+          </span>
+        </div>
+      </div>
+
+      <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
+        @if (summary().totalLimit > 0) {
+          <div
+            class="h-full rounded-full"
+            [class.bg-green-600]="summary().totalSpent <= summary().totalLimit"
+            [class.bg-red-600]="summary().totalSpent > summary().totalLimit"
+            [style.width.%]="(summary().totalSpent / summary().totalLimit) * 100"
+          ></div>
+        }
+      </div>
+
+      <div class="flex justify-between text-xs font-light">
+        <span>
+          {{ summary().remainingDisplay | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+          remaining · {{ summary().daysLeft }} days left
+        </span>
+      </div>
+    </div>
+
+    <!-- By Category -->
+    <p class="text-sm title-font font-medium">By Category</p>
+
+    <div class="flex flex-col gap-3">
+      @for (card of categoryCards(); track card.category) {
+        <div class="card rounded-2xl p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
+                <ico [name]="card.icon" size="md" class="text-primary"></ico>
+              </div>
+              <p class="text-sm font-semibold title-font">{{ card.category }}</p>
+            </div>
+            <p
+              class="text-sm title-font font-semibold"
+              [class.text-green-600]="card.status === 'under'"
+              [class.text-red-600]="card.status === 'over'"
+            >
+              {{ card.percent }}%
+            </p>
+          </div>
+
+          <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
+            <div
+              class="h-full rounded-full"
+              [class.bg-green-600]="card.status === 'under'"
+              [class.bg-red-600]="card.status === 'over'"
+              [style.width.%]="card.percent"
+            ></div>
+          </div>
+
+          <div class="flex justify-between text-xs text-secondary font-light">
+            <span>
+              {{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+            </span>
+            <span>
+              {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,11 @@
+/* Keep budgets screen aligned with other transaction pages. */
+.bg-secondary-light {
+  background-color: color-mix(in srgb, var(--color-secondary) 20%, transparent);
+}
+
+/* Ensure currency amount text doesn't wrap awkwardly on narrow screens. */
+/* Tailwind handles most spacing; this is just a small safeguard. */
+.rounded-2xl {
+  overflow: hidden;
+}
+

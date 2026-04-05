@@ -18,6 +18,12 @@ import { BudgetsService } from '../../../services/budgets.service';
 import { GoalsService } from '../../../services/goals.service';
 import { BudgetCreateInput } from '../../../shared/models/budget.model';
 import { GoalCreateInput } from '../../../shared/models/goal.model';
+import {
+  Category,
+  CategoryCreateInput,
+  DEFAULT_CATEGORIES,
+} from '../../../features/categories/types';
+import { CategoriesService } from '../../../services/categories.service';
 
 @Component({
   selector: 'app-onboarding',
@@ -33,7 +39,7 @@ export class Onboarding {
   private readonly authService = inject(AuthService);
   private readonly profileUploadService = inject(ProfileUploadService);
   private readonly router = inject(Router);
-
+  private readonly categoriesService = inject(CategoriesService);
   // State
   userProfile = signal<UserProfile | null>(null);
   formModel = {
@@ -154,7 +160,7 @@ export class Onboarding {
     this.currentPage.set(this.currentPage() - 1);
   }
 
-  goToNextStep(isSkipping: boolean = false) {
+  async goToNextStep(isSkipping: boolean = false) {
     if (!isSkipping) {
       switch (this.currentPage()) {
         case 1:
@@ -198,7 +204,12 @@ export class Onboarding {
     }
 
     if (this.currentPage() === this.pages().length) {
-      this.router.navigateByUrl('/dashboard');
+      await this.categoriesService.addDefaultCategories(this.ids().accountId);
+      const uid = this.userProfile()?.['uid'] as string;
+      if (uid) {
+        await this.authService.markOnboarded(uid);
+      }
+      this.router.navigateByUrl('/user/dashboard');
     }
     this.currentPage.set(this.currentPage() + 1);
   }
@@ -218,8 +229,8 @@ export class Onboarding {
   }
 
   private async updateUserProfile() {
-    let uid = localStorage.getItem('userId');
-    if (!uid) this.router.navigateByUrl('/login');
+    let profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    if (!profile?.['uid']) this.router.navigateByUrl('/login');
     this.userProfile.set({
       ...this.userProfile(),
       photoURL: this.rawForm.user.profilePicture,
@@ -256,10 +267,11 @@ export class Onboarding {
 
     let account = null;
     if (this.ids().accountId) {
-      account = await this.accountsService.updateAccount(
+      await this.accountsService.updateAccount(
         this.ids().accountId,
         accountData as AccountUpdateInput,
       );
+      account = await this.accountsService.getAccount(this.ids().accountId);
     } else {
       account = await this.accountsService.createAccount(accountData as AccountCreateInput);
       this.ids.set({ ...this.ids(), accountId: account.id });

@@ -1,6 +1,15 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs/operators';
 import { Icon } from '../icon/icon';
-import { Router } from '@angular/router';
+
+export interface SnackbarTab {
+  name: string;
+  path: string;
+  icon: string;
+  selected: boolean;
+}
 
 @Component({
   selector: 'app-snackbar',
@@ -9,7 +18,8 @@ import { Router } from '@angular/router';
   styleUrl: './snackbar.css',
 })
 export class Snackbar {
-  readonly router = inject(Router);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   routes = signal<{ name: string; path: string; icon: string; selected: boolean }[]>([
     {
@@ -20,7 +30,7 @@ export class Snackbar {
     },
     {
       name: 'Transactions',
-      path: '/user/transactions',
+      path: '/user/transactions/list',
       icon: 'arrow-right-left',
       selected: false,
     },
@@ -44,8 +54,44 @@ export class Snackbar {
     },
   ]);
 
-  onChangeRoute(route: string) {
-    this.routes.update((routes) => routes.map((r) => ({ ...r, selected: r.path === route })));
-    this.router.navigateByUrl(route);
+  constructor() {
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.syncSelection(this.router.url));
+
+    this.syncSelection(this.router.url);
+  }
+
+  private syncSelection(rawUrl: string): void {
+    const url = rawUrl.split('?')[0] ?? '';
+    const home = url.includes('/dashboard');
+    const transactions = url.includes('/transactions');
+    const settings = url.includes('/settings');
+    const groups = url.includes('/groups');
+
+    this.routes.update((tabs) =>
+      tabs.map((t) => {
+        if (!t.path) return { ...t, selected: false };
+        let selected = false;
+        if (t.path === '/user/dashboard') selected = home;
+        else if (t.path === '/user/transactions/list') selected = transactions;
+        else if (t.path === '/user/settings') selected = settings;
+        else if (t.path === '/user/groups') selected = groups;
+        return { ...t, selected };
+      }),
+    );
+  }
+
+  onTabClick(path: string): void {
+    if (!path?.trim()) return;
+    void this.router.navigateByUrl(path);
+  }
+
+  openAddTransaction(event: Event): void {
+    event.stopPropagation();
+    void this.router.navigateByUrl('/user/transactions/add');
   }
 }

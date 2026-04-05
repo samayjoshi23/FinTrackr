@@ -40,9 +40,9 @@ export class Login {
       const { email, password } = this.loginForm.getRawValue();
       const normalizedEmail = email ?? '';
       const normalizedPassword = password ?? '';
-      await this.authService.loginWithEmail(normalizedEmail, normalizedPassword);
+      const user = await this.authService.loginWithEmail(normalizedEmail, normalizedPassword);
       this.notifier.success('Logged in successfully.');
-      await this.router.navigateByUrl('/user/dashboard');
+      await this.navigateAfterAuth(user.uid);
     } catch (error) {
       this.notifier.error(this.getErrorMessage(error));
     } finally {
@@ -54,13 +54,22 @@ export class Login {
     this.isSubmitting.set(true);
 
     try {
-      await this.authService.loginWithGoogle();
+      const user = await this.authService.loginWithGoogle();
       this.notifier.success('Google login successful.');
-      await this.router.navigateByUrl('/user/dashboard');
+      await this.navigateAfterAuth(user.uid);
     } catch (error) {
       this.notifier.error(this.getErrorMessage(error));
     } finally {
       this.isSubmitting.set(false);
+    }
+  }
+
+  private async navigateAfterAuth(uid: string) {
+    const isOnboarded = await this.authService.checkOnboardingStatus(uid);
+    if (isOnboarded) {
+      await this.router.navigateByUrl('/user/dashboard');
+    } else {
+      await this.router.navigateByUrl('/onboarding');
     }
   }
 

@@ -1,0 +1,6 @@
+/* Keep consistent sizing with other form pages. */
+.field-wrapper input[type='text'],
+.field-wrapper input[type='number'] {
+  position: static;
+}
+

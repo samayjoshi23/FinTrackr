@@ -1,0 +1,163 @@
+<div class="w-full h-dvh flex flex-col p-4 md:p-5 gap-5 overflow-y-auto pb-15">
+  <h1 class="text-2xl font-semibold title-font text-center">Settings</h1>
+
+  <!-- Profile -->
+  <div class="flex flex-col items-center gap-2">
+    <div
+      class="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-xl font-semibold text-[var(--color-bg-elevated)] title-font"
+    >
+      {{ initials() }}
+    </div>
+    <p class="text-lg font-semibold title-font">{{ userProfile()?.['displayName'] || 'User' }}</p>
+    <p class="text-sm text-secondary font-light">Premium Member</p>
+  </div>
+
+  <!-- Summary -->
+  <div class="card rounded-2xl p-4 grid grid-cols-3 gap-2 text-center">
+    <div class="flex flex-col items-center gap-1">
+      <ico name="office-building" size="sm" class="text-secondary"></ico>
+      <span class="text-xs text-secondary font-light">Accounts</span>
+      <span class="text-sm font-semibold title-font">{{ accounts().length }}</span>
+    </div>
+    <div class="flex flex-col items-center gap-1">
+      <ico name="credit-card" size="sm" class="text-secondary"></ico>
+      <span class="text-xs text-secondary font-light">Transactions</span>
+      <span class="text-sm font-semibold title-font">{{ totalTransactions() }}</span>
+    </div>
+    <div class="flex flex-col items-center gap-1">
+      <ico name="dollar-sign" size="sm" class="text-secondary"></ico>
+      <span class="text-xs text-secondary font-light">Balance</span>
+      <span class="text-sm font-semibold text-primary">
+        {{
+          totalBalance() | currency: currentAccount()?.currency ?? 'USD' : 'symbol-narrow' : '1.0-0'
+        }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Personal info -->
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm title-font font-medium">Personal Information</h2>
+      <a href="#" class="text-xs text-primary flex items-center gap-1">
+        <ico name="pencil" size="xs"></ico>
+        Edit
+      </a>
+    </div>
+    <div class="card rounded-2xl p-4 flex flex-col gap-4">
+      <div class="flex gap-3">
+        <ico name="user" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <span class="text-xs text-secondary font-light">Full Name</span>
+          <span class="text-sm font-medium truncate">{{
+            userProfile()?.['displayName'] || '—'
+          }}</span>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <ico name="envelope" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <span class="text-xs text-secondary font-light">Email</span>
+          <span class="text-sm font-medium truncate">{{ userProfile()?.['email'] || '—' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme -->
+  <div class="flex flex-col gap-2">
+    <h2 class="text-sm title-font font-medium">Theme</h2>
+    <div class="grid grid-cols-3 gap-2">
+      <div
+        class="card rounded-xl py-3 px-2 flex items-center justify-center gap-1 text-xs font-medium cursor-pointer text-secondary"
+        [class.selected-card]="isThemeActive('dark')"
+        (click)="setTheme('dark')"
+      >
+        <ico name="moon" size="sm"></ico>
+        <span>Dark</span>
+      </div>
+      <div
+        class="card rounded-xl py-3 px-2 flex items-center justify-center gap-1 text-xs font-medium cursor-pointer text-secondary"
+        [class.selected-card]="isThemeActive('light')"
+        (click)="setTheme('light')"
+      >
+        <ico name="sun" size="sm"></ico>
+        <span>Light</span>
+      </div>
+      <div
+        class="card rounded-xl py-3 px-2 flex items-center justify-center gap-1 text-xs font-medium cursor-pointer text-secondary"
+        [class.selected-card]="isThemeActive('system')"
+        (click)="setTheme('system')"
+      >
+        <ico name="mobile-phone" size="sm"></ico>
+        <span>System</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage accounts -->
+  <div class="flex flex-col gap-2">
+    <h2 class="text-sm title-font font-medium">Manage Accounts</h2>
+    <div class="flex flex-col gap-2">
+      @for (a of accounts(); track a.id) {
+        <div
+          class="card rounded-2xl p-4 flex items-center gap-3 w-full text-left border-0 cursor-pointer"
+          (click)="openAccount(a)"
+        >
+          <div class="flex items-center justify-center">
+            <ico name="bank" size="md" class="text-secondary"></ico>
+          </div>
+          <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+            <span class="text-sm font-semibold">{{ a.name }}</span>
+          </div>
+          <div class="flex flex-col items-end gap-0.5 shrink-0">
+            <span class="text-sm font-semibold" [ngClass]="balanceClass(a)">
+              {{ a.balance | currency: a.currency : 'symbol-narrow' : '1.0-0' }}
+            </span>
+          </div>
+          <ico name="chevron-right" size="sm" class="text-secondary shrink-0"></ico>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- General -->
+  <div class="flex flex-col gap-2">
+    <h2 class="text-sm title-font font-medium">General</h2>
+    <div
+      routerLink="/user/settings/notifications"
+      class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
+    >
+      <div class="rounded-xl flex items-center justify-center shrink-0">
+        <ico name="bell" size="md" class="text-secondary"></ico>
+      </div>
+      <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+        <span class="text-sm font-semibold">Notifications</span>
+        <span class="text-xs text-secondary font-light">Manage alert preferences</span>
+      </div>
+      <ico name="chevron-right" size="sm" class="text-secondary"></ico>
+    </div>
+    <div
+      routerLink="/user/settings/privacy"
+      class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
+    >
+      <div class="rounded-xl flex items-center justify-center shrink-0">
+        <ico name="lock" size="md" class="text-secondary"></ico>
+      </div>
+      <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+        <span class="text-sm font-semibold">Privacy & Security</span>
+        <span class="text-xs text-secondary font-light">Password, 2FA settings</span>
+      </div>
+      <ico name="chevron-right" size="sm" class="text-secondary"></ico>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold"
+    (click)="logout()"
+  >
+    <ico name="exit" size="sm"></ico>
+    <span>Log out</span>
+  </button>
+</div>

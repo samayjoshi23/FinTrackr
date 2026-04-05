@@ -2,25 +2,25 @@ export const quickActions = [
   {
     label: 'Budget',
     icon: 'bullseye',
-    link: '/budgets',
-    themeClass: 'button-orange',
+    link: 'user/budgets',
+    themeClass: 'button-amber',
   },
   {
     label: 'Goals',
     icon: 'crosshair',
-    link: '/goals',
+    link: 'user/goals',
     themeClass: 'button-violet',
   },
   {
     label: 'Categories',
     icon: 'tags',
-    link: '/categories',
+    link: 'user/categories',
     themeClass: 'button-yellow',
   },
   {
     label: 'Reports',
     icon: 'bar-graph',
-    link: '/reports',
+    link: 'user/reports',
     themeClass: 'button-blue',
   },
 ];

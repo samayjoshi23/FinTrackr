@@ -1,12 +1,13 @@
 :root {
   /* Light theme (default) using Tailwind tokens */
+  --color-tertiary: rgb(255, 255, 255);
   --color-bg: var(--color-slate-50);
-  --color-bg-elevated: var(--color-slate-200);
+  --color-bg-elevated: rgb(236, 237, 243);
   --color-text: var(--color-slate-900);
   --color-text-muted: var(--color-slate-400);
   --color-placeholder: var(--color-slate-500);
   --color-primary: var(--color-emerald-600);
-  --color-secondary: var(--color-slate-600);
+  --color-secondary: var(--color-slate-500);
   --color-secondary-hover: var(--color-slate-600);
   --color-primary-hover: var(--color-emerald-600);
   --color-primary-soft: color-mix(in srgb, var(--color-emerald-600) 20%, transparent);
@@ -38,8 +39,9 @@
 
 .theme-dark {
   /* Dark theme overrides using Tailwind tokens */
+  --color-tertiary: rgb(0, 0, 0);
   --color-bg: var(--color-slate-950);
-  --color-bg-elevated: var(--color-slate-800);
+  --color-bg-elevated: rgb(23, 32, 48);
   --color-text: var(--color-slate-50);
   --color-text-muted: var(--color-slate-400);
   --color-placeholder: var(--color-slate-500);
@@ -83,7 +85,7 @@
 }
 
 .theme-dark .button-orange {
-  background-color: color-mix(in srgb, var(--color-orange-600) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-orange-600) 30%, transparent);
   color: var(--color-orange-400);
 }
 
@@ -94,7 +96,7 @@
 }
 
 .theme-dark .button-violet {
-  background-color: color-mix(in srgb, var(--color-violet-600) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-violet-600) 30%, transparent);
   color: var(--color-violet-400);
 }
 
@@ -105,8 +107,19 @@
 }
 
 .theme-dark .button-yellow {
-  background-color: color-mix(in srgb, var(--color-yellow-600) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-yellow-600) 30%, transparent);
   color: var(--color-yellow-400);
+}
+
+/* Amber */
+.button-amber {
+  background-color: color-mix(in srgb, var(--color-amber-400) 20%, transparent);
+  color: var(--color-amber-500);
+}
+
+.theme-dark .button-amber {
+  background-color: color-mix(in srgb, var(--color-amber-600) 30%, transparent);
+  color: var(--color-amber-400);
 }
 
 /* Blue */
@@ -115,7 +128,7 @@
   color: var(--color-blue-500);
 }
 .theme-dark .button-blue {
-  background-color: color-mix(in srgb, var(--color-blue-600) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-blue-600) 30%, transparent);
   color: var(--color-blue-400);
 }
 
@@ -126,8 +139,112 @@
 }
 
 .theme-dark .button-red {
-  background-color: color-mix(in srgb, var(--color-red-600) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-red-600) 30%, transparent);
   color: var(--color-red-400);
 }
 
+.button-primary {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+.theme-dark .button-primary {
+  background-color: var(--color-primary);
+  color: var(--color-black);
+}
+
+.button-secondary {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-black);
+}
+
+.theme-dark .button-secondary {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-white);
+}
+
 /* ============= End of Other Colors ============= */
+
+/* ================= Theme Toggle Switch (checkbox-based) =================
+   Usage (example):
+   <label class="theme-switch">
+     <input type="checkbox" class="theme-switch__checkbox" id="theme-switch" />
+     <span class="theme-switch__track">
+       <span class="theme-switch__thumb"></span>
+     </span>
+     <span class="theme-switch__label">Dark</span>
+   </label>
+   CSS assumes: `input:checked` means "dark" (thumb moves right).
+   The visual styling is handled by variables, so it automatically adapts
+   once your JS toggles `body.theme-dark`.
+   ====================================================================== */
+
+.theme-switch {
+  position: relative;
+  left: 0;
+  top: 0;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.theme-switch__checkbox {
+  /* Keep checkbox accessible, but hide native UI */
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.theme-switch__track {
+  width: 2.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background-color: var(--color-secondary-light, #bdbdbd);
+  border: 1px solid var(--color-border-strong, #d1d5db);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  position: relative;
+}
+
+.theme-switch__thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  background-color: var(--color-text, #111827);
+  position: absolute;
+  top: 50%;
+  left: 0.2rem;
+  transform: translateY(-50%);
+  transition:
+    left 0.22s ease,
+    background-color 0.2s ease;
+}
+
+.theme-switch__label {
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-text, #111827);
+}
+
+/* Checked state (dark) */
+.theme-switch__checkbox:checked ~ .theme-switch__track {
+  background-color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.theme-switch__checkbox:checked ~ .theme-switch__track .theme-switch__thumb {
+  left: calc(100% - 1rem);
+  background-color: var(--color-primary);
+}
+
+/* Keyboard focus */
+.theme-switch__checkbox:focus-visible ~ .theme-switch__track {
+  box-shadow:
+    0 0 0 3px var(--color-primary-soft),
+    0 10px 15px rgba(15, 23, 42, 0.15);
+}

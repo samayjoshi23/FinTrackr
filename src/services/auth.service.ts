@@ -1,4 +1,11 @@
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  Injector,
+  inject,
+  runInInjectionContext,
+  signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import {
   Auth,
@@ -14,6 +21,7 @@ import {
 } from '@angular/fire/auth';
 import { Firestore, doc, getDoc, serverTimestamp, setDoc } from '@angular/fire/firestore';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SyncService } from '../core/offline/sync.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -22,6 +30,8 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly googleProvider = new GoogleAuthProvider();
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly syncService = inject(SyncService);
 
   readonly user$ = user(this.auth);
   userProfile = signal<UserProfile | null>(null);
@@ -96,9 +106,14 @@ export class AuthService {
 
   async logout() {
     await signOut(this.auth);
+    // Clear IndexedDB cached data and sync queue
+    await this.syncService.clearAllData();
     localStorage.removeItem('userProfile');
+    localStorage.removeItem('currentAccount');
+    localStorage.removeItem('userId');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('isOnboarded');
     await this.router.navigateByUrl('/login');
   }
 
@@ -106,6 +121,32 @@ export class AuthService {
     const userRef = doc(this.firestore, `users/${uid}`);
     const userDoc = await getDoc(userRef);
     return userDoc.data();
+  }
+
+  /**
+   * Checks whether the user has completed onboarding by reading the Firestore
+   * user doc. Caches the result in localStorage for offline / fast access.
+   */
+  async checkOnboardingStatus(uid: string): Promise<boolean> {
+    try {
+      const profile = await this.getUserProfile(uid);
+      const onboarded = profile?.['isOnboarded'] === true;
+      localStorage.setItem('isOnboarded', JSON.stringify(onboarded));
+      return onboarded;
+    } catch {
+      // Offline or Firestore error — fall back to cached value
+      const cached = localStorage.getItem('isOnboarded');
+      return cached ? JSON.parse(cached) === true : false;
+    }
+  }
+
+  /**
+   * Marks the user as fully onboarded in Firestore and localStorage.
+   */
+  async markOnboarded(uid: string): Promise<void> {
+    const userRef = doc(this.firestore, `users/${uid}`);
+    await setDoc(userRef, { isOnboarded: true, updatedAt: serverTimestamp() }, { merge: true });
+    localStorage.setItem('isOnboarded', 'true');
   }
 
   public async upsertUserProfile(userData: {
@@ -118,28 +159,36 @@ export class AuthService {
     const userRef = doc(this.firestore, `users/${userData.uid}`);
     const existingUser = await getDoc(userRef);
 
-    await setDoc(
-      userRef,
-      {
-        uid: userData.uid,
-        email: userData.email,
-        displayName: userData.displayName,
-        photoURL: userData.photoURL,
-        provider: userData.provider,
-        updatedAt: serverTimestamp(),
-        createdAt: existingUser.exists() ? existingUser.data()['createdAt'] : serverTimestamp(),
-      },
-      { merge: true },
-    );
+    const data: Record<string, unknown> = {
+      uid: userData.uid,
+      email: userData.email,
+      displayName: userData.displayName,
+      photoURL: userData.photoURL,
+      provider: userData.provider,
+      updatedAt: serverTimestamp(),
+      createdAt: existingUser.exists() ? existingUser.data()['createdAt'] : serverTimestamp(),
+    };
+
+    // Only set isOnboarded to false on brand-new users (never overwrite if already true)
+    if (!existingUser.exists()) {
+      data['isOnboarded'] = false;
+    }
+
+    await setDoc(userRef, data, { merge: true });
   }
 
   private setUserProfile() {
     this.user$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(async (user) => {
       if (user) {
-        const userProfile = await this.getUserProfile(user.uid);
+        const userProfile = await runInInjectionContext(this.injector, () =>
+          this.getUserProfile(user.uid),
+        );
         localStorage.setItem('userProfile', JSON.stringify(userProfile));
-        localStorage.setItem('accessToken', (await user.getIdToken()) ?? '');
-        localStorage.setItem('refreshToken', (await user.refreshToken) ?? '');
+        const idToken = await runInInjectionContext(this.injector, () => user.getIdToken());
+        localStorage.setItem('accessToken', idToken ?? '');
+
+        const refreshToken = await runInInjectionContext(this.injector, () => user.refreshToken);
+        localStorage.setItem('refreshToken', refreshToken ?? '');
       }
     });
   }

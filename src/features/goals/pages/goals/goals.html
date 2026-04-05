@@ -1,0 +1,47 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold title-font">Savings Goals</h1>
+    <div
+      class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
+      (click)="onNewGoal()"
+      aria-label="New goal"
+    >
+      <ico name="plus" size="md"></ico>
+    </div>
+  </div>
+
+  @if (goals().length === 0) {
+    <div class="card rounded-2xl p-4 flex flex-col gap-2">
+      <p class="text-sm text-secondary font-light">No goals yet</p>
+      <button type="button" class="button-primary rounded-xl py-2" (click)="onNewGoal()">
+        Create your first goal
+      </button>
+    </div>
+  } @else {
+    <div class="flex flex-col gap-3">
+      @for (g of goalCards(); track g.name) {
+        <div class="card rounded-2xl p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="h-11 w-11 rounded-xl bg-secondary-light flex items-center justify-center">
+                <ico [name]="g.icon" size="sm" class="text-secondary"></ico>
+              </div>
+              <p class="text-sm font-semibold title-font">{{ g.name }}</p>
+            </div>
+            <p class="text-sm font-semibold title-font text-violet-500">{{ g.percent }}%</p>
+          </div>
+
+          <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
+            <div class="h-full rounded-full bg-violet-600" [style.width.%]="g.progressWidth"></div>
+          </div>
+
+          <div class="flex justify-between text-xs text-secondary font-light">
+            <span>{{ g.currentAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }}</span>
+            <span>{{ g.target | currency: currency() : 'symbol-narrow' : '1.0-0' }}</span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

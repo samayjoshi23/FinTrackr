@@ -1,0 +1,21 @@
+/* Search field inside elevated card: avoid double pill background from global input styles */
+.tx-list-search-input {
+  appearance: none;
+  border: none;
+  outline: none;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+  font-weight: 300;
+  color: var(--color-text);
+  width: 100%;
+}
+
+.tx-list-search-input::placeholder {
+  color: var(--color-placeholder);
+}
+
+.tx-list-search-input:focus {
+  box-shadow: none !important;
+}

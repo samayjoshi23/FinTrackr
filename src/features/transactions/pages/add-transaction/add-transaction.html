@@ -1,0 +1,219 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">Add Transaction</h1>
+  </header>
+
+  <!-- Form (template-driven with ngModel) -->
+  <form class="w-full flex flex-col gap-4">
+    <!-- Expense type -->
+    <div class="button-secondary rounded-2xl p-1 flex items-center gap-2 w-full">
+      <p
+        class="w-full text-center cursor-pointer rounded-xl p-2 text-sm {{
+          transaction().type === 'expense' ? 'bg-red-600 text-white' : 'text-secondary'
+        }}"
+        (click)="onChangeType('expense')"
+      >
+        Expense
+      </p>
+      <p
+        class="w-full text-center cursor-pointer rounded-xl p-2 text-sm {{
+          transaction().type === 'income' ? 'bg-green-600 text-white' : 'text-secondary'
+        }}"
+        (click)="onChangeType('income')"
+      >
+        Income
+      </p>
+    </div>
+    <!-- Amount -->
+    <div class="flex flex-col items-center justify-center">
+      <label for="amount" class="text-xs text-gray-400">Amount</label>
+      <div class="flex items-center gap-1">
+        <span class="amount-symbol">
+          {{ currencySymbol() }}
+        </span>
+        <input
+          type="number"
+          id="amount"
+          name="amount"
+          class="amount-input"
+          placeholder="0.00"
+          [ngModel]="transaction().amount"
+          (ngModelChange)="transaction.set({ ...transaction(), amount: $event })"
+          min="0"
+        />
+      </div>
+    </div>
+
+    <!-- Description -->
+    <div class="flex flex-col gap-2">
+      <label for="description" class="text-xs text-gray-400">Description</label>
+      <input
+        type="text"
+        id="description"
+        name="description"
+        class="w-full"
+        placeholder="What is this for?"
+        [ngModel]="transaction().description"
+        (ngModelChange)="transaction.set({ ...transaction(), description: $event })"
+      />
+    </div>
+
+    <!-- Source -->
+    <div class="flex flex-col gap-2">
+      <label for="source" class="text-xs text-gray-400">Payment Source</label>
+      <div class="flex gap-2">
+        @for (source of paymentSources(); track source.name) {
+          <div
+            class="flex items-center justify-between flex-col w-full gap-1 card rounded-xl p-2 cursor-pointer"
+            [class.selected-card]="source.name === transaction().source"
+            (click)="onChangeSource(source.name)"
+          >
+            <ico
+              [name]="source.icon"
+              size="md"
+              [class]="source.name === transaction().source ? 'text-primary' : 'text-secondary'"
+            ></ico>
+            <p
+              class="text-xs text-center {{
+                source.name === transaction().source ? 'text-primary' : 'text-secondary'
+              }}"
+            >
+              {{ source.name }}
+            </p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Category -->
+    <div class="flex flex-col gap-2">
+      <label for="category" class="text-xs text-gray-400">Category</label>
+      <div class="flex flex-wrap gap-2 grid grid-cols-3">
+        @for (category of categories(); track category.name) {
+          <div
+            class="flex items-center justify-between flex-col gap-1 card rounded-xl p-2 cursor-pointer"
+            [class.selected-card]="category.name === transaction().category"
+            (click)="onChangeCategory(category)"
+          >
+            <ico
+              [name]="category.icon"
+              size="md"
+              [class]="category.name === transaction().category ? 'text-primary' : 'text-secondary'"
+            ></ico>
+            <p
+              class="text-xs text-center {{
+                category.name === transaction().category ? 'text-primary' : 'text-secondary'
+              }}"
+            >
+              {{ category.name }}
+            </p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Recurring -->
+    <div
+      class="rounded-xl py-3 px-4 flex items-center flex-col gap-2 {{
+        transaction().isRecurring ? 'purple-card-selected' : 'card'
+      }}"
+    >
+      <!-- Recurring toggle -->
+      <div class="flex items-center justify-between w-full">
+        <div class="flex items-center gap-2">
+          <ico name="arrow-refresh" size="sm" class="text-secondary"></ico>
+          <p class="text-xs text-secondary">Recurring Transaction</p>
+        </div>
+        <div class="flex items-center justify-center">
+          <label class="theme-switch" id="recurring-switch">
+            <input
+              type="checkbox"
+              class="theme-switch__checkbox"
+              id="recurring-switch"
+              [checked]="transaction().isRecurring"
+              (change)="transaction.set({ ...transaction(), isRecurring: $event.target.checked })"
+            />
+            <span class="theme-switch__track">
+              <span class="theme-switch__thumb"></span>
+            </span>
+            <span class="theme-switch__label"></span>
+          </label>
+        </div>
+      </div>
+      @if (transaction().isRecurring) {
+        <hr class="w-full border-gray-300" />
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-2">
+            <ico name="clock-rotate-left" size="sm" class="text-secondary"></ico>
+            <p class="text-xs text-secondary">Auto Pay</p>
+          </div>
+          <div class="flex items-center justify-center">
+            <label class="theme-switch" id="auto-pay-switch">
+              <input
+                type="checkbox"
+                class="theme-switch__checkbox"
+                id="auto-pay-switch"
+                [checked]="transaction().isAutoPay"
+                (change)="transaction.set({ ...transaction(), isAutoPay: $event.target.checked })"
+              />
+              <span class="theme-switch__track">
+                <span class="theme-switch__thumb"></span>
+              </span>
+              <span class="theme-switch__label"></span>
+            </label>
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (transaction().isRecurring) {
+      <!-- Frequency -->
+      <div class="flex flex-col gap-2">
+        <label for="recurring-frequency" class="text-xs text-gray-400">Frequency</label>
+        <div class="flex gap-1 justify-between">
+          @for (option of recurringFrequencyOptions(); track option.value) {
+            <div
+              class="card flex items-center justify-center rounded-2xl text-xs cursor-pointer px-3 py-2 {{
+                transaction().recurringFrequency === option.value ? 'purple-card-selected' : 'card'
+              }}"
+              (click)="onChangeRecurringFrequency(option.value)"
+            >
+              <p class="text-xs">{{ option.name }}</p>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="flex flex-col gap-1 w-full">
+        <label for="next-payment-date" class="text-xs text-gray-400">Next Payment Date</label>
+        <input
+          type="date"
+          id="next-payment-date"
+          name="next-payment-date"
+          class="w-full"
+          [min]="today()"
+          [ngModel]="transaction().nextPaymentDate"
+          (ngModelChange)="transaction.set({ ...transaction(), nextPaymentDate: $event })"
+        />
+      </div>
+    }
+
+    <!-- Submit -->
+    <div class="flex items-center justify-center">
+      <button
+        type="submit"
+        class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2"
+        (click)="onSubmit()"
+      >
+        <ico name="tick" size="sm"></ico>
+        Add {{ transaction().type === 'expense' ? 'Expense' : 'Income' }}
+      </button>
+    </div>
+  </form>
+</div>

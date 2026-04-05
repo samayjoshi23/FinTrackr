@@ -6,22 +6,9 @@ import { quickActions } from '../types';
 import { AccountsService } from '../../../services/accounts.service';
 import { TransactionsService } from '../../../services/transactions.service';
 import { Account } from '../../../shared/models/account.model';
-import { TransactionRecord } from '../../../shared/models/transaction.model';
 import { Router } from '@angular/router';
 import { NotifierService } from '../../../shared/components/notifier/notifier.service';
-
-export interface DashboardTransactionRow {
-  id: string;
-  date: Date;
-  amount: number;
-  description: string;
-  category: string;
-  icon: string;
-  type: string;
-  source: string;
-  createdAt: Date | null;
-  updatedAt: Date | null;
-}
+import { TransactionRecord } from '../../../shared/models/transaction.model';
 
 @Component({
   selector: 'app-dashboard',
@@ -40,7 +27,9 @@ export class Dashboard {
   greetingMessage = signal<string>('');
   quickActions = quickActions;
   accounts = signal<Account[]>([]);
-  recentTransactions = signal<DashboardTransactionRow[]>([]);
+  selectedAccount = signal<Account | null>(null);
+  recentTransactions = signal<TransactionRecord[]>([]);
+  currency = signal<string>('INR');
 
   async ngOnInit() {
     this.userProfile.set(
@@ -49,16 +38,25 @@ export class Dashboard {
     this.setUserInitials();
     this.setGreetingMessage();
 
-    const selectedAccount = await this.setAccountsData();
-    if (selectedAccount) {
-      await this.loadTransactionsForAccount(selectedAccount.id);
+    let account = await this.accountsService.selectAccount(null);
+    this.selectedAccount.set(account);
+    this.currency.set(account?.currency ?? 'INR');
+    console.log('selectedAccount', this.selectedAccount());
+    if (this.selectedAccount()) {
+      await this.loadTransactionsForAccount(this.selectedAccount()?.uid ?? '');
     }
+  }
+
+  goToQuickAction(path: string) {
+    const clean = (path ?? '').toString().replace(/^\/+/, '');
+    this.router.navigateByUrl(`/${clean}`);
   }
 
   private async loadTransactionsForAccount(accountId: string) {
     try {
       const rows = await this.transactionsService.getTransactionsByAccount(accountId);
-      this.recentTransactions.set(rows.slice(0, 20).map((t) => this.mapTransactionRow(t)));
+      this.recentTransactions.set(rows.slice(0, 10).map((t) => this.mapTransactionRow(t)));
+      console.log('recentTransactions', this.recentTransactions());
     } catch (error) {
       console.error(error);
       this.notifier.error('Could not load transactions for this account.');
@@ -66,51 +64,20 @@ export class Dashboard {
     }
   }
 
-  private mapTransactionRow(t: TransactionRecord): DashboardTransactionRow {
+  private mapTransactionRow(t: TransactionRecord): TransactionRecord {
     return {
-      id: t.id,
-      date: t.createdAt ?? new Date(),
-      amount: t.amount,
+      uid: t.uid,
+      accountId: t.accountId,
+      amount: t.amount ?? 0,
       description: t.description,
       category: t.category,
-      icon: this.iconForCategory(t.category),
+      icon: t.icon,
       type: t.type,
       source: t.source?.trim() ? t.source : t.category,
+      isRecurring: t.isRecurring ?? false,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     };
-  }
-
-  private iconForCategory(category: string): string {
-    const c = category.toLowerCase();
-    if (c.includes('food') || c.includes('dining')) return 'utensils';
-    if (c.includes('transport') || c.includes('travel')) return 'car-side';
-    if (c.includes('entertain')) return 'entertainment';
-    return 'tags';
-  }
-
-  async setAccountsData() {
-    try {
-      const accountsData = await this.accountsService.getAccounts();
-      this.accounts.set(accountsData ?? []);
-    } catch (error) {
-      console.error(error);
-      this.accounts.set([]);
-    } finally {
-      if (this.accounts().length === 0) {
-        this.notifier.error('No accounts found. Please setup your accounts first');
-        await this.router.navigateByUrl('/onboarding');
-        return null;
-      }
-      let selectedAccount = this.accounts().find((account) => account.isSelected === true);
-      if (!selectedAccount) {
-        selectedAccount = this.accounts()[0];
-        selectedAccount.isSelected = true;
-        await this.accountsService.updateAccount(selectedAccount.id, { isSelected: true });
-      }
-      localStorage.setItem('currentAccount', JSON.stringify(selectedAccount));
-      return selectedAccount;
-    }
   }
 
   setUserInitials() {

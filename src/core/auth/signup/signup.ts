@@ -59,13 +59,13 @@ export class Signup {
       const normalizedFullName = fullName ?? '';
       const normalizedEmail = email ?? '';
       const normalizedPassword = password ?? '';
-      await this.authService.signupWithEmail(
+      const user = await this.authService.signupWithEmail(
         normalizedFullName,
         normalizedEmail,
         normalizedPassword,
       );
       this.notifier.success('Welcome to FinTrackr! Please complete your profile to get started.');
-      await this.router.navigateByUrl('/user/onboarding');
+      await this.navigateAfterAuth(user.uid);
     } catch (error) {
       this.notifier.error(this.getErrorMessage(error));
     } finally {
@@ -88,13 +88,22 @@ export class Signup {
     this.isSubmitting.set(true);
 
     try {
-      await this.authService.signupWithGoogle();
+      const user = await this.authService.signupWithGoogle();
       this.notifier.success('Google sign-up successful.');
-      await this.router.navigateByUrl('/user/onboarding');
+      await this.navigateAfterAuth(user.uid);
     } catch (error) {
       this.notifier.error(this.getErrorMessage(error));
     } finally {
       this.isSubmitting.set(false);
+    }
+  }
+
+  private async navigateAfterAuth(uid: string) {
+    const isOnboarded = await this.authService.checkOnboardingStatus(uid);
+    if (isOnboarded) {
+      await this.router.navigateByUrl('/user/dashboard');
+    } else {
+      await this.router.navigateByUrl('/onboarding');
     }
   }
 

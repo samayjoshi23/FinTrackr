@@ -1,0 +1,88 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 rounded-full button-secondary cursor-pointer flex items-center justify-center"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">New Budget</h1>
+  </header>
+
+  <div class="flex flex-col gap-3 w-full">
+    <!-- Budget Name -->
+    <div class="flex flex-col gap-2">
+      <label for="budgetName" class="text-xs text-gray-400">Budget Name</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="bullseye" size="sm"></ico>
+        </span>
+        <input
+          type="text"
+          id="budgetName"
+          name="budgetName"
+          class="w-full"
+          placeholder="e.g. Groceries"
+          [(ngModel)]="budgetName"
+        />
+      </div>
+    </div>
+
+    <!-- Category -->
+    <div class="flex flex-col gap-2">
+      <label class="text-xs text-gray-400">Category</label>
+      <div class="flex flex-wrap gap-2">
+        @for (c of categories(); track c.uid) {
+          <div
+            class="card rounded-full py-2 px-4 flex items-center gap-2 cursor-pointer"
+            [ngClass]="{ 'selected-card': c.name === selectedCategory }"
+            (click)="selectedCategory = c.name"
+          >
+            <ico
+              [name]="c.icon"
+              size="sm"
+              [class.text-primary]="c.name === selectedCategory"
+              [class.text-secondary]="c.name !== selectedCategory"
+            ></ico>
+            <p class="text-xs" [class.font-semibold]="c.name === selectedCategory">
+              {{ c.name }}
+            </p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Monthly Limit -->
+    <div class="flex flex-col gap-2">
+      <label for="monthlyLimit" class="text-xs text-gray-400">Monthly Limit</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="dollar-sign" size="sm"></ico>
+        </span>
+        <input
+          type="number"
+          id="monthlyLimit"
+          name="monthlyLimit"
+          class="w-full"
+          placeholder="0.00"
+          [(ngModel)]="monthlyLimit"
+          min="0"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <div class="flex flex-col gap-2 mt-2">
+    <button
+      type="button"
+      class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+      (click)="onCreate()"
+    >
+      <span>Create Budget</span>
+      <ico name="right-arrow" size="sm"></ico>
+    </button>
+  </div>
+</div>
+

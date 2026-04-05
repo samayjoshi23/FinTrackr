@@ -1,0 +1,32 @@
+.amount-input {
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0.75rem;
+  text-align: center;
+  max-width: 12rem;
+  &::placeholder {
+    color: var(--color-placeholder);
+    text-align: center;
+  }
+}
+
+.amount-symbol {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: var(--color-placeholder);
+}
+
+.amount-input:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

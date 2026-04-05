@@ -1,0 +1,100 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 rounded-full button-secondary cursor-pointer flex items-center justify-center"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">New Goal</h1>
+  </header>
+
+  <form class="flex flex-col gap-4">
+    <!-- Goal Name -->
+    <div class="flex flex-col gap-2">
+      <label for="goalName" class="text-xs text-gray-400">Goal Name</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="target" size="sm"></ico>
+        </span>
+        <input
+          type="text"
+          id="goalName"
+          name="goalName"
+          class="w-full"
+          placeholder="e.g. Emergency Fund"
+          [(ngModel)]="goalName"
+        />
+      </div>
+    </div>
+
+    <!-- Target Amount -->
+    <div class="flex flex-col gap-2">
+      <label for="goalTarget" class="text-xs text-gray-400">Target Amount</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="dollar-sign" size="sm"></ico>
+        </span>
+        <input
+          type="number"
+          id="goalTarget"
+          name="goalTarget"
+          class="w-full"
+          placeholder="0"
+          min="0"
+          [(ngModel)]="targetAmount"
+        />
+      </div>
+    </div>
+
+    <!-- Due Date -->
+    <div class="flex flex-col gap-2">
+      <label for="goalDueDate" class="text-xs text-gray-400">Due Date</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="calendar" size="sm"></ico>
+        </span>
+        <input
+          type="date"
+          id="goalDueDate"
+          name="goalDueDate"
+          class="w-full"
+          [(ngModel)]="dueDate"
+        />
+      </div>
+    </div>
+
+    <!-- Current Amount -->
+    <div class="flex flex-col gap-2">
+      <label for="goalCurrentAmount" class="text-xs text-gray-400">Already Saved</label>
+      <div class="field-wrapper before">
+        <span class="field-icon before">
+          <ico name="dollar-sign" size="sm"></ico>
+        </span>
+        <input
+          type="number"
+          id="goalCurrentAmount"
+          name="goalCurrentAmount"
+          class="w-full"
+          placeholder="0"
+          min="0"
+          [(ngModel)]="currentAmount"
+        />
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex flex-col gap-2 mt-2">
+      <button
+        type="button"
+        class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+        (click)="onCreate()"
+      >
+        <span>Create Goal</span>
+        <ico name="right-arrow" size="sm"></ico>
+      </button>
+    </div>
+  </form>
+</div>
+

@@ -13,6 +13,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Budget, BudgetCreateInput, BudgetUpdateInput } from '../shared/models/budget.model';
+import { OfflineCrudService } from '../core/offline/offline-crud.service';
 
 const BUDGETS_COLLECTION = 'budgets';
 
@@ -20,58 +21,124 @@ const BUDGETS_COLLECTION = 'budgets';
 export class BudgetsService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
+  private readonly offlineCrud = inject(OfflineCrudService);
 
   async createBudget(data: BudgetCreateInput, userId?: string): Promise<Budget> {
     const uid = userId ?? this.requireUid();
-    const ref = await addDoc(collection(this.firestore, BUDGETS_COLLECTION), {
-      ownerId: uid,
-      accountId: data.accountId,
-      limit: Number(data.limit),
-      month: data.month,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    const budget = await this.getBudget(ref.id);
-    if (!budget) {
-      throw new Error('Failed to read budget after creation.');
-    }
-    return budget;
+    return this.offlineCrud.create<Budget>(
+      'budgets',
+      'id',
+      async () => {
+        const ref = await addDoc(collection(this.firestore, BUDGETS_COLLECTION), {
+          ownerId: uid,
+          accountId: data.accountId,
+          limit: Number(data.limit),
+          month: data.month,
+          name: data.name?.trim() || 'Budget',
+          category: data.category?.trim() || '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        const budget = await this.getBudgetDirect(ref.id, uid);
+        if (!budget) {
+          throw new Error('Failed to read budget after creation.');
+        }
+        return budget;
+      },
+      {
+        ownerId: uid,
+        accountId: data.accountId,
+        limit: Number(data.limit),
+        month: data.month,
+        name: data.name?.trim() || 'Budget',
+        category: data.category?.trim() || '',
+      },
+    );
   }
 
   async updateBudget(budgetId: string, patch: BudgetUpdateInput): Promise<void> {
     const uid = this.requireUid();
-    const budgetRef = doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`);
-    const existing = await getDoc(budgetRef);
-    if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+    const cached = await this.offlineCrud.fetchOne<Budget>(
+      'budgets',
+      budgetId,
+      async () => {
+        const snap = await getDoc(doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`));
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        if (data['ownerId'] !== uid) return null;
+        return this.mapBudget(snap.id, data);
+      },
+    );
+
+    if (!cached) {
       throw new Error('Budget not found or access denied.');
     }
 
-    const updates: Record<string, unknown> = {
-      updatedAt: serverTimestamp(),
-    };
-    if (patch.limit !== undefined) updates['limit'] = Number(patch.limit);
-    if (patch.month !== undefined) updates['month'] = patch.month;
-    await updateDoc(budgetRef, updates);
+    const patchRecord: Record<string, unknown> = {};
+    if (patch.limit !== undefined) patchRecord['limit'] = Number(patch.limit);
+    if (patch.month !== undefined) patchRecord['month'] = patch.month;
+    if (patch.name !== undefined) patchRecord['name'] = patch.name?.trim() || '';
+    if (patch.category !== undefined) patchRecord['category'] = patch.category?.trim() || '';
+
+    await this.offlineCrud.update<Budget>(
+      'budgets',
+      budgetId,
+      async () => {
+        const budgetRef = doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`);
+        const existing = await getDoc(budgetRef);
+        if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+          throw new Error('Budget not found or access denied.');
+        }
+        const updates: Record<string, unknown> = {
+          updatedAt: serverTimestamp(),
+          ...patchRecord,
+        };
+        await updateDoc(budgetRef, updates);
+      },
+      patchRecord,
+      cached as unknown as Record<string, unknown>,
+    );
   }
 
   async getBudget(budgetId: string): Promise<Budget | null> {
+    return this.offlineCrud.fetchOne<Budget>(
+      'budgets',
+      budgetId,
+      async () => {
+        const uid = this.requireUid();
+        const snap = await getDoc(doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`));
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        if (data['ownerId'] !== uid) return null;
+        return this.mapBudget(snap.id, data);
+      },
+    );
+  }
+
+  async getBudgets(accountId?: string): Promise<Budget[]> {
     const uid = this.requireUid();
+    return this.offlineCrud.fetchAll<Budget>(
+      'budgets',
+      async () => {
+        const base = collection(this.firestore, BUDGETS_COLLECTION);
+        const constraints = [where('ownerId', '==', uid)];
+        if (accountId) {
+          constraints.push(where('accountId', '==', accountId));
+        }
+        const snap = await getDocs(query(base, ...constraints));
+        return snap.docs.map((d) => this.mapBudget(d.id, d.data()));
+      },
+      accountId ? { indexName: 'accountId', value: accountId } : undefined,
+    );
+  }
+
+  /** Direct Firestore read bypassing offline layer (used internally after create). */
+  private async getBudgetDirect(budgetId: string, uid: string): Promise<Budget | null> {
     const snap = await getDoc(doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`));
     if (!snap.exists()) return null;
     const data = snap.data();
     if (data['ownerId'] !== uid) return null;
     return this.mapBudget(snap.id, data);
-  }
-
-  async getBudgets(accountId?: string): Promise<Budget[]> {
-    const uid = this.requireUid();
-    const base = collection(this.firestore, BUDGETS_COLLECTION);
-    const constraints = [where('ownerId', '==', uid)];
-    if (accountId) {
-      constraints.push(where('accountId', '==', accountId));
-    }
-    const snap = await getDocs(query(base, ...constraints));
-    return snap.docs.map((d) => this.mapBudget(d.id, d.data()));
   }
 
   private requireUid(): string {
@@ -89,6 +156,8 @@ export class BudgetsService {
       accountId: (data['accountId'] as string) ?? '',
       limit: Number(data['limit'] ?? 0),
       month: (data['month'] as string) ?? '',
+      name: (data['name'] as string) ?? undefined,
+      category: (data['category'] as string) ?? undefined,
       createdAt: createdAt?.toDate?.() ?? null,
       updatedAt: updatedAt?.toDate?.() ?? null,
     };

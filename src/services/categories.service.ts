@@ -1,0 +1,170 @@
+import { inject, Injectable } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
+import {
+  addDoc,
+  collection,
+  doc,
+  Firestore,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  where,
+} from '@angular/fire/firestore';
+import {
+  Category,
+  CategoryCreateInput,
+  CategoryUpdateInput,
+  DEFAULT_CATEGORIES,
+} from '../features/categories/types';
+import { OfflineCrudService } from '../core/offline/offline-crud.service';
+
+const CATEGORIES_COLLECTION = 'categories';
+
+@Injectable({ providedIn: 'root' })
+export class CategoriesService {
+  private readonly firestore = inject(Firestore);
+  private readonly auth = inject(Auth);
+  private readonly offlineCrud = inject(OfflineCrudService);
+
+  async getCategories(accountId?: string): Promise<Category[]> {
+    const uid = this.requireUid();
+    return this.offlineCrud.fetchAll<Category>(
+      'categories',
+      async () => {
+        const base = collection(this.firestore, CATEGORIES_COLLECTION);
+        const constraints = [where('ownerId', '==', uid)];
+        if (accountId) {
+          constraints.push(where('accountId', '==', accountId));
+        }
+        const snap = await getDocs(query(base, ...constraints));
+        return snap.docs.map((d) => this.mapCategory(d.id, d.data()));
+      },
+      accountId ? { indexName: 'accountId', value: accountId } : undefined,
+    );
+  }
+
+  async getCategory(categoryId: string): Promise<Category | null> {
+    return this.offlineCrud.fetchOne<Category>('categories', categoryId, async () => {
+      const uid = this.requireUid();
+      const snap = await getDoc(doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`));
+      if (!snap.exists()) return null;
+      const data = snap.data();
+      if (data['ownerId'] !== uid) return null;
+      return this.mapCategory(snap.id, data);
+    });
+  }
+
+  async createCategory(data: CategoryCreateInput, userId?: string): Promise<Category> {
+    const uid = userId ?? this.requireUid();
+    return this.offlineCrud.create<Category>(
+      'categories',
+      'uid',
+      async () => {
+        const ref = await addDoc(collection(this.firestore, CATEGORIES_COLLECTION), {
+          ownerId: uid,
+          accountId: data.accountId,
+          name: data.name.trim(),
+          description: (data.description ?? '').trim(),
+          icon: (data.icon ?? 'tags').trim() || 'tags',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        const category = await this.getCategoryDirect(ref.id, uid);
+        if (!category) {
+          throw new Error('Failed to read category after creation.');
+        }
+        return category;
+      },
+      {
+        ownerId: uid,
+        accountId: data.accountId,
+        name: data.name.trim(),
+        description: (data.description ?? '').trim(),
+        icon: (data.icon ?? 'tags').trim() || 'tags',
+      },
+    );
+  }
+
+  async updateCategory(categoryId: string, patch: CategoryUpdateInput): Promise<void> {
+    const uid = this.requireUid();
+    const cached = await this.offlineCrud.fetchOne<Category>('categories', categoryId, async () => {
+      const snap = await getDoc(doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`));
+      if (!snap.exists()) return null;
+      return this.mapCategory(snap.id, snap.data());
+    });
+
+    if (!cached) {
+      throw new Error('Category not found or access denied.');
+    }
+
+    const patchRecord: Record<string, unknown> = {};
+    if (patch.name !== undefined) patchRecord['name'] = patch.name.trim();
+    if (patch.description !== undefined)
+      patchRecord['description'] = (patch.description ?? '').trim();
+    if (patch.icon !== undefined) patchRecord['icon'] = (patch.icon ?? 'tags').trim() || 'tags';
+    if (patch.accountId !== undefined) patchRecord['accountId'] = patch.accountId;
+
+    await this.offlineCrud.update<Category>(
+      'categories',
+      categoryId,
+      async () => {
+        const categoryRef = doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`);
+        const existing = await getDoc(categoryRef);
+        if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+          throw new Error('Category not found or access denied.');
+        }
+        const updates: Record<string, unknown> = {
+          updatedAt: serverTimestamp(),
+          ...patchRecord,
+        };
+        await updateDoc(categoryRef, updates);
+      },
+      patchRecord,
+      cached as unknown as Record<string, unknown>,
+    );
+  }
+
+  /** Direct Firestore read bypassing offline layer (used internally after create). */
+  private async getCategoryDirect(categoryId: string, uid: string): Promise<Category | null> {
+    const snap = await getDoc(doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`));
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    if (data['ownerId'] !== uid) return null;
+    return this.mapCategory(snap.id, data);
+  }
+
+  private requireUid(): string {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) throw new Error('You must be signed in to manage categories.');
+    return uid;
+  }
+
+  private mapCategory(id: string, data: Record<string, unknown>): Category {
+    const createdAt = data['createdAt'] as Timestamp | null | undefined;
+    const updatedAt = data['updatedAt'] as Timestamp | null | undefined;
+    return {
+      uid: id,
+      name: (data['name'] as string) ?? '',
+      description: (data['description'] as string) ?? '',
+      icon: (data['icon'] as string) ?? 'tags',
+      accountId: (data['accountId'] as string) ?? '',
+      createdAt: createdAt ?? Timestamp.now(),
+      updatedAt: updatedAt ?? createdAt ?? Timestamp.now(),
+    };
+  }
+
+  async addDefaultCategories(accountId: string) {
+    DEFAULT_CATEGORIES.forEach(async (category: Category) => {
+      let categoryData: CategoryCreateInput = {
+        name: category.name,
+        description: category.description,
+        icon: category.icon,
+        accountId: accountId,
+      };
+      await this.createCategory(categoryData as CategoryCreateInput);
+    });
+  }
+}

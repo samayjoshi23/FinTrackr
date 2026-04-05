@@ -1,7 +1,9 @@
 import { Component, inject } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Snackbar } from '../shared/components/snackbar/snackbar';
+import { NetworkService } from '../core/offline/network.service';
+import { SyncService } from '../core/offline/sync.service';
 
 @Component({
   selector: 'app-features',
@@ -10,9 +12,7 @@ import { Snackbar } from '../shared/components/snackbar/snackbar';
   styleUrl: './features.css',
 })
 export class Features {
-  private readonly router = inject(Router);
-
-  ngOnInit() {
-    this.router.navigateByUrl('/user/dashboard');
-  }
+  readonly networkService = inject(NetworkService);
+  // SyncService is injected to initialize it (triggers effect-based sync on online event)
+  private readonly syncService = inject(SyncService);
 }

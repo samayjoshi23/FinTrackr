@@ -1,6 +1,25 @@
 <div class="relative h-full">
+  <!-- Offline Banner -->
+  @if (!networkService.isOnline()) {
+    <div
+      class="bg-amber-500 text-white text-xs text-center py-1.5 px-3 flex items-center justify-center gap-2 z-50"
+    >
+      <svg class="w-3.5 h-3.5">
+        <use href="assets/icons/sprite.svg#wifi-off"></use>
+      </svg>
+      <span>You are offline. Changes will sync when connected.</span>
+      @if (networkService.pendingSyncCount() > 0) {
+        <span
+          class="bg-amber-700 rounded-full px-2 py-0.5 text-[10px] font-bold ml-1"
+        >
+          {{ networkService.pendingSyncCount() }} pending
+        </span>
+      }
+    </div>
+  }
+
   <router-outlet></router-outlet>
   <app-snackbar
-    class="absolute bottom-0 right-0 w-full border-t border-[var(--color-border)] h-12 pb-2 px-2 z-100"
+    class="absolute bottom-0 right-0 w-full border-t border-[var(--color-border)] h-12 py-2 z-100 bg-[var(--color-bg)]"
   ></app-snackbar>
 </div>

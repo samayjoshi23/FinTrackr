@@ -23,21 +23,39 @@
   <div class="flex flex-col gap-3 p-3 bg-primary-light rounded-2xl">
     <div class="flex flex-col">
       <p class="text-xs">Total Balance</p>
-      <p class="text-xl title-font font-medium">$10,000</p>
+      <p class="text-xl title-font font-medium">
+        @if (selectedAccount()) {
+          {{ selectedAccount()?.balance | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+        } @else {
+          -
+        }
+      </p>
     </div>
     <div class="flex gap-3 justify-between items-center">
       <div class="flex w-100 bg-primary-soft rounded-xl p-3 gap-2 items-center">
         <ico name="stock-up" size="md"></ico>
         <div class="flex flex-col">
           <p class="text-xs">Income | March</p>
-          <p class="text-md title-font font-medium">$10,000</p>
+          @if (selectedAccount()) {
+            <p class="text-md title-font font-medium">
+              {{ 10000 | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+            </p>
+          } @else {
+            -
+          }
         </div>
       </div>
       <div class="flex w-100 bg-primary-soft rounded-xl p-3 gap-2 items-center">
         <ico name="stock-down" size="md"></ico>
         <div class="flex flex-col">
           <p class="text-xs">Expenses | March</p>
-          <p class="text-md title-font font-medium">$10,000</p>
+          @if (selectedAccount()) {
+            <p class="text-md title-font font-medium">
+              {{ 10000 | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+            </p>
+          } @else {
+            -
+          }
         </div>
       </div>
     </div>
@@ -50,7 +68,10 @@
         <div class="h-full rounded-full bg-primary" style="width: 60%"></div>
       </div>
       <div class="flex justify-between items-center">
-        <p class="text-xs">$400 remaining of $10,000</p>
+        <p class="text-xs">
+          {{ 400 | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining of
+          {{ 10000 | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+        </p>
       </div>
     </div>
   </div>
@@ -60,7 +81,10 @@
     <p class="text-sm title-font font-medium">Quick Actions</p>
     <div class="flex justify-evenly">
       @for (action of quickActions; track action.label) {
-        <div class="flex flex-col items-center justify-center gap-1">
+        <div
+          class="flex flex-col items-center justify-center gap-1 cursor-pointer"
+          (click)="goToQuickAction(action.link)"
+        >
           <div
             class="h-12 w-12 {{ action.themeClass }} rounded-2xl flex items-center justify-center"
           >
@@ -76,29 +100,41 @@
   <div class="flex flex-col gap-3">
     <div class="flex justify-between items-center">
       <p class="text-sm title-font font-medium">Recent Transactions</p>
-      <a href="/transactions" class="text-xs text-primary">See all</a>
+      <a href="/user/transactions/list" class="text-xs text-primary">See all</a>
     </div>
     <div class="flex flex-col gap-2">
-      @for (transaction of recentTransactions(); track transaction.id) {
-        <div class="flex items-center justify-between gap-1 card rounded-2xl p-3">
-          <div class="flex items-center gap-3">
-            <ico [name]="transaction.icon" size="sm"></ico>
-            <div class="flex flex-col">
-              <p class="text-sm">{{ transaction.description }}</p>
-              <p class="text-xs text-secondary">
-                {{ transaction.source }} - {{ transaction.date | date: 'dd MMM, yyyy' }}
-              </p>
-            </div>
-          </div>
-          <p
-            class="text-sm title-font font-medium text-right {{
-              transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-            }}"
-          >
-            {{ transaction.type === 'income' ? '+' : '-' }}
-            {{ transaction.amount | currency: 'INR' : 'symbol-narrow' : '1.0-2' }}
-          </p>
+      @if (recentTransactions().length === 0) {
+        <div class="flex items-center justify-center gap-2 card p-3 rounded-2xl flex-col">
+          <p class="text-sm text-secondary text-center">No transactions made yet</p>
+          <a href="/user/transactions/add" class="text-xs text-primary">+ Add a new transaction</a>
         </div>
+      } @else {
+        @for (transaction of recentTransactions(); track transaction.uid) {
+          <div class="flex items-center justify-between gap-1 card rounded-2xl px-3 py-2">
+            <div class="flex items-center gap-3">
+              <ico [name]="transaction.icon ?? ''" size="md" class="text-secondary"></ico>
+              <div class="flex flex-col">
+                <p class="text-sm flex items-center gap-2">
+                  @if (transaction.isRecurring) {
+                    <ico name="arrow-refresh" class="text-violet-500" size="sm"></ico>
+                  }
+                  {{ transaction.description }}
+                </p>
+                <p class="text-xs text-secondary">
+                  {{ transaction.source }} · {{ transaction.createdAt | date: 'dd MMM, yyyy' }}
+                </p>
+              </div>
+            </div>
+            <p
+              class="text-sm title-font font-medium text-right {{
+                transaction.type === 'income' ? 'text-green-500' : 'text-red-400'
+              }}"
+            >
+              {{ transaction.type === 'income' ? '+' : '-' }}
+              {{ transaction.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+            </p>
+          </div>
+        }
       }
     </div>
   </div>

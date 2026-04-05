@@ -1,0 +1,104 @@
+<div class="w-full h-dvh flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <header class="flex items-center justify-between gap-2">
+    <div
+      class="h-9 w-9 rounded-full button-secondary cursor-pointer flex items-center justify-center shrink-0"
+      (click)="onBack()"
+      aria-label="Back"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-lg font-semibold title-font flex-1 text-center">Account Details</h1>
+    <span class="w-9 shrink-0"></span>
+  </header>
+
+  @if (loading()) {
+    <p class="text-sm text-secondary text-display">Loading…</p>
+  } @else if (account(); as acc) {
+    <div class="card rounded-2xl p-4 flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <div
+          class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
+        >
+          <ico name="bank" size="md" class="text-primary"></ico>
+        </div>
+        <span class="text-base font-semibold title-font">{{ acc.name }}</span>
+      </div>
+      <div class="rounded-xl flex flex-col gap-1">
+        <span class="text-xs text-secondary">Current Balance</span>
+        <span class="text-xl font-bold text-primary title-font">
+          {{ acc.balance | currency: acc.currency : 'symbol-narrow' : '1.0-0' }}
+        </span>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <h2 class="text-base font-semibold title-font">Account settings</h2>
+      <p class="text-xs text-secondary">Currency for this account</p>
+      <div class="flex flex-wrap gap-2">
+        @for (c of currencies; track c.code) {
+          <div
+            class="card rounded-full py-2 px-3 text-xs font-medium transition-colors"
+            [ngClass]="{ 'selected-card font-semibold': isCurrencyActive(c.code) }"
+            (click)="onSelectCurrency(c.code)"
+          >
+            {{ c.label }}
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <h2 class="text-base font-semibold title-font">Recent Activity</h2>
+      <div class="flex flex-col gap-2">
+        @for (t of recentActivity(); track t.uid) {
+          <div class="card rounded-xl p-3 flex items-center justify-between gap-2">
+            <div class="flex flex-col gap-0.5 min-w-0">
+              <span class="text-sm font-medium title-font truncate">{{
+                t.description || 'Transaction'
+              }}</span>
+              <span class="text-xs text-secondary font-light">
+                {{ t.createdAt | date: 'MMM d' }}
+              </span>
+            </div>
+            <span class="text-sm font-semibold shrink-0" [ngClass]="amountClass(t)">
+              {{ signedAmount(t) | currency: acc.currency : 'symbol-narrow' : '1.0-2' }}
+            </span>
+          </div>
+        }
+        @if (recentActivity().length === 0) {
+          <p class="text-sm text-secondary text-display">No transactions yet.</p>
+        }
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-3 mt-2">
+      @if (!isCurrentAccount()) {
+        <button
+          type="button"
+          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+          [disabled]="selecting()"
+          (click)="onSelectThisAccount()"
+        >
+          <ico name="tick" size="sm"></ico>
+          <span>{{ selecting() ? 'Selecting…' : 'Select this account' }}</span>
+        </button>
+      } @else {
+        <div
+          class="rounded-xl py-3 px-4 text-center text-sm font-medium text-primary border border-[var(--color-border-primary)] bg-primary-soft"
+        >
+          This is your active account
+        </div>
+      }
+
+      <button
+        type="button"
+        class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+        [disabled]="removing()"
+        (click)="onRemoveAccount()"
+      >
+        <ico name="trash" size="sm"></ico>
+        <span>{{ removing() ? 'Removing…' : 'Remove Account' }}</span>
+      </button>
+    </div>
+  }
+</div>
