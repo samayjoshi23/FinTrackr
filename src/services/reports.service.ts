@@ -31,6 +31,8 @@ import {
   BudgetTrackingCard,
   ReportSummary,
   ReportTimePeriod,
+  MonthlyReportCreateInput,
+  MonthlyReportUpdateInput,
 } from '../shared/models/report.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 
@@ -162,29 +164,11 @@ export class ReportsService {
 
   // ─── Public: push a freshly-computed report to Firestore (called by component after first build) ──
 
-  async pushReportToFirestore(report: MonthlyReport): Promise<void> {
+  async pushReportToFirestore(report: MonthlyReportCreateInput): Promise<void> {
     if (!this.network.isOnline()) return;
     try {
-      const ref = doc(collection(this.firestore, COLLECTION), report.uid);
-      await setDoc(
-        ref,
-        {
-          uid: report.uid,
-          month: report.month,
-          accountId: report.accountId,
-          totalIncome: report.totalIncome,
-          totalExpense: report.totalExpense,
-          savings: report.savings,
-          totalBudgetUsed: report.totalBudgetUsed,
-          categoryBreakdown: report.categoryBreakdown,
-          recurrings: report.recurrings,
-          isFinalized: report.isFinalized,
-          date: date().format('YYYY-MM-DD'),
-          updatedAt: serverTimestamp(),
-          createdAt: report.createdAt ?? serverTimestamp(),
-        },
-        { merge: true },
-      );
+      const ref = await addDoc(collection(this.firestore, COLLECTION), report);
+      await setDoc(ref, report, { merge: true });
     } catch {
       /* silent */
     }
@@ -208,9 +192,7 @@ export class ReportsService {
   private async createOrUpdateMonthlyReport(monthKey: string): Promise<void> {
     const accountId = this.accountKey;
     if (!accountId) return;
-
-    let dateString = date().format('YYYY-MM-DD');
-    const existing = await this.getReportByMonth(dateString);
+    const existing = await this.getReportByMonth(monthKey);
 
     const [transactions, budgets, categories] = await Promise.all([
       this.transactionsService.getTransactions(),
@@ -226,7 +208,7 @@ export class ReportsService {
       categories,
     );
 
-    const report: MonthlyReport = existing
+    const report: MonthlyReportCreateInput | MonthlyReportUpdateInput = existing
       ? {
           ...payload,
           recurrings: existing.recurrings,
@@ -244,9 +226,9 @@ export class ReportsService {
         };
 
     if (existing) {
-      await this.updateReport(existing.uid, report);
+      await this.updateReport(existing.uid, report as MonthlyReportUpdateInput);
     } else {
-      await this.createReport(report);
+      await this.createReport(report as MonthlyReportCreateInput);
     }
   }
 
@@ -256,7 +238,7 @@ export class ReportsService {
     transactions: TransactionRecord[],
     budgets: Budget[],
     categories: Category[],
-  ): Omit<MonthlyReport, 'createdAt' | 'updatedAt' | 'recurrings' | 'isFinalized'> {
+  ): MonthlyReportCreateInput | MonthlyReportUpdateInput {
     const monthTransactions = this.filterTransactionsForMonth(transactions, monthKey);
     const { totalIncome, totalExpense, expenseByCategory } =
       this.rollUpMonthExpenseAndIncome(monthTransactions);
@@ -272,7 +254,6 @@ export class ReportsService {
     );
 
     return {
-      uid: '',
       month: monthKey,
       accountId,
       totalIncome,
@@ -280,7 +261,6 @@ export class ReportsService {
       savings: totalIncome - totalExpense,
       totalBudgetUsed,
       categoryBreakdown,
-      date: date().format('YYYY-MM-DD'),
     };
   }
 
@@ -759,16 +739,18 @@ export class ReportsService {
   }
 
   private async getReportByMonth(monthKey: string): Promise<MonthlyReport | null> {
-    return this.offlineCrud.fetchOne<MonthlyReport>(COLLECTION, monthKey, async () => {
+    try {
       const snap = await getDoc(doc(this.firestore, COLLECTION, monthKey));
       return snap.data() as MonthlyReport;
-    });
+    } catch {
+      return null;
+    }
   }
 
-  async createReport(data: MonthlyReport): Promise<MonthlyReport> {
+  async createReport(data: MonthlyReportCreateInput): Promise<MonthlyReport> {
     return this.offlineCrud.create<MonthlyReport>(
       COLLECTION,
-      data.uid,
+      'uid',
       async () => {
         const ref = await addDoc(collection(this.firestore, COLLECTION), data);
         const row = await this.getReportByMonth(ref.id);
@@ -781,7 +763,7 @@ export class ReportsService {
     );
   }
 
-  async updateReport(reportId: string, patch: MonthlyReport): Promise<void> {
+  async updateReport(reportId: string, patch: MonthlyReportUpdateInput): Promise<void> {
     const cached = await this.offlineCrud.fetchOne<MonthlyReport>(
       COLLECTION,
       reportId,

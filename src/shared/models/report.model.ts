@@ -9,7 +9,6 @@ export interface CategoryBreakdownEntry {
 }
 
 export interface MonthlyReport {
-  /** Composite key: `{accountId}_{month}` — used as Firestore doc id & IDB keyPath */
   uid: string;
   month: string; // 'YYYY-MM'
   accountId: string;
@@ -26,6 +25,43 @@ export interface MonthlyReport {
   isFinalized: boolean;
   /** Calendar day string when the report row was created / last synced (`YYYY-MM-DD`). */
   date?: string;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  _pendingSync?: boolean;
+}
+
+export interface MonthlyReportCreateInput {
+  month: string;
+  accountId: string;
+  totalIncome: number;
+  totalExpense: number;
+  savings: number;
+  totalBudgetUsed: number;
+  categoryBreakdown: Record<string, CategoryBreakdownEntry>;
+  recurrings: {
+    totalIncome?: number;
+    totalExpense?: number;
+    spentOn?: string[];
+  };
+  isFinalized?: boolean;
+  date?: string;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  _pendingSync?: boolean;
+}
+
+export interface MonthlyReportUpdateInput {
+  totalIncome?: number;
+  totalExpense?: number;
+  savings?: number;
+  totalBudgetUsed?: number;
+  categoryBreakdown?: Record<string, CategoryBreakdownEntry>;
+  recurrings?: {
+    totalIncome?: number;
+    totalExpense?: number;
+    spentOn?: string[];
+  };
+  isFinalized?: boolean;
   createdAt?: Date | null;
   updatedAt?: Date | null;
   _pendingSync?: boolean;
