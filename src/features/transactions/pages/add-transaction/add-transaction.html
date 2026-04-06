@@ -178,7 +178,7 @@
       <div class="flex flex-col gap-2">
         <label for="recurring-frequency" class="text-xs text-gray-400">Frequency</label>
         <div class="flex gap-1 justify-between">
-          @for (option of recurringFrequencyOptions(); track option.value) {
+          @for (option of recurringFrequencies(); track option.value) {
             <div
               class="card flex items-center justify-center rounded-2xl text-xs cursor-pointer px-3 py-2 {{
                 transaction().recurringFrequency === option.value ? 'purple-card-selected' : 'card'

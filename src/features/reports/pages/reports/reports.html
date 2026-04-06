@@ -1,13 +1,13 @@
 <div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
   <!-- Header -->
-  <div class="flex items-center gap-3">
+  <div class="flex items-center gap-2">
     <div
-      class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-secondary-light"
+      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
       (click)="goBack()"
     >
-      <ico name="left-arrow" size="md"></ico>
+      <ico name="left-arrow" size="sm"></ico>
     </div>
-    <h1 class="text-2xl font-semibold title-font">Reports</h1>
+    <h1 class="text-xl font-semibold title-font">Reports</h1>
   </div>
 
   @if (loading()) {
@@ -20,71 +20,63 @@
   } @else {
     <!-- Summary Cards -->
     <div class="grid grid-cols-2 gap-3">
-      <div
-        class="rounded-2xl p-4 flex flex-col gap-1"
-        style="background-color: color-mix(in srgb, #10b981 12%, transparent)"
-      >
+      <div class="rounded-2xl p-4 flex flex-col gap-1 card selected-card">
         <p class="text-xs text-secondary">Total Income</p>
-        <p class="text-xl font-semibold title-font text-green-600">
+        <p class="text-xl font-semibold title-font text-income">
           {{ summary().totalIncome | currency: currency() : 'symbol-narrow' : '1.0-0' }}
         </p>
       </div>
-      <div
-        class="rounded-2xl p-4 flex flex-col gap-1"
-        style="background-color: color-mix(in srgb, #f87171 12%, transparent)"
-      >
+      <div class="rounded-2xl p-4 flex flex-col gap-1 red-card red-card-selected">
         <p class="text-xs text-secondary">Total Expense</p>
-        <p class="text-xl font-semibold title-font text-red-500">
+        <p class="text-xl font-semibold title-font text-expense">
           {{ summary().totalExpense | currency: currency() : 'symbol-narrow' : '1.0-0' }}
         </p>
       </div>
     </div>
 
     <!-- Period Filter -->
-    <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+    <div class="flex gap-2 flex-wrap pb-1">
       @for (p of periods; track p.value) {
-        <button
-          type="button"
-          class="px-4 py-1.5 rounded-full text-sm font-medium transition-all shrink-0"
-          [class.bg-primary]="selectedPeriod() === p.value"
-          [class.text-white]="selectedPeriod() === p.value"
-          [class.card]="selectedPeriod() !== p.value"
-          [class.text-secondary]="selectedPeriod() !== p.value"
+        <div
+          class="card px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 cursor-pointer"
+          [class.selected-card]="selectedPeriod() === p.value"
           (click)="onPeriodChange(p.value)"
         >
           {{ p.label }}
-        </button>
+        </div>
       }
     </div>
 
     <!-- Chart Mode Toggle -->
     <div class="card rounded-2xl p-1 flex gap-1">
-      <button
-        type="button"
-        class="flex-1 py-2 rounded-xl text-sm font-medium transition-all"
-        [class.text-primary]="selectedChartMode() === 'income-expense'"
-        [class.font-semibold]="selectedChartMode() === 'income-expense'"
-        [class.text-secondary]="selectedChartMode() !== 'income-expense'"
+      <div
+        class="flex-1 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer text-center"
         (click)="onChartModeChange('income-expense')"
+        [style.color]="
+          selectedChartMode() === 'income-expense'
+            ? 'var(--color-tertiary-inverse)'
+            : 'var(--color-secondary)'
+        "
         [style.background-color]="
           selectedChartMode() === 'income-expense' ? 'var(--color-tertiary)' : 'transparent'
         "
       >
         Income vs Expense
-      </button>
-      <button
-        type="button"
-        class="flex-1 py-2 rounded-xl text-sm font-medium transition-all"
-        [class.text-primary]="selectedChartMode() === 'by-category'"
-        [class.font-semibold]="selectedChartMode() === 'by-category'"
-        [class.text-secondary]="selectedChartMode() !== 'by-category'"
+      </div>
+      <div
+        class="flex-1 py-2 rounded-xl text-sm font-medium transition-all text-center cursor-pointer"
+        [style.color]="
+          selectedChartMode() === 'by-category'
+            ? 'var(--color-tertiary-inverse)'
+            : 'var(--color-secondary)'
+        "
         (click)="onChartModeChange('by-category')"
         [style.background-color]="
           selectedChartMode() === 'by-category' ? 'var(--color-tertiary)' : 'transparent'
         "
       >
         By Category
-      </button>
+      </div>
     </div>
 
     <!-- Chart Area -->

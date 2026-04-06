@@ -16,6 +16,7 @@ import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { date } from '../../../../core/date';
+import { paymentSourceOptions, recurringFrequencyOptions } from '../../types';
 
 @Component({
   selector: 'app-add-transaction',
@@ -35,32 +36,8 @@ export class AddTransaction {
   currencySymbol = signal<string>('₹');
   categories = signal<Category[]>([]);
   today = signal<string>(date().format('YYYY-MM-DD'));
-  paymentSources = signal<{ name: string; icon: string }[]>([
-    {
-      name: 'Card',
-      icon: 'credit-card',
-    },
-    {
-      name: 'Cash',
-      icon: 'bank-notes',
-    },
-    {
-      name: 'UPI',
-      icon: 'qr-code',
-    },
-    {
-      name: 'Bank',
-      icon: 'bank',
-    },
-  ]);
-
-  recurringFrequencyOptions = signal<{ name: string; value: string }[]>([
-    { name: 'Daily', value: 'daily' },
-    { name: 'Weekly', value: 'weekly' },
-    { name: 'Bi-Weekly', value: 'bi-weekly' },
-    { name: 'Monthly', value: 'monthly' },
-    { name: 'Yearly', value: 'yearly' },
-  ]);
+  paymentSources = signal<{ name: string; icon: string }[]>(paymentSourceOptions);
+  recurringFrequencies = signal<{ name: string; value: string }[]>(recurringFrequencyOptions);
 
   async ngOnInit() {
     let account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;

@@ -13,8 +13,6 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import ApexCharts from 'apexcharts';
 import { ReportsService } from '../../../../services/reports.service';
-import { TransactionsService } from '../../../../services/transactions.service';
-import { BudgetsService } from '../../../../services/budgets.service';
 import { Icon } from '../../../../shared/components/icon/icon';
 import {
   ReportTimePeriod,
@@ -39,8 +37,6 @@ export class Reports implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('lineChartEl') lineChartEl!: ElementRef<HTMLDivElement>;
 
   private readonly reportsService = inject(ReportsService);
-  private readonly transactionsService = inject(TransactionsService);
-  private readonly budgetsService = inject(BudgetsService);
   private readonly router = inject(Router);
 
   currency = signal<string>('INR');
@@ -112,16 +108,6 @@ export class Reports implements OnInit, AfterViewInit, OnDestroy {
   private async loadData() {
     this.loading.set(true);
     try {
-      // 1. Fetch raw data needed for first-time compute
-      const [transactions, budgets] = await Promise.all([
-        this.transactionsService.getTransactions(),
-        this.budgetsService.getBudgets(),
-      ]);
-
-      // 2. Ensure current-month record exists (creates IDB + Firestore entry if missing)
-      await this.reportsService.computeAndSaveCurrentMonth(transactions, budgets);
-
-      // 3. Get the fully-built view data for the selected period
       const data: ReportViewData = await this.reportsService.getReportViewData(
         this.selectedPeriod(),
       );

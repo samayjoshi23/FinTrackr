@@ -1,9 +1,10 @@
 // ─── Firestore / IndexedDB stored document ────────────────────────────────────
 
+/** Stored on `MonthlyReport.categoryBreakdown` — matches `todo.txt` monthly schema. */
 export interface CategoryBreakdownEntry {
   amount: number;
   budget: number | null;
-  used: number; // % of budget used
+  used: number; // percentage of budget used
   overspent: boolean;
 }
 

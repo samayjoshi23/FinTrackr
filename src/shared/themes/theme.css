@@ -1,6 +1,7 @@
 :root {
   /* Light theme (default) using Tailwind tokens */
   --color-tertiary: rgb(255, 255, 255);
+  --color-tertiary-inverse: rgb(0, 0, 0);
   --color-bg: var(--color-slate-50);
   --color-bg-elevated: rgb(236, 237, 243);
   --color-text: var(--color-slate-900);
@@ -44,6 +45,7 @@
 .theme-dark {
   /* Dark theme overrides using Tailwind tokens */
   --color-tertiary: rgb(0, 0, 0);
+  --color-tertiary-inverse: rgb(255, 255, 255);
   --color-bg: var(--color-slate-950);
   --color-bg-elevated: rgb(23, 32, 48);
   --color-text: var(--color-slate-50);
