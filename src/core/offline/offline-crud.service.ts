@@ -4,6 +4,14 @@ import { IndexedDbCacheService } from './indexed-db-cache.service';
 import { SyncQueueService } from './sync-queue.service';
 import { NotifierService } from '../../shared/components/notifier/notifier.service';
 import { NotifierSeverity } from '../../shared/components/notifier/types';
+import { TransactionRecord } from '../../shared/models/transaction.model';
+import {
+  applyTransactionFilters,
+  paginateTransactionRows,
+  sortTransactionsByCreatedAtDesc,
+  TransactionListFilter,
+  TransactionPagedResult,
+} from '../../shared/models/transaction-query.model';
 
 @Injectable({ providedIn: 'root' })
 export class OfflineCrudService {
@@ -55,6 +63,49 @@ export class OfflineCrudService {
       return results;
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * READ transactions — cache-first (IndexedDB `accountId` index), filter/sort/paginate in the
+   * offline layer so feature components avoid scanning full lists.
+   */
+  async fetchTransactionsPage(
+    accountKey: string,
+    filter: TransactionListFilter,
+    offset: number,
+    limit: number,
+    firestoreFn: () => Promise<TransactionRecord[]>,
+  ): Promise<TransactionPagedResult> {
+    const indexFilter = { indexName: 'accountId', value: accountKey };
+    const cached = await this.readFromCache<TransactionRecord>('transactions', indexFilter);
+
+    if (cached.length > 0) {
+      if (this.network.isOnline()) {
+        this.revalidateAll('transactions', firestoreFn, indexFilter);
+      }
+      const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(cached, filter));
+      const { items, total, hasMore } = paginateTransactionRows(pipeline, offset, limit);
+      return { items, total, hasMore };
+    }
+
+    const hasPending = await this.syncQueue.hasPendingForStore('transactions');
+    if (hasPending) {
+      return { items: [], total: 0, hasMore: false };
+    }
+
+    if (!this.network.isOnline()) {
+      return { items: [], total: 0, hasMore: false };
+    }
+
+    try {
+      const results = await firestoreFn();
+      await this.replaceCache('transactions', results, indexFilter);
+      const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(results, filter));
+      const { items, total, hasMore } = paginateTransactionRows(pipeline, offset, limit);
+      return { items, total, hasMore };
+    } catch {
+      return { items: [], total: 0, hasMore: false };
     }
   }
 

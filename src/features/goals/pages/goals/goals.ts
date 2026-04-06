@@ -5,16 +5,7 @@ import { Icon } from '../../../../shared/components/icon/icon';
 import { GoalsService } from '../../../../services/goals.service';
 import { Goal } from '../../../../shared/models/goal.model';
 import { Account } from '../../../../shared/models/account.model';
-
-interface GoalCardModel {
-  icon: string;
-  name: string;
-  percent: number;
-  progressWidth: number;
-  currentAmount: number;
-  target: number;
-}
-
+import { GoalCardModel } from '../../types';
 @Component({
   selector: 'app-goals',
   imports: [CommonModule, Icon],
@@ -60,9 +51,15 @@ export class Goals {
   private iconForGoalName(name: string | undefined): string {
     const n = (name ?? '').toLowerCase();
     if (n.includes('emergency') || n.includes('fund')) return 'target';
-    if (n.includes('laptop') || n.includes('computer') || n.includes('work')) return 'office-building';
-    if (n.includes('vacation') || n.includes('travel') || n.includes('trip') || n.includes('holiday')) return 'entertainment';
+    if (n.includes('laptop') || n.includes('computer') || n.includes('work'))
+      return 'office-building';
+    if (
+      n.includes('vacation') ||
+      n.includes('travel') ||
+      n.includes('trip') ||
+      n.includes('holiday')
+    )
+      return 'entertainment';
     return 'bullseye';
   }
 }
-

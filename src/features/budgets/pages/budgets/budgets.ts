@@ -9,27 +9,7 @@ import { Budget } from '../../../../shared/models/budget.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { Category } from '../../../categories/types';
 import { Account } from '../../../../shared/models/account.model';
-
-type ProgressStatus = 'under' | 'over';
-
-interface SummaryCardModel {
-  monthLabel: string;
-  totalLimit: number;
-  totalSpent: number;
-  remaining: number;
-  remainingDisplay: number;
-  daysLeft: number;
-}
-
-interface CategoryBudgetCardModel {
-  category: string;
-  icon: string;
-  spent: number;
-  limit: number;
-  percent: number;
-  status: ProgressStatus;
-}
-
+import { ProgressStatus, CategoryBudgetCardModel, SummaryCardModel } from '../../types';
 @Component({
   selector: 'app-budgets',
   imports: [CommonModule, Icon],

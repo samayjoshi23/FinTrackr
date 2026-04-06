@@ -19,6 +19,11 @@ import {
   TransactionCreateInput,
   TransactionRecord,
 } from '../shared/models/transaction.model';
+import {
+  sortTransactionsByCreatedAtDesc,
+  TransactionListFilter,
+  TransactionPagedResult,
+} from '../shared/models/transaction-query.model';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 
@@ -165,16 +170,48 @@ export class TransactionsService {
             where('accountId', '==', accountKey),
           ),
         );
-        return this.sortByCreatedAtDesc(snap.docs.map((d) => this.mapTransaction(d.id, d.data())));
+        return sortTransactionsByCreatedAtDesc(
+          snap.docs.map((d) => this.mapTransaction(d.id, d.data())),
+        );
       },
       { indexName: 'accountId', value: accountKey },
     );
-    return this.sortByCreatedAtDesc(results);
+    return sortTransactionsByCreatedAtDesc(results);
+  }
+
+  /**
+   * Filtered, paginated transactions. Reads from IndexedDB by `accountId`, applies filters in the
+   * offline layer, then returns one page (for list UIs / lazy loading).
+   */
+  async getTransactionsPage(
+    filter: TransactionListFilter,
+    offset: number,
+    limit: number,
+  ): Promise<TransactionPagedResult> {
+    const accountKey = this.selectedAccountKey();
+    if (!accountKey) {
+      return { items: [], total: 0, hasMore: false };
+    }
+    return this.offlineCrud.fetchTransactionsPage(
+      accountKey,
+      filter,
+      offset,
+      limit,
+      async () => {
+        const snap = await getDocs(
+          query(
+            collection(this.firestore, TRANSACTIONS_COLLECTION),
+            where('accountId', '==', accountKey),
+          ),
+        );
+        return snap.docs.map((d) => this.mapTransaction(d.id, d.data()));
+      },
+    );
   }
 
   async getRecentTransactions(limitHint = 50): Promise<TransactionRecord[]> {
-    const all = await this.getTransactions();
-    return all.slice(0, limitHint);
+    const { items } = await this.getTransactionsPage({}, 0, limitHint);
+    return items;
   }
 
   async createRecurringTransaction(
@@ -245,14 +282,6 @@ export class TransactionsService {
   }
 
   // ─── Private helpers ───
-
-  private sortByCreatedAtDesc(rows: TransactionRecord[]): TransactionRecord[] {
-    return [...rows].sort((a, b) => {
-      const ta = a.createdAt?.getTime() ?? 0;
-      const tb = b.createdAt?.getTime() ?? 0;
-      return tb - ta;
-    });
-  }
 
   private requireUid(): string {
     const uid = this.auth.currentUser?.uid;

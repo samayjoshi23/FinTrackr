@@ -9,9 +9,7 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 import { Category } from '../../../categories/types';
 import { CategoriesService } from '../../../../services/categories.service';
 import { Account } from '../../../../shared/models/account.model';
-
-type TypeFilter = 'all' | 'income' | 'expense';
-type DateFilter = 'all' | 'today' | 'week' | 'month';
+import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
 
 @Component({
   selector: 'app-transaction-list',
@@ -25,18 +23,11 @@ export class TransactionList {
   private readonly notifier = inject(NotifierService);
   private readonly categoriesService = inject(CategoriesService);
 
-  readonly typeFilters: { value: TypeFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'income', label: 'Income' },
-    { value: 'expense', label: 'Expense' },
-  ];
+  private readonly pageSize = 25;
+  private searchDebounceHandle?: ReturnType<typeof setTimeout>;
 
-  readonly dateFilters: { value: DateFilter; label: string }[] = [
-    { value: 'all', label: 'All Time' },
-    { value: 'today', label: 'Today' },
-    { value: 'week', label: 'This Week' },
-    { value: 'month', label: 'This Month' },
-  ];
+  readonly typeFilters = typeFilterOptions;
+  readonly dateFilters = dateFilterOptions;
 
   currency = signal<string>('INR');
   searchQuery = signal('');
@@ -45,68 +36,20 @@ export class TransactionList {
   categoryFilter = signal<string>('all');
   isFilterActive = signal(false);
 
-  transactions = signal<TransactionRecord[]>([]);
+  displayedTransactions = signal<TransactionRecord[]>([]);
+  totalFiltered = signal(0);
+  hasMore = signal(false);
+  loading = signal(true);
+  loadingMore = signal(false);
+
   categories = signal<Category[]>([]);
 
-  /** Category chips: "All" + unique categories from data + catalog */
+  /** Category chips from the catalog only (no full transaction scan). */
   readonly categoryChipLabels = computed(() => {
-    const names = new Set<string>();
-    for (const c of this.categories()) {
-      if (c.name?.trim()) names.add(c.name.trim());
-    }
-    for (const t of this.transactions()) {
-      const c = t.category?.trim();
-      if (c) names.add(c);
-    }
-    return ['All', ...Array.from(names).sort((a, b) => a.localeCompare(b))];
-  });
-
-  readonly filteredTransactions = computed(() => {
-    let list = this.transactions();
-    const q = this.searchQuery().trim().toLowerCase();
-    if (q) {
-      list = list.filter((t) => {
-        const hay = [t.description, t.category, t.source, t.type]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
-
-    const tf = this.typeFilter();
-    if (tf !== 'all') {
-      list = list.filter((t) => t.type === tf);
-    }
-
-    const cf = this.categoryFilter();
-    if (cf !== 'all' && cf !== 'All') {
-      list = list.filter((t) => t.category === cf);
-    }
-
-    const df = this.dateFilter();
-    if (df !== 'all') {
-      const now = new Date();
-      const start = new Date(now);
-      if (df === 'today') {
-        start.setHours(0, 0, 0, 0);
-      } else if (df === 'week') {
-        const day = start.getDay();
-        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-        start.setDate(diff);
-        start.setHours(0, 0, 0, 0);
-      } else if (df === 'month') {
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
-      }
-      list = list.filter((t) => {
-        const d = t.createdAt;
-        if (!d) return false;
-        return d >= start && d <= now;
-      });
-    }
-
-    return list;
+    const names = this.categories()
+      .map((c) => c.name?.trim())
+      .filter((n): n is string => !!n);
+    return ['All', ...Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))];
   });
 
   async ngOnInit() {
@@ -120,27 +63,81 @@ export class TransactionList {
       this.categories.set([]);
     }
 
-    if (!account?.uid) {
+    if (!(account?.uid ?? account?.id)) {
+      this.loading.set(false);
       this.notifier.error('No account selected.');
       return;
     }
 
-    try {
-      const rows = await this.transactionsService.getTransactions();
-      this.transactions.set(rows);
-    } catch (e) {
-      console.error(e);
-      this.notifier.error('Could not load transactions.');
-      this.transactions.set([]);
-    }
+    await this.reloadFromFilters();
   }
 
   onBack() {
     this.router.navigateByUrl('/user/dashboard');
   }
 
+  onSearchQueryChange(value: string) {
+    this.searchQuery.set(value);
+    clearTimeout(this.searchDebounceHandle);
+    this.searchDebounceHandle = setTimeout(() => void this.reloadFromFilters(), 300);
+  }
+
+  async reloadFromFilters() {
+    this.loading.set(true);
+    try {
+      const r = await this.transactionsService.getTransactionsPage(
+        {
+          search: this.searchQuery().trim() || undefined,
+          type: this.typeFilter(),
+          category: this.categoryFilter(),
+          datePreset: this.dateFilter(),
+        },
+        0,
+        this.pageSize,
+      );
+      this.displayedTransactions.set(r.items);
+      this.totalFiltered.set(r.total);
+      this.hasMore.set(r.hasMore);
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not load transactions.');
+      this.displayedTransactions.set([]);
+      this.totalFiltered.set(0);
+      this.hasMore.set(false);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async loadMore() {
+    if (!this.hasMore() || this.loadingMore() || this.loading()) return;
+    this.loadingMore.set(true);
+    try {
+      const offset = this.displayedTransactions().length;
+      const r = await this.transactionsService.getTransactionsPage(
+        {
+          search: this.searchQuery().trim() || undefined,
+          type: this.typeFilter(),
+          category: this.categoryFilter(),
+          datePreset: this.dateFilter(),
+        },
+        offset,
+        this.pageSize,
+      );
+      this.displayedTransactions.update((rows) => [...rows, ...r.items]);
+      this.totalFiltered.set(r.total);
+      this.hasMore.set(r.hasMore);
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not load more transactions.');
+    } finally {
+      this.loadingMore.set(false);
+    }
+  }
+
   clearSearch() {
     this.searchQuery.set('');
+    void this.reloadFromFilters();
   }
 
   iconForRow(t: TransactionRecord): string {
@@ -161,14 +158,17 @@ export class TransactionList {
 
   setTypeFilter(value: TypeFilter) {
     this.typeFilter.set(value);
+    void this.reloadFromFilters();
   }
 
   setDateFilter(value: DateFilter) {
     this.dateFilter.set(value);
+    void this.reloadFromFilters();
   }
 
   setCategoryChip(label: string) {
     this.categoryFilter.set(label === 'All' ? 'all' : label);
+    void this.reloadFromFilters();
   }
 
   isTypeChipActive(value: TypeFilter): boolean {

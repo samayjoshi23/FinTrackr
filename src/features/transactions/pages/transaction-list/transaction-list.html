@@ -21,7 +21,7 @@
           class="w-full"
           placeholder="Search transactions..."
           [ngModel]="searchQuery()"
-          (ngModelChange)="searchQuery.set($event)"
+          (ngModelChange)="onSearchQueryChange($event)"
           autocomplete="off"
         />
       </div>
@@ -103,13 +103,22 @@
 
   <!-- List -->
   <div class="flex flex-col gap-2">
-    @if (filteredTransactions().length === 0) {
+    @if (loading()) {
+      <div class="flex items-center justify-center gap-2 card p-6 rounded-2xl text-secondary text-sm">
+        Loading transactions…
+      </div>
+    } @else if (displayedTransactions().length === 0) {
       <div class="flex items-center justify-center gap-2 card p-4 rounded-2xl flex-col text-center">
         <p class="text-sm text-secondary">No transactions match your filters.</p>
         <a href="/user/transactions/add" class="text-xs text-primary">+ Add a transaction</a>
       </div>
     } @else {
-      @for (t of filteredTransactions(); track t.uid) {
+      @if (totalFiltered() > 0) {
+        <p class="text-xs text-secondary px-1">
+          Showing {{ displayedTransactions().length }} of {{ totalFiltered() }}
+        </p>
+      }
+      @for (t of displayedTransactions(); track t.uid) {
         <div class="flex items-center justify-between gap-2 card rounded-2xl px-4 py-3">
           <div class="flex items-center gap-4">
             <div class="flex items-center justify-center">
@@ -136,6 +145,16 @@
             {{ t.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
           </p>
         </div>
+      }
+      @if (hasMore() && !loading()) {
+        <button
+          type="button"
+          class="w-full py-3 rounded-2xl card text-sm text-primary font-medium cursor-pointer disabled:opacity-50"
+          [disabled]="loadingMore()"
+          (click)="loadMore()"
+        >
+          {{ loadingMore() ? 'Loading…' : 'Load more' }}
+        </button>
       }
     }
   </div>
