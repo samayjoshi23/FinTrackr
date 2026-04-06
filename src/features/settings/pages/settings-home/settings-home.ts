@@ -47,21 +47,21 @@ export class SettingsHome {
     );
     this.applyBodyTheme();
 
-    this.userProfile.set(
-      JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null,
-    );
-    this.setInitials();
+    let userProfile = JSON.parse(
+      localStorage.getItem('userProfile') ?? 'null',
+    ) as UserProfile | null;
+    this.userProfile.set(userProfile ?? null);
+    let accounts = await this.accountsService.getAccounts().catch(() => []);
+    this.accounts.set(accounts ?? []);
 
-    await this.accountsService.selectAccount(null).catch(() => null);
-    const current = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    let current = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.currentAccount.set(current);
 
-    const rows = await this.accountsService.getAccounts().catch(() => []);
-    this.accounts.set(rows ?? []);
+    this.setInitials();
 
     let txTotal = 0;
     let balanceSum = 0;
-    for (const a of rows ?? []) {
+    for (const a of accounts ?? []) {
       const aid = a.uid || a.id;
       const txs = await this.transactionsService.getTransactions().catch(() => []);
       txTotal += txs.length;

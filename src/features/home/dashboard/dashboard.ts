@@ -32,52 +32,32 @@ export class Dashboard {
   currency = signal<string>('INR');
 
   async ngOnInit() {
-    this.userProfile.set(
-      JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null,
-    );
+    let profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    this.userProfile.set(profile ?? null);
     this.setUserInitials();
     this.setGreetingMessage();
 
-    let account = await this.accountsService.selectAccount(null);
-    this.selectedAccount.set(account);
+    let account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    this.selectedAccount.set(account ?? null);
     this.currency.set(account?.currency ?? 'INR');
-    console.log('selectedAccount', this.selectedAccount());
     if (this.selectedAccount()) {
-      await this.loadTransactionsForAccount();
+      let recentTransactions = await this.transactionsService.getTransactionsPage(
+        {
+          search: '',
+          type: 'all',
+          category: 'all',
+          datePreset: 'all',
+        },
+        0,
+        10,
+      );
+      this.recentTransactions.set(recentTransactions.items);
     }
   }
 
   goToQuickAction(path: string) {
     const clean = (path ?? '').toString().replace(/^\/+/, '');
     this.router.navigateByUrl(`/${clean}`);
-  }
-
-  private async loadTransactionsForAccount() {
-    try {
-      const rows = await this.transactionsService.getTransactions();
-      this.recentTransactions.set(rows.slice(0, 10).map((t) => this.mapTransactionRow(t)));
-      console.log('recentTransactions', this.recentTransactions());
-    } catch (error) {
-      console.error(error);
-      this.notifier.error('Could not load transactions for this account.');
-      this.recentTransactions.set([]);
-    }
-  }
-
-  private mapTransactionRow(t: TransactionRecord): TransactionRecord {
-    return {
-      uid: t.uid,
-      accountId: t.accountId,
-      amount: t.amount ?? 0,
-      description: t.description,
-      category: t.category,
-      icon: t.icon,
-      type: t.type,
-      source: t.source?.trim() ? t.source : t.category,
-      isRecurring: t.isRecurring ?? false,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    };
   }
 
   setUserInitials() {
