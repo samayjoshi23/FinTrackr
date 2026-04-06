@@ -9,6 +9,7 @@ import { Budget } from '../../../../shared/models/budget.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { Category } from '../../../categories/types';
 import { Account } from '../../../../shared/models/account.model';
+import { transactionEventDate } from '../../../../core/date';
 import { ProgressStatus, CategoryBudgetCardModel, SummaryCardModel } from '../../types';
 @Component({
   selector: 'app-budgets',
@@ -40,7 +41,7 @@ export class Budgets {
     const month = this.monthLabel();
     const monthSpent = this.transactions().reduce((acc, t) => {
       if (t.type !== 'expense') return acc;
-      if (!this.isInMonth(t.createdAt, month)) return acc;
+      if (!this.isInMonth(transactionEventDate(t), month)) return acc;
       return acc + (Number(t.amount ?? 0) || 0);
     }, 0);
 
@@ -73,7 +74,7 @@ export class Budgets {
 
     for (const t of this.transactions()) {
       if (t.type !== 'expense') continue;
-      if (!this.isInMonth(t.createdAt, month)) continue;
+      if (!this.isInMonth(transactionEventDate(t), month)) continue;
       const cat = (t.category ?? '').trim() || 'Uncategorized';
       const row = totalsByCategory.get(cat);
       if (!row) continue;

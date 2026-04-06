@@ -21,6 +21,7 @@ import { NotifierService } from '../shared/components/notifier/notifier.service'
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
 import { NetworkService } from '../core/offline/network.service';
+import { date, docCalendarDate } from '../core/date';
 
 const ACCOUNTS_COLLECTION = 'accounts';
 
@@ -41,6 +42,7 @@ export class AccountsService {
   /** Upsert a single account doc for the current user. Returns the account document. */
   async createAccount(data: AccountCreateInput, userId?: string): Promise<Account> {
     const uid = userId ?? this.requireUid();
+    const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<Account>(
       'accounts',
       'id',
@@ -60,6 +62,7 @@ export class AccountsService {
         };
         if (!existing.exists()) {
           payload['createdAt'] = serverTimestamp();
+          payload['date'] = day;
         }
         await setDoc(ref, payload, { merge: true });
         const account = await this.getAccountDirect(uid);
@@ -77,6 +80,7 @@ export class AccountsService {
         isActive: data.isActive,
         members: data.members,
         ownerId: data.ownerId,
+        date: day,
       },
     );
   }
@@ -308,6 +312,7 @@ export class AccountsService {
     const d = data as Record<string, unknown>;
     const createdAt = d['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = d['updatedAt'] as { toDate?: () => Date } | null | undefined;
+    const created = createdAt?.toDate?.() ?? null;
     return {
       id,
       uid: (d['uid'] as string) ?? id,
@@ -318,8 +323,9 @@ export class AccountsService {
       isActive: d['isActive'] as boolean | undefined,
       members: (d['members'] as string[] | undefined) ?? undefined,
       ownerId: (d['ownerId'] as string | undefined) ?? undefined,
-      createdAt: createdAt?.toDate?.() ?? null,
+      createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
+      date: docCalendarDate(d, created),
     };
   }
 }

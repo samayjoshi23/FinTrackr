@@ -14,6 +14,8 @@ import { Category } from '../../../categories/types';
 import { CategoriesService } from '../../../../services/categories.service';
 import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
+import { ReportsService } from '../../../../services/reports.service';
+import { date } from '../../../../core/date';
 
 @Component({
   selector: 'app-add-transaction',
@@ -27,11 +29,12 @@ export class AddTransaction {
   private readonly categoriesService = inject(CategoriesService);
   private readonly transactionsService = inject(TransactionsService);
   private readonly notifier = inject(NotifierService);
+  private readonly reportsService = inject(ReportsService);
   selectedAccount = signal<Account | null>(null);
   currency = signal<string>('INR');
   currencySymbol = signal<string>('₹');
   categories = signal<Category[]>([]);
-  today = signal<string>(new Date().toISOString().split('T')[0]);
+  today = signal<string>(date().format('YYYY-MM-DD'));
   paymentSources = signal<{ name: string; icon: string }[]>([
     {
       name: 'Card',
@@ -142,6 +145,9 @@ export class AddTransaction {
       this.notifier.error('Could not save transaction.');
       return;
     }
+
+    // Update monthly report in background (fire-and-forget)
+    this.reportsService.updateReportForTransaction(transactionResponse).catch(() => {});
 
     const accountDocId = account.id || account.uid;
     try {

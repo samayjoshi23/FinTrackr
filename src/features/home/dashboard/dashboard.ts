@@ -89,4 +89,8 @@ export class Dashboard {
     }
     this.greetingMessage.set(`${greeting}, ${displayName}`);
   }
+
+  goToProfile() {
+    this.router.navigateByUrl('/settings');
+  }
 }

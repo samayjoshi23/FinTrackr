@@ -15,6 +15,7 @@ import {
 import { Budget, BudgetCreateInput, BudgetUpdateInput } from '../shared/models/budget.model';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { date, docCalendarDate } from '../core/date';
 
 const BUDGETS_COLLECTION = 'budgets';
 
@@ -42,6 +43,7 @@ export class BudgetsService {
   async createBudget(data: BudgetCreateInput, userId?: string): Promise<Budget> {
     const uid = userId ?? this.requireUid();
     const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<Budget>(
       'budgets',
       'id',
@@ -53,6 +55,7 @@ export class BudgetsService {
           month: data.month,
           name: data.name?.trim() || 'Budget',
           category: data.category?.trim() || '',
+          date: day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -69,6 +72,7 @@ export class BudgetsService {
         month: data.month,
         name: data.name?.trim() || 'Budget',
         category: data.category?.trim() || '',
+        date: day,
       },
     );
   }
@@ -169,6 +173,7 @@ export class BudgetsService {
   private mapBudget(id: string, data: Record<string, unknown>): Budget {
     const createdAt = data['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = data['updatedAt'] as { toDate?: () => Date } | null | undefined;
+    const created = createdAt?.toDate?.() ?? null;
     return {
       id,
       ownerId: (data['ownerId'] as string) ?? '',
@@ -177,8 +182,9 @@ export class BudgetsService {
       month: (data['month'] as string) ?? '',
       name: (data['name'] as string) ?? undefined,
       category: (data['category'] as string) ?? undefined,
-      createdAt: createdAt?.toDate?.() ?? null,
+      createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
+      date: docCalendarDate(data, created),
     };
   }
 }

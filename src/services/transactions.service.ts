@@ -26,6 +26,7 @@ import {
 } from '../shared/models/transaction-query.model';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { date, docCalendarDate } from '../core/date';
 
 const TRANSACTIONS_COLLECTION = 'transactions';
 const RECURRING_TRANSACTIONS_COLLECTION = 'recurring-transactions';
@@ -54,10 +55,10 @@ export class TransactionsService {
 
   async createTransaction(
     data: TransactionCreateInput,
-    userId?: string,
+    _userId?: string,
   ): Promise<TransactionRecord> {
-    const uid = userId ?? this.requireUid();
     const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<TransactionRecord>(
       'transactions',
       'uid',
@@ -71,6 +72,7 @@ export class TransactionsService {
           type: data.type,
           ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
           ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
+          date: day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -89,6 +91,7 @@ export class TransactionsService {
         type: data.type,
         ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
         ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
+        date: day,
       },
     );
   }
@@ -218,6 +221,7 @@ export class TransactionsService {
     data: RecurringTransactionCreateInput,
   ): Promise<RecurringTransactionRecord> {
     const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<RecurringTransactionRecord>(
       'recurring-transactions',
       'uid',
@@ -227,6 +231,7 @@ export class TransactionsService {
           transactionId: data.transactionId,
           lastPaymentDate: data.lastPaymentDate,
           nextPaymentDate: data.nextPaymentDate,
+          date: day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -241,6 +246,7 @@ export class TransactionsService {
         transactionId: data.transactionId,
         lastPaymentDate: data.lastPaymentDate,
         nextPaymentDate: data.nextPaymentDate,
+        date: day,
       },
     );
   }
@@ -292,6 +298,7 @@ export class TransactionsService {
   private mapTransaction(id: string, data: Record<string, unknown>): TransactionRecord {
     const createdAt = data['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = data['updatedAt'] as { toDate?: () => Date } | null | undefined;
+    const created = createdAt?.toDate?.() ?? null;
     return {
       uid: id,
       accountId: (data['accountId'] as string) ?? '',
@@ -302,8 +309,9 @@ export class TransactionsService {
       isRecurring: data['isRecurring'] as boolean | false,
       type: (data['type'] as string) ?? 'expense',
       source: data['source'] as string | undefined,
-      createdAt: createdAt?.toDate?.() ?? null,
+      createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
+      date: docCalendarDate(data, created),
     } as TransactionRecord;
   }
 
@@ -313,13 +321,15 @@ export class TransactionsService {
   ): RecurringTransactionRecord {
     const createdAt = data['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = data['updatedAt'] as { toDate?: () => Date } | null | undefined;
+    const created = createdAt?.toDate?.() ?? null;
     return {
       uid: id,
       accountId: (data['accountId'] as string) ?? '',
       transactionId: (data['transactionId'] as string) ?? '',
       lastPaymentDate: (data['lastPaymentDate'] as Date) ?? null,
       nextPaymentDate: (data['nextPaymentDate'] as Date) ?? null,
-      createdAt: createdAt?.toDate?.() ?? null,
+      date: docCalendarDate(data, created),
+      createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
     };
   }

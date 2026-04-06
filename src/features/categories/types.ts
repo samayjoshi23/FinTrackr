@@ -6,6 +6,7 @@ export interface Category {
   description: string;
   icon: string;
   accountId: string;
+  date?: string; // 'YYYY-MM-DD'
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
   _pendingSync?: boolean;

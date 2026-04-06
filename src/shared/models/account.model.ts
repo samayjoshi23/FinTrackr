@@ -22,6 +22,7 @@ export interface Account extends Omit<AccountDocument, 'createdAt' | 'updatedAt'
   id: string;
   createdAt: Date | null;
   updatedAt: Date | null;
+  date?: string; // 'YYYY-MM-DD'
   _pendingSync?: boolean;
 }
 

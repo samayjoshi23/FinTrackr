@@ -15,6 +15,7 @@ export interface Goal extends Omit<GoalDocument, 'createdAt' | 'updatedAt'> {
   id: string;
   createdAt: Date | null;
   updatedAt: Date | null;
+  date?: string; // 'YYYY-MM-DD'
   _pendingSync?: boolean;
 }
 

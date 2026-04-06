@@ -17,6 +17,7 @@ export interface Budget extends Omit<BudgetDocument, 'createdAt' | 'updatedAt'> 
   id: string;
   createdAt: Date | null;
   updatedAt: Date | null;
+  date?: string; // 'YYYY-MM-DD'
   _pendingSync?: boolean;
 }
 

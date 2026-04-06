@@ -14,6 +14,7 @@ export interface TransactionRecord {
   recurringFrequency?: string | null;
   isAutoPay?: boolean | null;
   nextPaymentDate?: Date | null;
+  date?: string; // 'YYYY-MM-DD'
   createdAt: Date | null;
   updatedAt: Date | null;
   _pendingSync?: boolean;
@@ -37,6 +38,7 @@ export interface RecurringTransactionRecord {
   transactionId: string;
   lastPaymentDate: Date | null;
   nextPaymentDate: Date | null;
+  date?: string;
   createdAt: Date | null;
   updatedAt: Date | null;
 }

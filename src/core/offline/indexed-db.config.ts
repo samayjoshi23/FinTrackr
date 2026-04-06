@@ -2,7 +2,7 @@ import { DBConfig } from 'ngx-indexed-db';
 
 export const indexedDbConfig: DBConfig = {
   name: 'FinTrackrDB',
-  version: 1,
+  version: 2,
   objectStoresMeta: [
     {
       store: 'accounts',
@@ -69,6 +69,14 @@ export const indexedDbConfig: DBConfig = {
       store: 'sync-metadata',
       storeConfig: { keyPath: 'key', autoIncrement: false },
       storeSchema: [],
+    },
+    {
+      store: 'monthly-reports',
+      storeConfig: { keyPath: 'uid', autoIncrement: false },
+      storeSchema: [
+        { name: 'accountId', keypath: 'accountId', options: { unique: false } },
+        { name: 'month', keypath: 'month', options: { unique: false } },
+      ],
     },
   ],
 };

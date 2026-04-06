@@ -12,7 +12,7 @@
   </div>
 
   @if (budgets().length === 0) {
-    <div class="card rounded-2xl p-4 flex flex-col gap-2">
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
       <p class="text-sm font-light">No budgets yet</p>
       <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
         Create your first budget
@@ -20,9 +20,9 @@
     </div>
   } @else {
     <!-- Summary -->
-    <div class="bg-primary-light rounded-2xl p-4 flex flex-col gap-3">
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-3">
       <div class="flex items-end justify-between">
-        <p class="text-xs font-light">{{ summary().monthLabel }} Budget</p>
+        <p class="text-xs font-light text-secondary">{{ summary().monthLabel }} Budget</p>
         <div class="flex items-center gap-2">
           <p class="text-xs font-light"></p>
         </div>
@@ -32,7 +32,7 @@
         <p class="text-3xl font-medium title-font">
           {{ summary().totalLimit | currency: currency() : 'symbol-narrow' : '1.0-0' }}
         </p>
-        <div class="text-xs font-light flex items-center gap-2">
+        <div class="text-xs font-light flex items-center gap-2 text-secondary">
           <span>
             / {{ summary().totalSpent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
           </span>
@@ -51,10 +51,14 @@
       </div>
 
       <div class="flex justify-between text-xs font-light">
-        <span>
-          {{ summary().remainingDisplay | currency: currency() : 'symbol-narrow' : '1.0-0' }}
-          remaining · {{ summary().daysLeft }} days left
-        </span>
+        <p class="flex items-center gap-1">
+          <span class="text-secondary">
+            {{ summary().remainingDisplay | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+            remaining
+          </span>
+          <span>·</span>
+          <span class="text-secondary">{{ summary().daysLeft }} days left</span>
+        </p>
       </div>
     </div>
 

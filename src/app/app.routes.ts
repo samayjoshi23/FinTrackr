@@ -91,6 +91,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'reports',
+        loadComponent: () =>
+          import('./../features/reports/pages/reports/reports').then((m) => m.Reports),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./../features/settings/pages/global-settings/global-settings').then(

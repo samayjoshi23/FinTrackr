@@ -15,6 +15,7 @@ import {
 import { Goal, GoalCreateInput, GoalUpdateInput } from '../shared/models/goal.model';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { date, docCalendarDate } from '../core/date';
 
 const GOALS_COLLECTION = 'goals';
 
@@ -42,6 +43,7 @@ export class GoalsService {
   async createGoal(data: GoalCreateInput, userId?: string): Promise<Goal> {
     const uid = userId ?? this.requireUid();
     const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<Goal>(
       'goals',
       'id',
@@ -53,6 +55,7 @@ export class GoalsService {
           target: Number(data.target),
           dueDate: data.dueDate,
           currentAmount: Number(data.currentAmount),
+          date: day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -69,6 +72,7 @@ export class GoalsService {
         target: Number(data.target),
         dueDate: data.dueDate,
         currentAmount: Number(data.currentAmount),
+        date: day,
       },
     );
   }
@@ -154,6 +158,7 @@ export class GoalsService {
   private mapGoal(id: string, data: Record<string, unknown>): Goal {
     const createdAt = data['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = data['updatedAt'] as { toDate?: () => Date } | null | undefined;
+    const created = createdAt?.toDate?.() ?? null;
     return {
       id,
       ownerId: (data['ownerId'] as string) ?? '',
@@ -162,8 +167,9 @@ export class GoalsService {
       target: Number(data['target'] ?? 0),
       dueDate: (data['dueDate'] as string) ?? '',
       currentAmount: Number(data['currentAmount'] ?? 0),
-      createdAt: createdAt?.toDate?.() ?? null,
+      createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
+      date: docCalendarDate(data, created),
     };
   }
 }

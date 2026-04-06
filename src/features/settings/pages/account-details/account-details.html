@@ -14,7 +14,7 @@
   @if (loading()) {
     <p class="text-sm text-secondary text-display">Loading…</p>
   } @else if (account(); as acc) {
-    <div class="card rounded-2xl p-4 flex flex-col gap-4">
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-4">
       <div class="flex items-center gap-3">
         <div
           class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
@@ -23,7 +23,7 @@
         </div>
         <span class="text-base font-semibold title-font">{{ acc.name }}</span>
       </div>
-      <div class="rounded-xl flex flex-col gap-1">
+      <div class="rounded-xl flex flex-col gap-1 px-4 py-3 card">
         <span class="text-xs text-secondary">Current Balance</span>
         <span class="text-xl font-bold text-primary title-font">
           {{ acc.balance | currency: acc.currency : 'symbol-narrow' : '1.0-0' }}

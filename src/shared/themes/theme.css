@@ -35,6 +35,10 @@
 
   /* Title font */
   --color-title-font: var(--color-black);
+
+  /* Transaction colors */
+  --color-income: var(--color-green-700);
+  --color-expense: var(--color-red-400);
 }
 
 .theme-dark {
@@ -74,6 +78,10 @@
 
   /* Title font */
   --color-title-font: var(--color-white);
+
+  /* Transaction colors */
+  --color-income: var(--color-green-600);
+  --color-expense: var(--color-red-400);
 }
 
 /* ============= Other Colors ============= */

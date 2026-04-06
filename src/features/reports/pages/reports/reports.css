@@ -1,0 +1,5 @@
+/* Reports page overrides */
+:host {
+  display: block;
+  height: 100%;
+}

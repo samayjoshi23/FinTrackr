@@ -15,17 +15,23 @@
   <!-- Summary -->
   <div class="card rounded-2xl p-4 grid grid-cols-3 gap-2 text-center">
     <div class="flex flex-col items-center gap-1">
-      <ico name="office-building" size="sm" class="text-secondary"></ico>
+      <div class="h-10 w-10 card-light rounded-xl flex items-center justify-center">
+        <ico name="office-building" size="md" class="text-secondary"></ico>
+      </div>
       <span class="text-xs text-secondary font-light">Accounts</span>
       <span class="text-sm font-semibold title-font">{{ accounts().length }}</span>
     </div>
     <div class="flex flex-col items-center gap-1">
-      <ico name="credit-card" size="sm" class="text-secondary"></ico>
+      <div class="h-10 w-10 card-light rounded-xl flex items-center justify-center">
+        <ico name="credit-card" size="md" class="text-secondary"></ico>
+      </div>
       <span class="text-xs text-secondary font-light">Transactions</span>
       <span class="text-sm font-semibold title-font">{{ totalTransactions() }}</span>
     </div>
     <div class="flex flex-col items-center gap-1">
-      <ico name="dollar-sign" size="sm" class="text-secondary"></ico>
+      <div class="h-10 w-10 card-light rounded-xl flex items-center justify-center">
+        <ico name="dollar-sign" size="md" class="text-secondary"></ico>
+      </div>
       <span class="text-xs text-secondary font-light">Balance</span>
       <span class="text-sm font-semibold text-primary">
         {{
@@ -44,8 +50,8 @@
         Edit
       </a>
     </div>
-    <div class="card rounded-2xl p-4 flex flex-col gap-4">
-      <div class="flex gap-3">
+    <div class="card rounded-2xl flex flex-col">
+      <div class="flex gap-3 p-4">
         <ico name="user" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
         <div class="flex flex-col gap-0.5 min-w-0">
           <span class="text-xs text-secondary font-light">Full Name</span>
@@ -54,7 +60,8 @@
           }}</span>
         </div>
       </div>
-      <div class="flex gap-3">
+      <hr class="text-gray-300" />
+      <div class="flex gap-3 p-4">
         <ico name="envelope" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
         <div class="flex flex-col gap-0.5 min-w-0">
           <span class="text-xs text-secondary font-light">Email</span>
@@ -109,6 +116,7 @@
           </div>
           <div class="flex flex-col gap-0.5 min-w-0 flex-1">
             <span class="text-sm font-semibold">{{ a.name }}</span>
+            <span class="text-xs text-secondary font-light">{{ a.currency }}</span>
           </div>
           <div class="flex flex-col items-end gap-0.5 shrink-0">
             <span class="text-sm font-semibold" [ngClass]="balanceClass(a)">

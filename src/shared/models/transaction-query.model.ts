@@ -1,4 +1,5 @@
 import { TransactionRecord } from './transaction.model';
+import { transactionEventDate } from '../../core/date';
 
 /** Preset date ranges for IndexedDB-backed transaction queries (matches previous UI). */
 export type TransactionDatePreset = 'all' | 'today' | 'week' | 'month';
@@ -60,7 +61,7 @@ export function applyTransactionFilters(
       start.setHours(0, 0, 0, 0);
     }
     list = list.filter((t) => {
-      const d = t.createdAt;
+      const d = transactionEventDate(t);
       if (!d) return false;
       return d >= start && d <= now;
     });
@@ -71,9 +72,12 @@ export function applyTransactionFilters(
 
 export function sortTransactionsByCreatedAtDesc(rows: TransactionRecord[]): TransactionRecord[] {
   return [...rows].sort((a, b) => {
-    const ta = a.createdAt?.getTime() ?? 0;
-    const tb = b.createdAt?.getTime() ?? 0;
-    return tb - ta;
+    const ea = transactionEventDate(a);
+    const eb = transactionEventDate(b);
+    const ta = ea?.getTime() ?? 0;
+    const tb = eb?.getTime() ?? 0;
+    if (tb !== ta) return tb - ta;
+    return (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0);
   });
 }
 

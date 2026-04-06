@@ -22,6 +22,7 @@ import {
 import { Firestore, doc, getDoc, serverTimestamp, setDoc } from '@angular/fire/firestore';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SyncService } from '../core/offline/sync.service';
+import { date } from '../core/date';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -172,6 +173,7 @@ export class AuthService {
     // Only set isOnboarded to false on brand-new users (never overwrite if already true)
     if (!existingUser.exists()) {
       data['isOnboarded'] = false;
+      data['date'] = date().format('YYYY-MM-DD');
     }
 
     await setDoc(userRef, data, { merge: true });

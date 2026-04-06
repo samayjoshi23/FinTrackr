@@ -54,8 +54,8 @@
         class="rounded-full px-3 py-1 text-xs cursor-pointer flex items-center justify-center {{
           isTypeChipActive(item.value)
             ? item.value === 'expense'
-              ? 'bg-red-600 text-white'
-              : 'bg-green-600 text-white'
+              ? 'bg-red-500 text-white'
+              : 'bg-green-700 text-white'
             : 'card text-secondary'
         }}"
         (click)="setTypeFilter(item.value)"
@@ -104,7 +104,9 @@
   <!-- List -->
   <div class="flex flex-col gap-2">
     @if (loading()) {
-      <div class="flex items-center justify-center gap-2 card p-6 rounded-2xl text-secondary text-sm">
+      <div
+        class="flex items-center justify-center gap-2 card p-6 rounded-2xl text-secondary text-sm"
+      >
         Loading transactions…
       </div>
     } @else if (displayedTransactions().length === 0) {
@@ -119,7 +121,7 @@
         </p>
       }
       @for (t of displayedTransactions(); track t.uid) {
-        <div class="flex items-center justify-between gap-2 card rounded-2xl px-4 py-3">
+        <div class="flex items-center justify-between gap-2 card rounded-2xl p-4">
           <div class="flex items-center gap-4">
             <div class="flex items-center justify-center">
               <ico [name]="iconForRow(t)" size="md" class="text-secondary"></ico>
@@ -138,8 +140,8 @@
           </div>
           <p
             class="text-sm title-font font-medium shrink-0 tabular-nums"
-            [class.text-green-500]="t.type === 'income'"
-            [class.text-red-400]="t.type !== 'income'"
+            [class.text-income]="t.type === 'income'"
+            [class.text-expense]="t.type !== 'income'"
           >
             {{ t.type === 'income' ? '+' : '-' }}
             {{ t.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}

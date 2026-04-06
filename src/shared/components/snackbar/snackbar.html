@@ -1,14 +1,18 @@
 <div class="flex items-center justify-between h-full w-full relative">
   @for (route of routes(); track route.path) {
     <div
-      class="flex items-center justify-between flex-col gap-1 w-1/5"
+      class="flex justify-center w-1/5"
       [class.text-primary]="route.selected"
       [class.text-secondary]="!route.selected"
-      (click)="onTabClick(route.path)"
     >
-      <div class="h-1 w-10 rounded-b-full" [class.bg-primary]="route.selected"></div>
-      <ico [name]="route.icon" size="md"></ico>
-      <p class="text-xs font-light" [class.font-semibold]="route.selected">{{ route.name }}</p>
+      <div
+        class="flex items-center justify-center flex-col gap-1 cursor-pointer"
+        (click)="onTabClick(route.path)"
+      >
+        <div class="h-1 w-10 rounded-b-full" [class.bg-primary]="route.selected"></div>
+        <ico [name]="route.icon" size="md"></ico>
+        <p class="text-xs font-light" [class.font-semibold]="route.selected">{{ route.name }}</p>
+      </div>
     </div>
   }
   <div

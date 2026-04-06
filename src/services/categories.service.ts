@@ -21,6 +21,7 @@ import {
 } from '../features/categories/types';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { date, docCalendarDate } from '../core/date';
 
 const CATEGORIES_COLLECTION = 'categories';
 
@@ -75,6 +76,7 @@ export class CategoriesService {
   async createCategory(data: CategoryCreateInput, userId?: string): Promise<Category> {
     const uid = userId ?? this.requireUid();
     const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<Category>(
       'categories',
       'uid',
@@ -85,6 +87,7 @@ export class CategoriesService {
           name: data.name.trim(),
           description: (data.description ?? '').trim(),
           icon: (data.icon ?? 'tags').trim() || 'tags',
+          date: day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -100,6 +103,7 @@ export class CategoriesService {
         name: data.name.trim(),
         description: (data.description ?? '').trim(),
         icon: (data.icon ?? 'tags').trim() || 'tags',
+        date: day,
       },
     );
   }
@@ -160,6 +164,7 @@ export class CategoriesService {
   private mapCategory(id: string, data: Record<string, unknown>): Category {
     const createdAt = data['createdAt'] as Timestamp | null | undefined;
     const updatedAt = data['updatedAt'] as Timestamp | null | undefined;
+    const created = createdAt?.toDate?.() ?? null;
     return {
       uid: id,
       name: (data['name'] as string) ?? '',
@@ -168,6 +173,7 @@ export class CategoriesService {
       accountId: (data['accountId'] as string) ?? '',
       createdAt: createdAt ?? Timestamp.now(),
       updatedAt: updatedAt ?? createdAt ?? Timestamp.now(),
+      date: docCalendarDate(data, created),
     };
   }
 

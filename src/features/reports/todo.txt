@@ -1,0 +1,56 @@
+===== Reporting Feature ======
+
+----- Feature overview ------
+
+1. Daily, Weekly, Monthly, 3M, 6M, 1Y Breakdown of Expense Reports - can be a bar chart
+2. Category wise spending - can be pie chart
+3. Saving vs expense trent - can be a line chart
+4. Budget tracking (budget vs actual use) - can be cards (Highlighting overspent categories below)
+5. Recurring expense tracking - Can be done later
+6. Exporting feature
+
+------- Technical changes --------
+1. New collection names 'monthlyReports'
+2. Filter out the record by accountId and current-month. eg. accountId == 'aslfkk23' and month == '2026-04'
+3. Update the current month record new data (offline first and online sync in background)
+4. After adding every new transaction and recurring transaction, update the monthly report with new data sets
+5. Check if record exists woth the filer, else create a new record with below schema (if not means, current month record needds to be created)
+6. Mothly Record Schema
+    {
+        uid: '',
+        month: '2026-04',
+        accountId: '',
+        totalIncome: 10000,
+        totalExpense: 6000,
+        savings: 4000,
+        totalBudgetUsed: 60,
+        categoryBreakdown: {
+            travel: {
+                amount: 300,
+                budget: 1000,
+                used: 30,
+                overspent: false
+            },
+            grocery: {
+                amount: 1500,
+                budget: 1000,
+                used: 50,   // 50% overspent
+                overspent: true
+            },
+            entertainment: {
+                amount: 1000,
+                budget: null, // when no budget set for the category
+                used: 0,
+                overspent: false
+            },
+            // other user categories...
+        },
+        // recurrings can be processed in later update
+        // just kept for future schema, for new it can be zero and empty array
+        recurrings: {
+            totalIncome: 70000,
+            totalExpense: 6300,
+            spentOn: ['Prime', 'Netflix', 'Salary'... other transaction data]
+        },
+        isFinalized: false
+    }
