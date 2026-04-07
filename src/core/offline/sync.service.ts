@@ -10,6 +10,7 @@ import { TransactionsService } from '../../services/transactions.service';
 import { BudgetsService } from '../../services/budgets.service';
 import { CategoriesService } from '../../services/categories.service';
 import { GoalsService } from '../../services/goals.service';
+import { ReportsService } from '../../services/reports.service';
 
 import { TransactionCreateInput, RecurringTransactionCreateInput } from '../../shared/models/transaction.model';
 import { BudgetCreateInput, BudgetUpdateInput } from '../../shared/models/budget.model';
@@ -31,6 +32,7 @@ export class SyncService {
   private readonly budgetsService = inject(BudgetsService);
   private readonly categoriesService = inject(CategoriesService);
   private readonly goalsService = inject(GoalsService);
+  private readonly reportsService = inject(ReportsService);
 
   private syncing = false;
 
@@ -161,6 +163,7 @@ export class SyncService {
           entry.docId,
           entry.payload as unknown as BudgetUpdateInput,
         );
+        await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
         break;
       case 'goals':
         await this.goalsService.updateGoal(
@@ -173,6 +176,14 @@ export class SyncService {
           entry.docId,
           entry.payload as unknown as CategoryUpdateInput,
         );
+        {
+          const p = entry.payload as CategoryUpdateInput;
+          if (p.name !== undefined && p.name.trim()) {
+            await this.reportsService
+              .patchCategoryNameInCurrentMonthReport(entry.docId, p.name)
+              .catch(() => {});
+          }
+        }
         break;
       case 'accounts':
         await this.accountsService.updateAccount(

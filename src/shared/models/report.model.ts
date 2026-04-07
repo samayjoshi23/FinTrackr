@@ -1,11 +1,18 @@
 // ─── Firestore / IndexedDB stored document ────────────────────────────────────
 
-/** Stored on `MonthlyReport.categoryBreakdown` — matches `todo.txt` monthly schema. */
+/** Stored on `MonthlyReport.categoryBreakdown` — keyed by {@link monthlyReportCategoryKey}. */
 export interface CategoryBreakdownEntry {
+  /** Display name; update this when the user renames a category (keys stay stable). */
+  name: string;
   amount: number;
   budget: number | null;
-  used: number; // percentage of budget used
+  used: number; // percentage of budget used (may exceed 100 when overspent)
   overspent: boolean;
+}
+
+/** Map key: `cat_<categoryFirestoreId>` (e.g. `cat_abc123`). */
+export function monthlyReportCategoryKey(categoryId: string): string {
+  return `cat_${categoryId}`;
 }
 
 export interface MonthlyReport {

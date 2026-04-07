@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { CategoriesService } from '../../../../services/categories.service';
+import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Account } from '../../../../shared/models/account.model';
 import { CATEGORY_ICON_OPTIONS, CategoryCreateInput } from '../../types';
@@ -17,6 +18,7 @@ import { CATEGORY_ICON_OPTIONS, CategoryCreateInput } from '../../types';
 export class NewCategory {
   private readonly router = inject(Router);
   private readonly categoriesService = inject(CategoriesService);
+  private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
 
   selectedAccount = signal<Account | null>(null);
@@ -56,6 +58,7 @@ export class NewCategory {
 
     try {
       await this.categoriesService.createCategory(payload);
+      await this.reportsService.rebuildCurrentMonthReport();
       this.router.navigateByUrl('/user/categories');
     } catch (err) {
       console.error(err);

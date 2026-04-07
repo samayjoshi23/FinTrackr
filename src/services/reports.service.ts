@@ -33,6 +33,7 @@ import {
   ReportTimePeriod,
   MonthlyReportCreateInput,
   MonthlyReportUpdateInput,
+  monthlyReportCategoryKey,
 } from '../shared/models/report.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 
@@ -137,7 +138,40 @@ export class ReportsService {
 
     const month = this.toMonthKey(date().toDate());
     await this.createOrUpdateMonthlyReport(month);
-    return (await this.cache.getByKey<MonthlyReport>(STORE, `${accountId}_${month}`)) ?? null;
+    return this.findReportForMonth(accountId, month);
+  }
+
+  /**
+   * Recomputes the current calendar month report from transactions, budgets, and categories.
+   * Call after budget changes or when a new category should appear in `categoryBreakdown`.
+   */
+  async rebuildCurrentMonthReport(): Promise<void> {
+    const month = this.toMonthKey(date().toDate());
+    await this.createOrUpdateMonthlyReport(month);
+  }
+
+  /**
+   * Lightweight update when a category is renamed: same `cat_<id>` key, new `name` only.
+   */
+  async patchCategoryNameInCurrentMonthReport(categoryId: string, newName: string): Promise<void> {
+    const accountId = this.accountKey;
+    if (!accountId) return;
+
+    const month = this.toMonthKey(date().toDate());
+    const report = await this.findReportForMonth(accountId, month);
+    if (!report) return;
+
+    const bk = monthlyReportCategoryKey(categoryId);
+    const entry = report.categoryBreakdown[bk];
+    if (!entry) return;
+
+    await this.updateReport(report.uid, {
+      categoryBreakdown: {
+        ...report.categoryBreakdown,
+        [bk]: { ...entry, name: newName.trim() },
+      },
+      updatedAt: new Date(),
+    });
   }
 
   // ─── Private: monthly reports cache (IDB first; Firestore refresh never blocks UI) ───
@@ -192,7 +226,7 @@ export class ReportsService {
   private async createOrUpdateMonthlyReport(monthKey: string): Promise<void> {
     const accountId = this.accountKey;
     if (!accountId) return;
-    const existing = await this.getReportByMonth(monthKey);
+    const existing = await this.findReportForMonth(accountId, monthKey);
 
     const [transactions, budgets, categories] = await Promise.all([
       this.transactionsService.getTransactions(),
@@ -240,10 +274,15 @@ export class ReportsService {
     categories: Category[],
   ): MonthlyReportCreateInput | MonthlyReportUpdateInput {
     const monthTransactions = this.filterTransactionsForMonth(transactions, monthKey);
+    const byLowerName = this.categoriesByLowerName(categories);
     const { totalIncome, totalExpense, expenseByCategory } =
-      this.rollUpMonthExpenseAndIncome(monthTransactions);
+      this.rollUpMonthExpenseAndIncome(monthTransactions, byLowerName);
 
-    const budgetByCategory = this.aggregateBudgetsByCategoryForMonth(monthKey, budgets);
+    const budgetByCategory = this.aggregateBudgetsByCategoryForMonth(
+      monthKey,
+      budgets,
+      byLowerName,
+    );
     const totalBudget = [...budgetByCategory.values()].reduce((a, b) => a + b, 0);
     const totalBudgetUsed = totalBudget > 0 ? Math.round((totalExpense / totalBudget) * 100) : 0;
 
@@ -274,14 +313,17 @@ export class ReportsService {
     });
   }
 
-  private rollUpMonthExpenseAndIncome(monthTransactions: TransactionRecord[]): {
+  private rollUpMonthExpenseAndIncome(
+    monthTransactions: TransactionRecord[],
+    byLowerName: Map<string, Category>,
+  ): {
     totalIncome: number;
     totalExpense: number;
-    expenseByCategory: Map<string, number>;
+    expenseByCategory: Map<string, { amount: number; displayName: string }>;
   } {
     let totalIncome = 0;
     let totalExpense = 0;
-    const expenseByCategory = new Map<string, number>();
+    const expenseByCategory = new Map<string, { amount: number; displayName: string }>();
 
     for (const t of monthTransactions) {
       const amt = Number(t.amount ?? 0);
@@ -289,12 +331,50 @@ export class ReportsService {
         totalIncome += amt;
       } else {
         totalExpense += amt;
-        const cat = (t.category ?? '').trim() || 'Other';
-        expenseByCategory.set(cat, (expenseByCategory.get(cat) ?? 0) + amt);
+        const raw = (t.category ?? '').trim();
+        const { id, displayName } = this.resolveExpenseCategory(raw, byLowerName);
+        const prev = expenseByCategory.get(id);
+        expenseByCategory.set(id, {
+          amount: (prev?.amount ?? 0) + amt,
+          displayName: prev ? prev.displayName : displayName,
+        });
       }
     }
 
     return { totalIncome, totalExpense, expenseByCategory };
+  }
+
+  private categoriesByLowerName(categories: Category[]): Map<string, Category> {
+    const map = new Map<string, Category>();
+    for (const c of categories) {
+      const k = (c.name ?? '').trim().toLowerCase();
+      if (k) map.set(k, c);
+    }
+    return map;
+  }
+
+  /**
+   * Stable pseudo-id for spend on a category name that does not match any `Category` row.
+   */
+  private stableNameHash(name: string): string {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+    return Math.abs(h).toString(36);
+  }
+
+  /** Maps `TransactionRecord.category` (label) to a breakdown id and display name. */
+  private resolveExpenseCategory(
+    categoryName: string,
+    byLowerName: Map<string, Category>,
+  ): { id: string; displayName: string } {
+    const raw = (categoryName ?? '').trim();
+    const lower = raw.toLowerCase();
+    if (!lower || lower === 'other' || lower === 'uncategorized') {
+      return { id: 'other', displayName: raw || 'Other' };
+    }
+    const cat = byLowerName.get(lower);
+    if (cat) return { id: cat.uid, displayName: cat.name };
+    return { id: `unmapped_${this.stableNameHash(lower)}`, displayName: raw };
   }
 
   private monthLongNameFromMonthKey(monthKey: string): string {
@@ -319,38 +399,45 @@ export class ReportsService {
   private aggregateBudgetsByCategoryForMonth(
     monthKey: string,
     budgets: Budget[],
+    byLowerName: Map<string, Category>,
   ): Map<string, number> {
     const map = new Map<string, number>();
     for (const b of this.filterBudgetsForMonth(monthKey, budgets)) {
-      const cat = (b.category ?? '').trim() || 'Uncategorized';
-      map.set(cat, (map.get(cat) ?? 0) + Number(b.limit ?? 0));
+      const catName = (b.category ?? '').trim() || 'Uncategorized';
+      const { id } = this.resolveExpenseCategory(catName, byLowerName);
+      map.set(id, (map.get(id) ?? 0) + Number(b.limit ?? 0));
     }
     return map;
   }
 
   private buildCategoryBreakdown(
-    expenseByCategory: Map<string, number>,
+    expenseByCategory: Map<string, { amount: number; displayName: string }>,
     budgetByCategory: Map<string, number>,
     categories: Category[],
   ): Record<string, CategoryBreakdownEntry> {
-    const names = new Set<string>();
-    expenseByCategory.forEach((_, k) => names.add(k));
-    budgetByCategory.forEach((_, k) => names.add(k));
-    for (const c of categories) {
-      const n = (c.name ?? '').trim();
-      if (n) names.add(n);
-    }
+    const byId = new Map<string, Category>();
+    for (const c of categories) byId.set(c.uid, c);
+
+    const ids = new Set<string>();
+    expenseByCategory.forEach((_, k) => ids.add(k));
+    budgetByCategory.forEach((_, k) => ids.add(k));
+    for (const c of categories) ids.add(c.uid);
 
     const breakdown: Record<string, CategoryBreakdownEntry> = {};
-    for (const cat of names) {
-      const amount = expenseByCategory.get(cat) ?? 0;
-      const budget = budgetByCategory.has(cat) ? budgetByCategory.get(cat)! : null;
+    for (const id of ids) {
+      const exp = expenseByCategory.get(id);
+      const amount = exp?.amount ?? 0;
+      const budget = budgetByCategory.has(id) ? budgetByCategory.get(id)! : null;
+      const cat = byId.get(id);
+      const name = cat?.name ?? exp?.displayName ?? 'Other';
       const used = budget !== null && budget > 0 ? Math.round((amount / budget) * 100) : 0;
-      breakdown[cat] = {
+      const overspent = budget !== null && budget > 0 && amount > budget;
+      breakdown[monthlyReportCategoryKey(id)] = {
+        name,
         amount,
         budget,
         used,
-        overspent: budget !== null && amount > budget,
+        overspent,
       };
     }
     return breakdown;
@@ -691,11 +778,19 @@ export class ReportsService {
     for (const [key, val] of Object.entries(raw)) {
       if (!val || typeof val !== 'object') continue;
       const o = val as Record<string, unknown>;
+      const storageKey = key.startsWith('cat_') ? key : `cat_legacy_${this.stableNameHash(key)}`;
       const budgetRaw = o['budget'];
       const amount = Number(o['amount'] ?? 0);
-      const budget = budgetRaw == null ? null : Number(budgetRaw);
+      const budget = budgetRaw == null || budgetRaw === 'null' ? null : Number(budgetRaw);
       const usedRaw = o['used'];
       const overspentRaw = o['overspent'];
+      const nameRaw = o['name'];
+      const name =
+        typeof nameRaw === 'string' && nameRaw.trim()
+          ? nameRaw.trim()
+          : key.startsWith('cat_')
+            ? ''
+            : key;
       const used =
         typeof usedRaw === 'number'
           ? usedRaw
@@ -703,8 +798,16 @@ export class ReportsService {
             ? Math.round((amount / budget) * 100)
             : 0;
       const overspent =
-        typeof overspentRaw === 'boolean' ? overspentRaw : budget !== null && amount > budget;
-      out[key] = { amount, budget, used, overspent };
+        typeof overspentRaw === 'boolean'
+          ? overspentRaw
+          : budget !== null && budget > 0 && amount > budget;
+      out[storageKey] = {
+        name: name || 'Other',
+        amount,
+        budget,
+        used,
+        overspent,
+      };
     }
     return out;
   }
@@ -738,10 +841,38 @@ export class ReportsService {
     };
   }
 
-  private async getReportByMonth(monthKey: string): Promise<MonthlyReport | null> {
+  /** Prefer {@link findReportForMonth}; this loads a single document by Firestore id. */
+  private async fetchReportByDocId(docId: string): Promise<MonthlyReport | null> {
     try {
-      const snap = await getDoc(doc(this.firestore, COLLECTION, monthKey));
-      return snap.data() as MonthlyReport;
+      const snap = await getDoc(doc(this.firestore, COLLECTION, docId));
+      if (!snap.exists()) return null;
+      return this.mapReport(snap.id, snap.data() as Record<string, unknown>);
+    } catch {
+      return null;
+    }
+  }
+
+  private async findReportForMonth(
+    accountId: string,
+    monthKey: string,
+  ): Promise<MonthlyReport | null> {
+    const cached = await this.cache.getAllByIndex<MonthlyReport>(STORE, 'accountId', accountId);
+    const hit = cached.find((r) => r.month === monthKey);
+    if (hit) return hit;
+    if (!this.network.isOnline()) return null;
+    try {
+      const snap = await getDocs(
+        query(
+          collection(this.firestore, COLLECTION),
+          where('accountId', '==', accountId),
+          where('month', '==', monthKey),
+        ),
+      );
+      if (snap.empty) return null;
+      const d = snap.docs[0];
+      const mapped = this.mapReport(d.id, d.data() as Record<string, unknown>);
+      await this.cache.put(STORE, mapped);
+      return mapped;
     } catch {
       return null;
     }
@@ -753,7 +884,7 @@ export class ReportsService {
       'uid',
       async () => {
         const ref = await addDoc(collection(this.firestore, COLLECTION), data);
-        const row = await this.getReportByMonth(ref.id);
+        const row = await this.fetchReportByDocId(ref.id);
         if (!row) {
           throw new Error('Failed to read report after creation.');
         }
