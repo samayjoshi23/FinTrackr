@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { CategoriesService } from '../../../../services/categories.service';
+import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { CATEGORY_ICON_OPTIONS, Category } from '../../types';
 
@@ -17,6 +18,7 @@ export class EditCategory {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly categoriesService = inject(CategoriesService);
+  private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
 
   private readonly extraIcon = signal<string | null>(null);
@@ -87,6 +89,7 @@ export class EditCategory {
         description: this.description?.trim() ?? '',
         icon: this.selectedIcon || 'tags',
       });
+      await this.reportsService.patchCategoryNameInCurrentMonthReport(this.categoryId, name);
       this.router.navigateByUrl('/user/categories');
     } catch (err) {
       console.error(err);

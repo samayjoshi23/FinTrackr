@@ -24,6 +24,7 @@ import {
   DEFAULT_CATEGORIES,
 } from '../../../features/categories/types';
 import { CategoriesService } from '../../../services/categories.service';
+import { ReportsService } from '../../../services/reports.service';
 
 @Component({
   selector: 'app-onboarding',
@@ -40,6 +41,7 @@ export class Onboarding {
   private readonly profileUploadService = inject(ProfileUploadService);
   private readonly router = inject(Router);
   private readonly categoriesService = inject(CategoriesService);
+  private readonly reportsService = inject(ReportsService);
   // State
   userProfile = signal<UserProfile | null>(null);
   formModel = {
@@ -295,6 +297,7 @@ export class Onboarding {
       let budget = await this.budgetsService.createBudget(budgetData as BudgetCreateInput);
       this.ids.set({ ...this.ids(), budgetId: budget.id });
     }
+    await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
   }
 
   private async createOrUpdateFirstGoal() {
