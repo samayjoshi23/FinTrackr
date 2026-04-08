@@ -1,0 +1,14 @@
+<div class="grid grid-cols-2 gap-3">
+  <div class="rounded-2xl p-4 flex flex-col gap-1 card selected-card">
+    <p class="text-xs text-secondary">Total Income</p>
+    <p class="text-xl font-semibold title-font text-income">
+      {{ summary.totalIncome | currency: currency : 'symbol-narrow' : '1.0-0' }}
+    </p>
+  </div>
+  <div class="rounded-2xl p-4 flex flex-col gap-1 red-card red-card-selected">
+    <p class="text-xs text-secondary">Total Expense</p>
+    <p class="text-xl font-semibold title-font text-expense">
+      {{ summary.totalExpense | currency: currency : 'symbol-narrow' : '1.0-0' }}
+    </p>
+  </div>
+</div>

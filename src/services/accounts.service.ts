@@ -46,11 +46,11 @@ export class AccountsService {
     return this.offlineCrud.create<Account>(
       'accounts',
       'id',
-      async () => {
-        const ref = this.accountDocRef(uid);
+      async (assignedId: string) => {
+        const ref = this.accountDocRef(assignedId);
         const existing = await getDoc(ref);
         const payload: Record<string, unknown> = {
-          uid,
+          uid: assignedId,
           name: data.name.trim(),
           balance: Number(data.balance),
           currency: data.currency,
@@ -65,7 +65,7 @@ export class AccountsService {
           payload['date'] = day;
         }
         await setDoc(ref, payload, { merge: true });
-        const account = await this.getAccountDirect(uid);
+        const account = await this.getAccountDirect(assignedId);
         if (!account) {
           throw new Error('Failed to read account after creation.');
         }
@@ -82,7 +82,33 @@ export class AccountsService {
         ownerId: data.ownerId,
         date: day,
       },
+      { fixedDocId: uid },
     );
+  }
+
+  async applyPendingAccountCreate(docId: string, data: AccountCreateInput): Promise<void> {
+    const day = date().format('YYYY-MM-DD');
+    const ref = this.accountDocRef(docId);
+    const existing = await getDoc(ref);
+    const payload: Record<string, unknown> = {
+      uid: docId,
+      name: data.name.trim(),
+      balance: Number(data.balance),
+      currency: data.currency,
+      isSelected: data.isSelected,
+      isActive: data.isActive,
+      members: data.members,
+      ownerId: data.ownerId,
+      updatedAt: serverTimestamp(),
+    };
+    if (!existing.exists()) {
+      payload['createdAt'] = serverTimestamp();
+      payload['date'] = day;
+    }
+    await setDoc(ref, payload, { merge: true });
+    const account = await this.getAccountDirect(docId);
+    if (!account) throw new Error('Failed to read account after pending create sync.');
+    await this.cache.put('accounts', { ...account, _pendingSync: false });
   }
 
   /**

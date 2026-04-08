@@ -1,7 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
-  addDoc,
   collection,
   doc,
   Firestore,
@@ -9,6 +8,7 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
   where,
@@ -21,6 +21,7 @@ import {
 } from '../features/categories/types';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
 import { date, docCalendarDate } from '../core/date';
 
 const CATEGORIES_COLLECTION = 'categories';
@@ -30,6 +31,7 @@ export class CategoriesService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
+  private readonly idbCache = inject(IndexedDbCacheService);
 
   private get currentAccount(): Account | null {
     return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
@@ -80,8 +82,9 @@ export class CategoriesService {
     return this.offlineCrud.create<Category>(
       'categories',
       'uid',
-      async () => {
-        const ref = await addDoc(collection(this.firestore, CATEGORIES_COLLECTION), {
+      async (assignedId: string) => {
+        const ref = doc(this.firestore, CATEGORIES_COLLECTION, assignedId);
+        await setDoc(ref, {
           ownerId: uid,
           accountId,
           name: data.name.trim(),
@@ -91,7 +94,7 @@ export class CategoriesService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const category = await this.getCategoryDirect(ref.id, uid);
+        const category = await this.getCategoryDirect(assignedId, uid);
         if (!category) {
           throw new Error('Failed to read category after creation.');
         }
@@ -106,6 +109,26 @@ export class CategoriesService {
         date: day,
       },
     );
+  }
+
+  async applyPendingCategoryCreate(docId: string, data: CategoryCreateInput): Promise<void> {
+    const uid = this.requireUid();
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
+    const ref = doc(this.firestore, CATEGORIES_COLLECTION, docId);
+    await setDoc(ref, {
+      ownerId: uid,
+      accountId,
+      name: data.name.trim(),
+      description: (data.description ?? '').trim(),
+      icon: (data.icon ?? 'tags').trim() || 'tags',
+      date: day,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    const category = await this.getCategoryDirect(docId, uid);
+    if (!category) throw new Error('Failed to read category after pending create sync.');
+    await this.idbCache.put('categories', { ...category, _pendingSync: false });
   }
 
   async updateCategory(categoryId: string, patch: CategoryUpdateInput): Promise<void> {

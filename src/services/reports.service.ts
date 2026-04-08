@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
@@ -42,16 +42,16 @@ const COLLECTION = 'monthlyReports';
 
 // Distinct palette for categories
 const CATEGORY_COLORS = [
-  '#f97316',
-  '#ec4899',
-  '#eab308',
-  '#3b82f6',
-  '#8b5cf6',
-  '#22c55e',
-  '#06b6d4',
-  '#f43f5e',
-  '#a3e635',
-  '#fb923c',
+  '#ed6a55', // pastel orange
+  '#fc74ab', // pastel pink
+  '#f7b800', // pastel yellow
+  '#4aa9b0', // pastel blue
+  '#9561e2', // pastel purple
+  '#50c878', // pastel green
+  '#00b9e4', // pastel cyan
+  '#ff6b6b', // pastel red
+  '#90ee90', // pastel light green
+  '#ffe5b4', // pastel peach
 ];
 
 // ─── Public surface returned to the Reports component ────────────────────────
@@ -76,6 +76,10 @@ export class ReportsService {
   private readonly cache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
   private readonly offlineCrud = inject(OfflineCrudService);
+
+  /** Latest current-month row for the dashboard (updates after background re-fetch). */
+  readonly dashboardMonthReport = signal<MonthlyReport | null>(null);
+
   get currentAccount(): Account | null {
     return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
   }
@@ -93,22 +97,21 @@ export class ReportsService {
 
   /**
    * Builds chart/summary view data from transactions (local cache / sync pipeline).
-   * Monthly report documents: served from IndexedDB when present; when online, a Firestore
-   * pull runs in the background to refresh IDB (same idea as other getX methods).
+   * IndexedDB is read first via the same offlineCrud cache-first paths as the rest of the app;
+   * Firestore revalidation runs in the background. Monthly report docs are refreshed the same way.
    */
   async getReportViewData(period: ReportTimePeriod): Promise<ReportViewData> {
-    const [categories, budgets] = await Promise.all([
+    this.refreshMonthlyReportsFromFirestoreInBackground();
+
+    const [categories, budgets, transactions] = await Promise.all([
       this.categoriesService.getCategories(),
       this.budgetsService.getBudgets(),
+      this.transactionsService.getTransactions(),
     ]);
 
     const iconMap = new Map<string, string>(
       categories.map((c: Category) => [c.name.toLowerCase(), c.icon]),
     );
-
-    this.refreshMonthlyReportsFromFirestoreInBackground();
-
-    const transactions = await this.transactionsService.getTransactions();
 
     return this.buildViewData(transactions, budgets, iconMap, period);
   }
@@ -130,15 +133,41 @@ export class ReportsService {
   }
 
   /**
-   * Ensures the current calendar month has a stored MonthlyReport (IDB + Firestore sync when online).
+   * Returns the current month's report from IndexedDB immediately when cached, updates
+   * {@link dashboardMonthReport}, then recomputes that month in the background (local-first
+   * writes + Firestore) and refreshes the signal when done.
    */
   async ensureCurrentMonthReport(): Promise<MonthlyReport | null> {
     const accountId = this.accountKey;
-    if (!accountId) return null;
+    if (!accountId) {
+      this.dashboardMonthReport.set(null);
+      return null;
+    }
 
     const month = this.toMonthKey(date().toDate());
-    await this.createOrUpdateMonthlyReport(month);
-    return this.findReportForMonth(accountId, month);
+    const cached = await this.findReportForMonthInCacheOnly(accountId, month);
+    if (cached) {
+      this.dashboardMonthReport.set(cached);
+      this.createOrUpdateMonthlyReport(month)
+        .then(async () => {
+          const fresh = await this.findReportForMonthInCacheOnly(accountId, month);
+          if (fresh) this.dashboardMonthReport.set(fresh);
+        })
+        .catch(() => {});
+      return cached;
+    }
+    if (!this.network.isOnline()) {
+      this.dashboardMonthReport.set(null);
+      return null;
+    }
+    try {
+      await this.createOrUpdateMonthlyReport(month);
+    } catch {
+      /* offline / sync error */
+    }
+    const built = await this.findReportForMonthInCacheOnly(accountId, month);
+    this.dashboardMonthReport.set(built);
+    return built;
   }
 
   /**
@@ -151,7 +180,7 @@ export class ReportsService {
   }
 
   /**
-   * Lightweight update when a category is renamed: same `cat_<id>` key, new `name` only.
+   * Lightweight update when a category is renamed: same `cat_<id>` key; only `name` is updated.
    */
   async patchCategoryNameInCurrentMonthReport(categoryId: string, newName: string): Promise<void> {
     const accountId = this.accountKey;
@@ -162,15 +191,97 @@ export class ReportsService {
     if (!report) return;
 
     const bk = monthlyReportCategoryKey(categoryId);
-    const entry = report.categoryBreakdown[bk];
-    if (!entry) return;
+    const row = report.categoryBreakdown[bk];
+    if (!row) return;
 
+    const categoryBreakdown = { ...report.categoryBreakdown };
+    categoryBreakdown[bk] = { ...row };
+    categoryBreakdown[bk].name = newName.trim();
+
+    await this.updateReport(report.uid, {
+      categoryBreakdown,
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * When a category is created, add one `categoryBreakdown` row with initial totals.
+   * If there is no monthly report yet, builds the month once (includes the new category).
+   */
+  async appendCategoryToCurrentMonthReport(categoryId: string, displayName: string): Promise<void> {
+    const accountId = this.accountKey;
+    if (!accountId) return;
+
+    const month = this.toMonthKey(date().toDate());
+    const report = await this.findReportForMonth(accountId, month);
+    if (!report) {
+      await this.createOrUpdateMonthlyReport(month);
+      return;
+    }
+
+    const bk = monthlyReportCategoryKey(categoryId);
+    if (report.categoryBreakdown[bk]) return;
+
+    const name = displayName.trim() || 'Uncategorized';
     await this.updateReport(report.uid, {
       categoryBreakdown: {
         ...report.categoryBreakdown,
-        [bk]: { ...entry, name: newName.trim() },
+        [bk]: {
+          name,
+          amount: 0,
+          budget: null,
+          used: 0,
+          overspent: false,
+        },
       },
       updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * After onboarding: one monthly report for the current month with zero income/expense and a
+   * {@link CategoryBreakdownEntry} per created category (optional budget limit on one category).
+   * Skips if a row for this month already exists. Uses {@link createReport} (offlineCrud-first).
+   */
+  async createOnboardingStarterMonthlyReport(
+    accountId: string,
+    categories: Array<{ uid: string; name: string }>,
+    budgetForCategory?: { categoryUid: string; limit: number } | null,
+  ): Promise<void> {
+    if (!accountId || categories.length === 0) return;
+
+    const monthKey = this.toMonthKey(date().toDate());
+    const existing = await this.findReportForMonthInCacheOnly(accountId, monthKey);
+    if (existing) return;
+
+    const categoryBreakdown: Record<string, CategoryBreakdownEntry> = {};
+    for (const c of categories) {
+      const hasBudget =
+        budgetForCategory && budgetForCategory.categoryUid === c.uid && budgetForCategory.limit > 0;
+      categoryBreakdown[monthlyReportCategoryKey(c.uid)] = {
+        name: c.name,
+        amount: 0,
+        budget: hasBudget ? budgetForCategory.limit : null,
+        used: 0,
+        overspent: false,
+      };
+    }
+
+    const now = new Date();
+    const day = date().format('YYYY-MM-DD');
+    await this.createReport({
+      month: monthKey,
+      accountId,
+      totalIncome: 0,
+      totalExpense: 0,
+      savings: 0,
+      totalBudgetUsed: 0,
+      categoryBreakdown,
+      recurrings: { totalIncome: 0, totalExpense: 0, spentOn: [] },
+      isFinalized: false,
+      date: day,
+      createdAt: now,
+      updatedAt: now,
     });
   }
 
@@ -275,8 +386,10 @@ export class ReportsService {
   ): MonthlyReportCreateInput | MonthlyReportUpdateInput {
     const monthTransactions = this.filterTransactionsForMonth(transactions, monthKey);
     const byLowerName = this.categoriesByLowerName(categories);
-    const { totalIncome, totalExpense, expenseByCategory } =
-      this.rollUpMonthExpenseAndIncome(monthTransactions, byLowerName);
+    const { totalIncome, totalExpense, expenseByCategory } = this.rollUpMonthExpenseAndIncome(
+      monthTransactions,
+      byLowerName,
+    );
 
     const budgetByCategory = this.aggregateBudgetsByCategoryForMonth(
       monthKey,
@@ -403,8 +516,14 @@ export class ReportsService {
   ): Map<string, number> {
     const map = new Map<string, number>();
     for (const b of this.filterBudgetsForMonth(monthKey, budgets)) {
-      const catName = (b.category ?? '').trim() || 'Uncategorized';
-      const { id } = this.resolveExpenseCategory(catName, byLowerName);
+      let id: string;
+      const catId = b.categoryId?.trim();
+      if (catId) {
+        id = catId;
+      } else {
+        const catName = (b.category ?? '').trim() || 'Uncategorized';
+        id = this.resolveExpenseCategory(catName, byLowerName).id;
+      }
       map.set(id, (map.get(id) ?? 0) + Number(b.limit ?? 0));
     }
     return map;
@@ -852,13 +971,22 @@ export class ReportsService {
     }
   }
 
+  /** IndexedDB only — no Firestore (matches offline-first reads elsewhere). */
+  private async findReportForMonthInCacheOnly(
+    accountId: string,
+    monthKey: string,
+  ): Promise<MonthlyReport | null> {
+    const rows = await this.cache.getAllByIndex<MonthlyReport>(STORE, 'accountId', accountId);
+    return rows.find((r) => r.month === monthKey) ?? null;
+  }
+
+  /** Cache first; if missing and online, fetch this month from Firestore and seed IDB. */
   private async findReportForMonth(
     accountId: string,
     monthKey: string,
   ): Promise<MonthlyReport | null> {
-    const cached = await this.cache.getAllByIndex<MonthlyReport>(STORE, 'accountId', accountId);
-    const hit = cached.find((r) => r.month === monthKey);
-    if (hit) return hit;
+    const fromCache = await this.findReportForMonthInCacheOnly(accountId, monthKey);
+    if (fromCache) return fromCache;
     if (!this.network.isOnline()) return null;
     try {
       const snap = await getDocs(
@@ -879,31 +1007,40 @@ export class ReportsService {
   }
 
   async createReport(data: MonthlyReportCreateInput): Promise<MonthlyReport> {
+    const payload = { ...(data as unknown as Record<string, unknown>) };
     return this.offlineCrud.create<MonthlyReport>(
-      COLLECTION,
+      STORE,
       'uid',
-      async () => {
-        const ref = await addDoc(collection(this.firestore, COLLECTION), data);
-        const row = await this.fetchReportByDocId(ref.id);
+      async (assignedId: string) => {
+        const ref = doc(this.firestore, COLLECTION, assignedId);
+        await setDoc(ref, { ...payload, uid: assignedId });
+        const row = await this.fetchReportByDocId(assignedId);
         if (!row) {
           throw new Error('Failed to read report after creation.');
         }
         return row;
       },
-      data as unknown as Record<string, unknown>,
+      payload,
     );
   }
 
+  async applyPendingMonthlyReportCreate(
+    docId: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const ref = doc(this.firestore, COLLECTION, docId);
+    await setDoc(ref, { ...data, uid: docId });
+    const row = await this.fetchReportByDocId(docId);
+    if (!row) throw new Error('Failed to read report after pending create sync.');
+    await this.cache.put(STORE, { ...row, _pendingSync: false });
+  }
+
   async updateReport(reportId: string, patch: MonthlyReportUpdateInput): Promise<void> {
-    const cached = await this.offlineCrud.fetchOne<MonthlyReport>(
-      COLLECTION,
-      reportId,
-      async () => {
-        const snap = await getDoc(doc(this.firestore, `${COLLECTION}/${reportId}`));
-        if (!snap.exists()) return null;
-        return this.mapReport(snap.id, snap.data());
-      },
-    );
+    const cached = await this.offlineCrud.fetchOne<MonthlyReport>(STORE, reportId, async () => {
+      const snap = await getDoc(doc(this.firestore, `${COLLECTION}/${reportId}`));
+      if (!snap.exists()) return null;
+      return this.mapReport(snap.id, snap.data());
+    });
 
     if (!cached) {
       throw new Error('Report not found or access denied.');
@@ -912,7 +1049,7 @@ export class ReportsService {
     const patchRecord: Record<string, unknown> = patch as unknown as Record<string, unknown>;
 
     await this.offlineCrud.update<MonthlyReport>(
-      COLLECTION,
+      STORE,
       reportId,
       async () => {
         const reportRef = doc(this.firestore, `${COLLECTION}/${reportId}`);

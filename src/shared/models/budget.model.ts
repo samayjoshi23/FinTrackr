@@ -9,6 +9,8 @@ export interface BudgetDocument {
   name?: string;
   /** Category name that maps to `transactions.category` (optional for older documents). */
   category?: string;
+  /** Optional {@link Category.uid} for stable budget ↔ reporting linkage. */
+  categoryId?: string;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -27,8 +29,9 @@ export interface BudgetCreateInput {
   month: string;
   name?: string;
   category?: string;
+  categoryId?: string;
 }
 
 export type BudgetUpdateInput = Partial<
-  Pick<BudgetDocument, 'limit' | 'month' | 'name' | 'category'>
+  Pick<BudgetDocument, 'limit' | 'month' | 'name' | 'category' | 'categoryId'>
 >;

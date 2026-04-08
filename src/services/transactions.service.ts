@@ -1,7 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -10,6 +9,7 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from '@angular/fire/firestore';
@@ -26,6 +26,7 @@ import {
 } from '../shared/models/transaction-query.model';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
 import { date, docCalendarDate } from '../core/date';
 
 const TRANSACTIONS_COLLECTION = 'transactions';
@@ -36,6 +37,7 @@ export class TransactionsService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
+  private readonly idbCache = inject(IndexedDbCacheService);
 
   get currentAccount(): Account | null {
     return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
@@ -62,8 +64,9 @@ export class TransactionsService {
     return this.offlineCrud.create<TransactionRecord>(
       'transactions',
       'uid',
-      async () => {
-        const ref = await addDoc(collection(this.firestore, TRANSACTIONS_COLLECTION), {
+      async (assignedId: string) => {
+        const ref = doc(this.firestore, TRANSACTIONS_COLLECTION, assignedId);
+        await setDoc(ref, {
           accountId,
           amount: Number(data.amount),
           description: data.description?.trim() ?? '',
@@ -76,7 +79,7 @@ export class TransactionsService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const row = await this.getTransactionDirect(ref.id);
+        const row = await this.getTransactionDirect(assignedId);
         if (!row) {
           throw new Error('Failed to read transaction after creation.');
         }
@@ -154,6 +157,29 @@ export class TransactionsService {
     });
   }
 
+  /** Push a queued local-first create to Firestore (sync worker). Does not call {@link createTransaction}. */
+  async applyPendingTransactionCreate(docId: string, data: TransactionCreateInput): Promise<void> {
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
+    const ref = doc(this.firestore, TRANSACTIONS_COLLECTION, docId);
+    await setDoc(ref, {
+      accountId,
+      amount: Number(data.amount),
+      description: data.description?.trim() ?? '',
+      category: data.category?.trim() ?? '',
+      icon: data.icon ?? null,
+      type: data.type,
+      ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
+      ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
+      date: day,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    const row = await this.getTransactionDirect(docId);
+    if (!row) throw new Error('Failed to read transaction after pending create sync.');
+    await this.idbCache.put('transactions', { ...row, _pendingSync: false } as TransactionRecord);
+  }
+
   async getTransaction(transactionId: string): Promise<TransactionRecord | null> {
     if (!this.currentAccount) return null;
     return this.offlineCrud.fetchOne<TransactionRecord>('transactions', transactionId, async () =>
@@ -225,8 +251,11 @@ export class TransactionsService {
     return this.offlineCrud.create<RecurringTransactionRecord>(
       'recurring-transactions',
       'uid',
-      async () => {
-        const ref = await addDoc(collection(this.firestore, RECURRING_TRANSACTIONS_COLLECTION), {
+      async (assignedId: string) => {
+        const uid = this.requireUid();
+        const ref = doc(this.firestore, RECURRING_TRANSACTIONS_COLLECTION, assignedId);
+        await setDoc(ref, {
+          ownerId: uid,
           accountId,
           transactionId: data.transactionId,
           lastPaymentDate: data.lastPaymentDate,
@@ -235,13 +264,14 @@ export class TransactionsService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const row = await this.getRecurringTransactionDirect(ref.id);
+        const row = await this.getRecurringTransactionDirect(assignedId);
         if (!row) {
           throw new Error('Failed to read recurring transaction after creation.');
         }
         return row;
       },
       {
+        ownerId: this.requireUid(),
         accountId,
         transactionId: data.transactionId,
         lastPaymentDate: data.lastPaymentDate,
@@ -249,6 +279,29 @@ export class TransactionsService {
         date: day,
       },
     );
+  }
+
+  async applyPendingRecurringCreate(
+    docId: string,
+    data: RecurringTransactionCreateInput,
+  ): Promise<void> {
+    const uid = this.requireUid();
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
+    const ref = doc(this.firestore, RECURRING_TRANSACTIONS_COLLECTION, docId);
+    await setDoc(ref, {
+      ownerId: uid,
+      accountId,
+      transactionId: data.transactionId,
+      lastPaymentDate: data.lastPaymentDate,
+      nextPaymentDate: data.nextPaymentDate,
+      date: day,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    const row = await this.getRecurringTransactionDirect(docId);
+    if (!row) throw new Error('Failed to read recurring transaction after pending create sync.');
+    await this.idbCache.put('recurring-transactions', { ...row, _pendingSync: false });
   }
 
   async getRecurringTransaction(

@@ -2,7 +2,8 @@ import { DBConfig } from 'ngx-indexed-db';
 
 export const indexedDbConfig: DBConfig = {
   name: 'FinTrackrDB',
-  version: 2,
+  /** Bump when adding object stores or indexes so existing DBs run upgrade (e.g. `monthly-reports`). */
+  version: 3,
   objectStoresMeta: [
     {
       store: 'accounts',

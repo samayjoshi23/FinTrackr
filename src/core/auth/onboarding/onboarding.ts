@@ -9,15 +9,11 @@ import { Icon } from '../../../shared/components/icon/icon';
 import { currencies, onboardingPages } from './types';
 import { budgetSuggestionCards } from './types';
 import { Router } from '@angular/router';
-import {
-  Account,
-  AccountCreateInput,
-  AccountUpdateInput,
-} from '../../../shared/models/account.model';
+import { Account, AccountCreateInput } from '../../../shared/models/account.model';
 import { BudgetsService } from '../../../services/budgets.service';
 import { GoalsService } from '../../../services/goals.service';
 import { BudgetCreateInput } from '../../../shared/models/budget.model';
-import { GoalCreateInput } from '../../../shared/models/goal.model';
+import { Goal, GoalCreateInput } from '../../../shared/models/goal.model';
 import {
   Category,
   CategoryCreateInput,
@@ -33,7 +29,6 @@ import { ReportsService } from '../../../services/reports.service';
   styleUrl: './onboarding.css',
 })
 export class Onboarding {
-  // Inject dependencies
   private readonly accountsService = inject(AccountsService);
   private readonly budgetsService = inject(BudgetsService);
   private readonly goalsService = inject(GoalsService);
@@ -42,7 +37,7 @@ export class Onboarding {
   private readonly router = inject(Router);
   private readonly categoriesService = inject(CategoriesService);
   private readonly reportsService = inject(ReportsService);
-  // State
+
   userProfile = signal<UserProfile | null>(null);
   formModel = {
     user: {
@@ -57,6 +52,7 @@ export class Onboarding {
     budget: {
       limit: '',
       month: '',
+      categoryUid: '',
     },
     goal: {
       name: '',
@@ -73,13 +69,20 @@ export class Onboarding {
   currencies = signal<{ value: string; label: string; isSelected: boolean }[]>(currencies);
   initialText = signal<string | null>(null);
   budgetSuggestions = signal<{ amount: string; isSelected: boolean }[]>(budgetSuggestionCards);
-  ids = signal<{ accountId: string; budgetId: string; goalId: string }>({
+  ids = signal<{
+    accountId: string;
+    budgetId: string;
+    goalId: string;
+    categoryIds: string[];
+  }>({
     accountId: '',
     budgetId: '',
     goalId: '',
+    categoryIds: [],
   });
 
-  // Getters
+  onboardingCategories = signal<Category[]>([]);
+
   get rawForm() {
     return this.formModel;
   }
@@ -88,14 +91,110 @@ export class Onboarding {
     this.userProfile.set(
       JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null,
     );
-    console.log(this.userProfile(), 'userProfile');
     this.formModel.user.fullName = String(this.userProfile()?.['displayName'] ?? '');
     this.formModel.user.profilePicture = String(this.userProfile()?.['photoURL'] ?? '');
+    this.formModel.budget.month = new Date().toLocaleString('en-US', { month: 'long' });
     this.updateProfileInitialText();
+    void this.bootstrapOnboardingSession();
+  }
+
+  /** Restore first-account ids and lists so back/forward does not duplicate rows. */
+  private async bootstrapOnboardingSession(): Promise<void> {
+    const uid = this.userProfile()?.['uid'] as string | undefined;
+    if (!uid) return;
+
+    try {
+      const existingAcc = await this.accountsService.getAccount(uid);
+      if (existingAcc) {
+        this.patchAccountIntoSession(existingAcc);
+        await this.refreshOnboardingCategoriesFromServer();
+        await this.hydrateBudgetAndGoalFromServer();
+      } else {
+        const cached = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+        if (cached && (cached.ownerId === uid || cached.id === uid)) {
+          this.patchAccountIntoSession(cached);
+          await this.refreshOnboardingCategoriesFromServer();
+          await this.hydrateBudgetAndGoalFromServer();
+        }
+      }
+    } catch {
+      const cached = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+      if (cached && (cached.ownerId === uid || cached.id === uid)) {
+        this.patchAccountIntoSession(cached);
+        await this.refreshOnboardingCategoriesFromServer();
+        await this.hydrateBudgetAndGoalFromServer();
+      }
+    }
+  }
+
+  private patchAccountIntoSession(account: Account): void {
+    this.ids.update((s) => ({ ...s, accountId: account.id }));
+    localStorage.setItem('currentAccount', JSON.stringify(account));
+    if (!this.formModel.account.name?.trim()) this.formModel.account.name = account.name ?? '';
+    if (this.formModel.account.balance === '' || this.formModel.account.balance == null) {
+      this.formModel.account.balance = String(account.balance ?? '');
+    }
+    if (account.currency) {
+      this.formModel.account.currency = account.currency;
+      this.onSelectCurrency(account.currency);
+    }
+  }
+
+  /** Rebuild the ordered default-category chip list from IndexedDB / Firestore (no creates). */
+  private async refreshOnboardingCategoriesFromServer(): Promise<void> {
+    if (!this.ids().accountId) return;
+    const list = await this.categoriesService.getCategories();
+    const key = (n: string) => n.trim().toLowerCase();
+    const byName = new Map(list.map((c) => [key(c.name), c]));
+    const ordered: Category[] = [];
+    for (const tmpl of DEFAULT_CATEGORIES) {
+      const c = byName.get(key(tmpl.name));
+      if (c) ordered.push(c);
+    }
+    if (ordered.length === 0) return;
+    this.onboardingCategories.set(ordered);
+    this.ids.update((s) => ({ ...s, categoryIds: ordered.map((c) => c.uid) }));
+  }
+
+  private async hydrateBudgetAndGoalFromServer(): Promise<void> {
+    const budgets = await this.budgetsService.getBudgets();
+    const month = this.formModel.budget.month;
+    let b = budgets.find((x) => x.month === month);
+    if (!b && budgets.length === 1) b = budgets[0];
+    if (b) {
+      this.ids.update((s) => ({ ...s, budgetId: b.id }));
+      if (!this.formModel.budget.limit?.toString().trim()) {
+        this.formModel.budget.limit = String(b.limit);
+      }
+      if (!this.formModel.budget.categoryUid?.trim() && b.categoryId) {
+        this.formModel.budget.categoryUid = b.categoryId;
+      }
+    }
+
+    const goals = await this.goalsService.getGoals();
+    if (goals.length === 0) return;
+    const sorted = [...goals].sort((a, b) => {
+      const ta = a.createdAt?.getTime?.() ?? 0;
+      const tb = b.createdAt?.getTime?.() ?? 0;
+      return tb - ta;
+    });
+    const g: Goal = goals.length === 1 ? goals[0] : sorted[0];
+    this.ids.update((s) => ({ ...s, goalId: g.id }));
+    if (!this.formModel.goal.name?.trim()) this.formModel.goal.name = g.name;
+    if (this.formModel.goal.target === '' || this.formModel.goal.target == null) {
+      this.formModel.goal.target = String(g.target);
+    }
+    if (!this.formModel.goal.dueDate?.trim()) this.formModel.goal.dueDate = g.dueDate;
+    if (this.formModel.goal.currentAmount === '' || this.formModel.goal.currentAmount == null) {
+      this.formModel.goal.currentAmount = String(g.currentAmount);
+    }
+  }
+
+  selectBudgetCategory(uid: string) {
+    this.formModel.budget.categoryUid = uid;
   }
 
   onChangeProfilePicture() {
-    // Open file picker
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/jpeg, image/png';
@@ -105,7 +204,6 @@ export class Onboarding {
       const target = event.target as HTMLInputElement;
       const file = target.files?.[0];
 
-      // Only jpg, pngs are allowed
       if (!file) return;
 
       const allowedTypes = ['image/jpeg', 'image/png'];
@@ -114,23 +212,16 @@ export class Onboarding {
         return;
       }
 
-      // Max size is 1MB
       if (file.size > 1024 * 1024) {
         alert('Max file size is 1MB.');
         return;
       }
 
-      // The file will be uploaded to the server
       try {
-        // Assume there is an upload service or function available
-        // Replace this with your real file upload logic as needed
         const uploadUrl = await this.uploadProfilePicture(file);
-
         this.formModel.user.profilePicture = uploadUrl;
-
-        // The initial text will be updated
         this.initialText.set(null);
-      } catch (error) {
+      } catch {
         alert('Failed to upload image. Please try again.');
       }
     };
@@ -150,7 +241,7 @@ export class Onboarding {
       return;
     }
 
-    let fullNameArr = fullName.split(' ');
+    const fullNameArr = fullName.split(' ');
     let initial = fullNameArr[0].charAt(0);
     if (fullNameArr.length > 1) {
       initial += fullNameArr[1].charAt(0);
@@ -165,151 +256,308 @@ export class Onboarding {
   async goToNextStep(isSkipping: boolean = false) {
     if (!isSkipping) {
       switch (this.currentPage()) {
-        case 1:
-          if (!this.rawForm.user.fullName) return;
-          else
-            this.updateUserProfile().catch((err) => console.error('updateUserProfile failed', err));
-          break;
-        case 2:
-          if (!(this.rawForm.account.name && this.rawForm.account.balance)) return;
-          break;
-        case 3:
-          if (!this.rawForm.account.currency) return;
-          else
-            this.createOrUpdateFirstAccount().catch((err) =>
-              console.error('createOrUpdateFirstAccount failed', err),
-            );
-          break;
-        case 4:
-          if (!this.rawForm.budget.limit) return;
-          else
-            this.createOrUpdateFirstBudget().catch((err) =>
-              console.error('createOrUpdateFirstBudget failed', err),
-            );
-          break;
-        case 5:
-          if (
-            !(
-              this.rawForm.goal.name &&
-              this.rawForm.goal.target &&
-              this.rawForm.goal.dueDate &&
-              this.rawForm.goal.currentAmount
-            )
-          )
+        case 1: {
+          if (!this.rawForm.user.fullName?.trim()) return;
+          const err = await this.runStepUpdateProfile();
+          if (err) {
+            console.error(err);
             return;
-          else
-            this.createOrUpdateFirstGoal().catch((err) =>
-              console.error('createOrUpdateFirstGoal failed', err),
-            );
+          }
           break;
+        }
+        case 2:
+          if (!(this.rawForm.account.name?.trim() && this.rawForm.account.balance !== '')) return;
+          break;
+        case 3: {
+          if (!this.rawForm.account.currency) return;
+          const err = await this.runStepCreateAccountAndCategories();
+          if (err) {
+            console.error(err);
+            return;
+          }
+          const cats = this.onboardingCategories();
+          if (cats.length > 0 && !this.formModel.budget.categoryUid?.trim()) {
+            this.formModel.budget.categoryUid = cats[0].uid;
+          }
+          break;
+        }
+        case 4: {
+          const lim = this.formModel.budget.limit?.toString().trim();
+          const catUid = this.formModel.budget.categoryUid?.trim();
+          if (lim || catUid) {
+            if (!lim || !catUid) return;
+            const err = await this.runStepCreateBudget();
+            if (err) {
+              console.error(err);
+              return;
+            }
+          }
+          break;
+        }
+        case 5: {
+          const g = this.rawForm.goal;
+          const hasCurrent =
+            g.currentAmount !== '' && g.currentAmount !== null && g.currentAmount !== undefined;
+          if (!g.name?.trim() || g.target === '' || !g.dueDate || !hasCurrent) {
+            return;
+          }
+          const err = await this.runStepCreateGoal();
+          if (err) {
+            console.error(err);
+            return;
+          }
+          break;
+        }
       }
     }
 
     if (this.currentPage() === this.pages().length) {
-      await this.categoriesService.addDefaultCategories();
-      const uid = this.userProfile()?.['uid'] as string;
-      if (uid) {
-        await this.authService.markOnboarded(uid);
-      }
-      this.router.navigateByUrl('/user/dashboard');
+      await this.finalizeOnboarding();
+      return;
     }
     this.currentPage.set(this.currentPage() + 1);
   }
 
+  private async runStepUpdateProfile(): Promise<string | null> {
+    try {
+      await this.updateUserProfile();
+      return null;
+    } catch {
+      return 'Could not update profile.';
+    }
+  }
+
+  private async runStepCreateAccountAndCategories(): Promise<string | null> {
+    try {
+      await this.createOrUpdateFirstAccount();
+      await this.seedAllDefaultCategories();
+      return null;
+    } catch {
+      return 'Could not save account or categories.';
+    }
+  }
+
+  private async runStepCreateBudget(): Promise<string | null> {
+    try {
+      await this.createOrUpdateFirstBudget();
+      return null;
+    } catch {
+      return 'Could not save budget.';
+    }
+  }
+
+  private async runStepCreateGoal(): Promise<string | null> {
+    try {
+      await this.createOrUpdateFirstGoal();
+      return null;
+    } catch {
+      return 'Could not save goal.';
+    }
+  }
+
+  private async finalizeOnboarding() {
+    const uid = this.userProfile()?.['uid'] as string;
+    if (uid) {
+      await this.authService.markOnboarded(uid);
+    }
+
+    const accountId = this.ids().accountId;
+    const cats = this.onboardingCategories();
+    if (accountId && cats.length > 0) {
+      const b = this.formModel.budget;
+      const budgetMeta =
+        b.limit && b.categoryUid ? { categoryUid: b.categoryUid, limit: Number(b.limit) } : null;
+      // Last step: starter `monthlyReports` row (IDB + queue + Firestore when online) — zeros + category breakdown.
+      await this.reportsService
+        .createOnboardingStarterMonthlyReport(
+          accountId,
+          cats.map((c) => ({ uid: c.uid, name: c.name })),
+          budgetMeta,
+        )
+        .catch(() => {});
+    }
+
+    this.router.navigateByUrl('/user/dashboard');
+  }
+
   onSelectCurrency(value: string) {
     this.formModel.account.currency = value;
-    this.currencies.update((prev) =>
-      prev.map((c) => ({ ...c, isSelected: c.value === value ? true : false })),
-    );
+    this.currencies.update((prev) => prev.map((c) => ({ ...c, isSelected: c.value === value })));
   }
 
   onSelectBudgetSuggestion(amount: string) {
     this.formModel.budget.limit = amount;
     this.budgetSuggestions.update((prev) =>
-      prev.map((s) => ({ ...s, isSelected: s.amount === amount ? true : false })),
+      prev.map((s) => ({ ...s, isSelected: s.amount === amount })),
     );
   }
 
   private async updateUserProfile() {
-    let profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    const profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
     if (!profile?.['uid']) this.router.navigateByUrl('/login');
     this.userProfile.set({
       ...this.userProfile(),
       photoURL: this.rawForm.user.profilePicture,
       displayName: this.rawForm.user.fullName,
     });
-    let userData: {
-      uid: string;
-      email: string;
-      displayName: string;
-      photoURL: string | null;
-      provider: 'password' | 'google';
-    } = {
+    const userData = {
       uid: (this.userProfile()?.['uid'] as string) ?? '',
       email: (this.userProfile()?.['email'] as string) ?? '',
       displayName: (this.userProfile()?.['displayName'] as string) ?? '',
       photoURL: (this.userProfile()?.['photoURL'] as string | null) ?? null,
       provider: (this.userProfile()?.['provider'] as 'password' | 'google') ?? 'password',
     };
-    console.log(userData, 'userData');
     await this.authService.upsertUserProfile(userData);
   }
 
   private async createOrUpdateFirstAccount() {
-    let accountForm = this.rawForm.account;
-    let accountData: AccountCreateInput = {
+    const accountForm = this.rawForm.account;
+    const ownerId = this.userProfile()?.['uid'] as string;
+    const accountData: AccountCreateInput = {
       name: accountForm.name,
       balance: Number(accountForm.balance),
       currency: accountForm.currency,
       isSelected: true,
       isActive: true,
       members: [],
-      ownerId: this.userProfile()?.['uid'] as string,
+      ownerId,
     };
 
-    let account = null;
-    if (this.ids().accountId) {
-      await this.accountsService.updateAccount(
-        this.ids().accountId,
-        accountData as AccountUpdateInput,
-      );
-      account = await this.accountsService.getAccount(this.ids().accountId);
+    const existing = await this.accountsService.getAccount(ownerId);
+    let account: Account | null = null;
+
+    if (existing) {
+      await this.accountsService.updateAccount(existing.id, {
+        name: accountData.name,
+        balance: Number(accountData.balance),
+        currency: accountData.currency,
+        isSelected: true,
+        isActive: true,
+      });
+      account = await this.accountsService.getAccount(existing.id);
+      this.ids.update((s) => ({ ...s, accountId: existing.id }));
     } else {
-      account = await this.accountsService.createAccount(accountData as AccountCreateInput);
-      this.ids.set({ ...this.ids(), accountId: account.id });
+      account = await this.accountsService.createAccount(accountData, ownerId);
+      this.ids.update((s) => ({ ...s, accountId: account!.id }));
     }
-    localStorage.setItem('currentAccount', JSON.stringify(account));
+    if (account) localStorage.setItem('currentAccount', JSON.stringify(account));
+  }
+
+  /**
+   * Ensures each {@link DEFAULT_CATEGORIES} name exists once for this account.
+   * Already-seeded names are skipped; re-running only creates missing templates and refreshes the ordered list.
+   */
+  private async seedAllDefaultCategories() {
+    const accountId = this.ids().accountId;
+    const uid = this.userProfile()?.['uid'] as string;
+    if (!accountId || !uid) return;
+
+    const existing = await this.categoriesService.getCategories();
+    const key = (n: string) => n.trim().toLowerCase();
+    const byName = new Map(existing.map((c) => [key(c.name), c]));
+
+    for (const tmpl of DEFAULT_CATEGORIES) {
+      const k = key(tmpl.name);
+      if (byName.has(k)) continue;
+      const input: CategoryCreateInput = {
+        accountId,
+        name: tmpl.name,
+        description: tmpl.description ?? '',
+        icon: tmpl.icon,
+      };
+      const row = await this.categoriesService.createCategory(input, uid);
+      byName.set(k, row);
+    }
+
+    const ordered: Category[] = [];
+    for (const tmpl of DEFAULT_CATEGORIES) {
+      const c = byName.get(key(tmpl.name));
+      if (c) ordered.push(c);
+    }
+    this.onboardingCategories.set(ordered);
+    this.ids.update((s) => ({ ...s, categoryIds: ordered.map((c) => c.uid) }));
   }
 
   private async createOrUpdateFirstBudget() {
-    let budgetForm = this.rawForm.budget;
-    let budgetData: BudgetCreateInput = {
+    const budgetForm = this.rawForm.budget;
+    const cat = this.onboardingCategories().find((c) => c.uid === budgetForm.categoryUid);
+    const budgetData: BudgetCreateInput = {
       limit: budgetForm.limit,
       month: budgetForm.month,
       accountId: this.ids().accountId,
+      name: cat ? `${cat.name} budget` : 'Budget',
+      category: cat?.name ?? '',
+      categoryId: budgetForm.categoryUid?.trim() || undefined,
     };
-    if (this.ids().budgetId) {
-      await this.budgetsService.updateBudget(this.ids().budgetId, {
+
+    let budgetId = this.ids().budgetId;
+    if (!budgetId) {
+      const budgets = await this.budgetsService.getBudgets();
+      const month = budgetForm.month;
+      const catUid = budgetForm.categoryUid?.trim();
+      let match = budgets.find((b) => b.month === month && (!catUid || b.categoryId === catUid));
+      if (!match) match = budgets.find((b) => b.month === month);
+      if (!match && budgets.length === 1) match = budgets[0];
+      if (match) budgetId = match.id;
+    }
+
+    if (budgetId) {
+      await this.budgetsService.updateBudget(budgetId, {
         limit: Number(budgetForm.limit),
         month: budgetForm.month,
+        name: budgetData.name,
+        category: cat?.name ?? '',
+        categoryId: budgetForm.categoryUid?.trim() || undefined,
       });
+      this.ids.update((s) => ({ ...s, budgetId }));
     } else {
-      let budget = await this.budgetsService.createBudget(budgetData as BudgetCreateInput);
-      this.ids.set({ ...this.ids(), budgetId: budget.id });
+      const budget = await this.budgetsService.createBudget(budgetData as BudgetCreateInput);
+      this.ids.update((s) => ({ ...s, budgetId: budget.id }));
     }
-    await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
   }
 
   private async createOrUpdateFirstGoal() {
-    let goalForm = this.rawForm.goal;
-    let goalData: GoalCreateInput = {
-      name: goalForm.name,
-      target: goalForm.target,
+    const goalForm = this.rawForm.goal;
+    const accountId = this.ids().accountId;
+    const patch = {
+      name: goalForm.name.trim(),
+      target: Number(goalForm.target),
       dueDate: goalForm.dueDate,
-      currentAmount: goalForm.currentAmount,
-      accountId: this.ids().accountId,
+      currentAmount: Number(goalForm.currentAmount),
     };
-    let goal = await this.goalsService.createGoal(goalData as GoalCreateInput);
-    this.ids.set({ ...this.ids(), goalId: goal.id });
+
+    let goalId: string | undefined = this.ids().goalId.trim() || undefined;
+    if (!goalId) {
+      const goals = await this.goalsService.getGoals();
+      if (goals.length === 1) {
+        goalId = goals[0].id;
+      } else if (goals.length > 1) {
+        const want = goalForm.name.trim().toLowerCase();
+        goalId = goals.find((g) => g.name.trim().toLowerCase() === want)?.id;
+        if (!goalId) {
+          const sorted = [...goals].sort((a, b) => {
+            const ta = a.createdAt?.getTime?.() ?? 0;
+            const tb = b.createdAt?.getTime?.() ?? 0;
+            return tb - ta;
+          });
+          goalId = sorted[0]?.id;
+        }
+      }
+    }
+
+    if (goalId) {
+      await this.goalsService.updateGoal(goalId, patch);
+      this.ids.update((s) => ({ ...s, goalId }));
+    } else {
+      const goalData: GoalCreateInput = {
+        name: goalForm.name,
+        target: goalForm.target,
+        dueDate: goalForm.dueDate,
+        currentAmount: goalForm.currentAmount,
+        accountId,
+      };
+      const goal = await this.goalsService.createGoal(goalData as GoalCreateInput);
+      this.ids.update((s) => ({ ...s, goalId: goal.id }));
+    }
   }
 }

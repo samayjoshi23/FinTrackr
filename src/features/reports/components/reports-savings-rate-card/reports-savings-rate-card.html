@@ -1,0 +1,24 @@
+<div class="card-light rounded-2xl p-4 flex flex-col gap-2">
+  <div class="flex items-center justify-between">
+    <p class="text-sm font-semibold title-font">Savings Rate</p>
+    <p
+      class="text-sm font-semibold title-font"
+      [class.text-green-600]="summary.savingsRate >= 0"
+      [class.text-red-500]="summary.savingsRate < 0"
+    >
+      {{ summary.savingsRate }}%
+    </p>
+  </div>
+  <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
+    <div
+      class="h-full rounded-full"
+      [class.bg-green-500]="summary.savingsRate >= 0"
+      [class.bg-red-500]="summary.savingsRate < 0"
+      [style.width.%]="summary.savingsRate < 0 ? 100 : summary.savingsRate"
+    ></div>
+  </div>
+  <p class="text-xs text-secondary">
+    {{ summary.savings | currency: currency : 'symbol-narrow' : '1.0-0' }} saved of
+    {{ summary.totalIncome | currency: currency : 'symbol-narrow' : '1.0-0' }} total income
+  </p>
+</div>

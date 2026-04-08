@@ -1,4 +1,4 @@
-<div class="gap-3 w-full flex flex-col h-full p-4 md:p-5">
+<div class="gap-3 w-full flex flex-col h-full p-4 md:p-5 overflow-y-auto">
   <!-- Header -->
   <header class="flex items-center justify-between">
     <!-- Greeting -->
@@ -36,10 +36,10 @@
       <div class="flex w-100 bg-primary-soft rounded-xl p-3 gap-2 items-center">
         <ico name="stock-up" size="md"></ico>
         <div class="flex flex-col">
-          <p class="text-xs">Income | March</p>
+          <p class="text-xs">Income | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
             <p class="text-md title-font font-medium">
-              {{ 10000 | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+              {{ monthlyIncome() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
             </p>
           } @else {
             -
@@ -49,10 +49,10 @@
       <div class="flex w-100 bg-primary-soft rounded-xl p-3 gap-2 items-center">
         <ico name="stock-down" size="md"></ico>
         <div class="flex flex-col">
-          <p class="text-xs">Expenses | March</p>
+          <p class="text-xs">Expenses | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
             <p class="text-md title-font font-medium">
-              {{ 10000 | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+              {{ monthlyExpense() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
             </p>
           } @else {
             -
@@ -61,19 +61,27 @@
       </div>
     </div>
     <div class="flex flex-col p-3 bg-primary-soft rounded-xl gap-1">
-      <div class="flex justify-between items-center">
-        <p class="text-xs">Montly Budget</p>
-        <p class="text-xs">60%</p>
-      </div>
-      <div class="h-1.5 w-full bg-primary-light rounded-full">
-        <div class="h-full rounded-full bg-primary" style="width: 60%"></div>
-      </div>
-      <div class="flex justify-between items-center">
-        <p class="text-xs">
-          {{ 400 | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining of
-          {{ 10000 | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+      @if (hasMonthlyBudget()) {
+        <div class="flex justify-between items-center">
+          <p class="text-xs">Monthly budget used</p>
+          <p class="text-xs">{{ budgetUsedPercent() }}%</p>
+        </div>
+        <div class="h-1.5 w-full bg-primary-light rounded-full">
+          <div class="h-full rounded-full bg-primary" [style.width]="budgetBarWidth()"></div>
+        </div>
+        <div class="flex justify-between items-center">
+          <p class="text-xs">
+            {{ budgetRemaining() | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining of
+            {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+          </p>
+        </div>
+      } @else if (selectedAccount()) {
+        <p class="text-xs text-secondary">
+          No monthly budgets for {{ summaryMonthLabel() || 'this month' }}.
         </p>
-      </div>
+      } @else {
+        <p class="text-xs text-secondary">—</p>
+      }
     </div>
   </div>
 

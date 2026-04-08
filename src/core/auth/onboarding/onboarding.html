@@ -36,7 +36,6 @@
     @switch (currentPage()) {
       @case (1) {
         <div class="flex flex-col gap-3">
-          <!-- Profile Picture -->
           <div class="w-full flex justify-center">
             <div
               class="relative h-25 w-25 flex items-center justify-center rounded-full bg-primary"
@@ -55,7 +54,6 @@
               </div>
             </div>
           </div>
-          <!-- Full Name -->
           <div class="flex flex-col gap-1">
             <label for="fullName" class="text-xs text-gray-400">Full Name</label>
             <div class="field-wrapper before">
@@ -77,7 +75,6 @@
       }
       @case (2) {
         <div class="flex flex-col gap-3">
-          <!-- Account Name -->
           <div class="flex flex-col gap-1">
             <label for="accountName" class="text-xs text-gray-400">Account Name</label>
             <div class="field-wrapper before">
@@ -95,7 +92,6 @@
             </div>
           </div>
 
-          <!-- Balance -->
           <div class="flex flex-col gap-1">
             <label for="balance" class="text-xs text-gray-400">Balance</label>
             <div class="field-wrapper before">
@@ -116,7 +112,6 @@
       }
       @case (3) {
         <div class="flex flex-col gap-3">
-          <!-- Currency -->
           <div class="flex flex-col gap-1">
             @for (currency of currencies(); track $index) {
               <div
@@ -136,6 +131,29 @@
       }
       @case (4) {
         <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-2">
+            <label class="text-xs text-gray-400">Category</label>
+            <div class="flex flex-wrap gap-2">
+              @for (c of onboardingCategories(); track c.uid) {
+                <div
+                  class="card rounded-full py-2 px-4 flex items-center gap-2 cursor-pointer"
+                  [ngClass]="{ 'selected-card': c.uid === formModel.budget.categoryUid }"
+                  (click)="selectBudgetCategory(c.uid)"
+                >
+                  <ico
+                    [name]="c.icon"
+                    size="sm"
+                    [class.text-primary]="c.uid === formModel.budget.categoryUid"
+                    [class.text-secondary]="c.uid !== formModel.budget.categoryUid"
+                  ></ico>
+                  <p class="text-xs" [class.font-semibold]="c.uid === formModel.budget.categoryUid">
+                    {{ c.name }}
+                  </p>
+                </div>
+              }
+            </div>
+          </div>
+
           <div class="flex flex-col gap-1">
             <label for="monthlyBudget" class="text-xs text-gray-400">Monthly Budget</label>
             <div class="field-wrapper before">
@@ -177,7 +195,6 @@
       }
       @case (5) {
         <div class="flex flex-col gap-3">
-          <!-- Goal Name -->
           <div class="flex flex-col gap-1">
             <label for="goalName" class="text-xs text-gray-400">Goal Name</label>
             <div class="field-wrapper before">
@@ -194,7 +211,6 @@
               />
             </div>
           </div>
-          <!-- Target Amount -->
           <div class="flex flex-col gap-1">
             <label for="goalTarget" class="text-xs text-gray-400">Target Amount</label>
             <div class="field-wrapper before">
@@ -211,21 +227,22 @@
               />
             </div>
           </div>
-          <!-- Due Date -->
           <div class="flex flex-col gap-1">
             <label for="goalDueDate" class="text-xs text-gray-400">Due Date</label>
-            <div class="field-wrapper">
+            <div class="field-wrapper before">
+              <span class="field-icon before">
+                <ico name="calendar" size="sm"></ico>
+              </span>
               <input
                 type="date"
                 class="w-full"
                 id="goalDueDate"
-                placeholder="Select due date"
+                placeholder="Enter your due date"
                 name="goalDueDate"
                 [(ngModel)]="formModel.goal.dueDate"
               />
             </div>
           </div>
-          <!-- Current Amount -->
           <div class="flex flex-col gap-1">
             <label for="goalCurrentAmount" class="text-xs text-gray-400">Current Amount</label>
             <div class="field-wrapper before">
@@ -236,9 +253,7 @@
                 type="number"
                 class="w-full"
                 id="goalCurrentAmount"
-                [placeholder]="
-                  'eg. ' + (5000 | currency: formModel.account.currency : 'symbol' : '1.0-0')
-                "
+                placeholder="Enter your current amount"
                 name="goalCurrentAmount"
                 [(ngModel)]="formModel.goal.currentAmount"
               />

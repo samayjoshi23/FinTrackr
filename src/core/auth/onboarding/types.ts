@@ -9,22 +9,10 @@ export const currencies = [
 ];
 
 export const budgetSuggestionCards = [
-  {
-    amount: '1000',
-    isSelected: false,
-  },
-  {
-    amount: '2000',
-    isSelected: false,
-  },
-  {
-    amount: '3000',
-    isSelected: false,
-  },
-  {
-    amount: '5000',
-    isSelected: false,
-  },
+  { amount: '1000', isSelected: false },
+  { amount: '2000', isSelected: false },
+  { amount: '3000', isSelected: false },
+  { amount: '5000', isSelected: false },
 ];
 
 export const onboardingPages: {
@@ -36,13 +24,13 @@ export const onboardingPages: {
   {
     sequence: 1,
     title: "Let's setup your profile",
-    description: 'tell us a bit about yourself',
+    description: 'Update your name and profile photo',
     skippable: false,
   },
   {
     sequence: 2,
     title: 'Add your first account',
-    description: 'Track where your money lives',
+    description: 'Account name and starting balance',
     skippable: false,
   },
   {
@@ -53,13 +41,13 @@ export const onboardingPages: {
   },
   {
     sequence: 4,
-    title: 'Set a monthy budget',
-    description: 'Optional - you can always change this later',
+    title: 'Set a monthly budget',
+    description: 'Pick a category and limit (optional)',
     skippable: true,
   },
   {
     sequence: 5,
-    title: 'Set your financial goals',
+    title: 'Set a financial goal',
     description: 'Optional - you can always change this later',
     skippable: true,
   },

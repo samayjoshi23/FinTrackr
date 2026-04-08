@@ -114,7 +114,6 @@ export class AuthService {
     localStorage.removeItem('userId');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    localStorage.removeItem('isOnboarded');
     await this.router.navigateByUrl('/login');
   }
 
@@ -125,29 +124,52 @@ export class AuthService {
   }
 
   /**
-   * Checks whether the user has completed onboarding by reading the Firestore
-   * user doc. Caches the result in localStorage for offline / fast access.
+   * Checks whether the user has completed onboarding from the Firestore user doc.
+   * Offline: reads `isOnboarded` from the cached `userProfile` object (same source of truth shape).
    */
   async checkOnboardingStatus(uid: string): Promise<boolean> {
     try {
       const profile = await this.getUserProfile(uid);
       const onboarded = profile?.['isOnboarded'] === true;
-      localStorage.setItem('isOnboarded', JSON.stringify(onboarded));
+      this.patchCachedUserProfile(uid, { isOnboarded: onboarded });
       return onboarded;
     } catch {
-      // Offline or Firestore error — fall back to cached value
-      const cached = localStorage.getItem('isOnboarded');
-      return cached ? JSON.parse(cached) === true : false;
+      return this.readIsOnboardedFromCachedUserProfile(uid);
     }
   }
 
   /**
-   * Marks the user as fully onboarded in Firestore and localStorage.
+   * Marks the user as fully onboarded in Firestore and updates cached `userProfile`.
    */
   async markOnboarded(uid: string): Promise<void> {
     const userRef = doc(this.firestore, `users/${uid}`);
     await setDoc(userRef, { isOnboarded: true, updatedAt: serverTimestamp() }, { merge: true });
-    localStorage.setItem('isOnboarded', 'true');
+    this.patchCachedUserProfile(uid, { isOnboarded: true });
+  }
+
+  private readIsOnboardedFromCachedUserProfile(uid: string): boolean {
+    const raw = localStorage.getItem('userProfile');
+    if (!raw) return false;
+    try {
+      const p = JSON.parse(raw) as Record<string, unknown>;
+      return p['uid'] === uid && p['isOnboarded'] === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Merges fields into the cached Firestore user doc under `userProfile`. */
+  private patchCachedUserProfile(uid: string, partial: Record<string, unknown>): void {
+    const raw = localStorage.getItem('userProfile');
+    if (!raw) return;
+    try {
+      const p = JSON.parse(raw) as Record<string, unknown>;
+      if (p['uid'] !== uid) return;
+      Object.assign(p, partial);
+      localStorage.setItem('userProfile', JSON.stringify(p));
+    } catch {
+      /* ignore corrupt cache */
+    }
   }
 
   public async upsertUserProfile(userData: {

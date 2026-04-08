@@ -1,0 +1,58 @@
+@if (cards.length > 0) {
+  <div class="flex flex-col gap-3">
+    <p class="text-sm title-font font-semibold">Budget Tracking (This Month)</p>
+
+    @if (overspentCards.length > 0) {
+      <div
+        class="rounded-2xl p-3 flex items-center gap-3"
+        style="background-color: color-mix(in srgb, #f87171 12%, transparent)"
+      >
+        <ico name="minus-circle" size="md" class="text-red-500 shrink-0"></ico>
+        <p class="text-xs text-red-500">
+          {{ overspentCards.length }}
+          {{ overspentCards.length === 1 ? 'category has' : 'categories have' }} exceeded the budget this
+          month.
+        </p>
+      </div>
+    }
+
+    <div class="flex flex-col gap-3">
+      @for (card of cards; track $index) {
+        <div class="card rounded-2xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
+                <ico [name]="card.icon" size="md" class="text-primary"></ico>
+              </div>
+              <div>
+                <p class="text-sm font-semibold title-font">{{ card.category }}</p>
+                @if (card.overspent) {
+                  <p class="text-xs text-red-500">Overspent</p>
+                }
+              </div>
+            </div>
+            <p
+              class="text-sm font-semibold title-font"
+              [class.text-green-600]="!card.overspent"
+              [class.text-red-500]="card.overspent"
+            >
+              {{ card.used }}%
+            </p>
+          </div>
+          <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
+            <div
+              class="h-full rounded-full transition-all"
+              [class.bg-green-500]="!card.overspent"
+              [class.bg-red-500]="card.overspent"
+              [style.width.%]="card.used > 100 ? 100 : card.used"
+            ></div>
+          </div>
+          <div class="flex justify-between text-xs text-secondary">
+            <span> {{ card.amount | currency: currency : 'symbol-narrow' : '1.0-0' }} spent </span>
+            <span> {{ card.budget | currency: currency : 'symbol-narrow' : '1.0-0' }} limit </span>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

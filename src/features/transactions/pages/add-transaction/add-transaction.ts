@@ -123,8 +123,11 @@ export class AddTransaction {
       return;
     }
 
-    // Update monthly report in background (fire-and-forget)
-    this.reportsService.updateReportForTransaction(transactionResponse).catch(() => {});
+    try {
+      await this.reportsService.updateReportForTransaction(transactionResponse);
+    } catch (e) {
+      console.error(e);
+    }
 
     const accountDocId = account.id || account.uid;
     try {

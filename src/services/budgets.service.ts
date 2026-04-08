@@ -1,7 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
-  addDoc,
   collection,
   doc,
   Firestore,
@@ -9,12 +8,14 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from '@angular/fire/firestore';
 import { Budget, BudgetCreateInput, BudgetUpdateInput } from '../shared/models/budget.model';
 import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
 import { date, docCalendarDate } from '../core/date';
 
 const BUDGETS_COLLECTION = 'budgets';
@@ -24,6 +25,7 @@ export class BudgetsService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
+  private readonly idbCache = inject(IndexedDbCacheService);
 
   private get currentAccount(): Account | null {
     return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
@@ -47,19 +49,21 @@ export class BudgetsService {
     return this.offlineCrud.create<Budget>(
       'budgets',
       'id',
-      async () => {
-        const ref = await addDoc(collection(this.firestore, BUDGETS_COLLECTION), {
+      async (assignedId: string) => {
+        const ref = doc(this.firestore, BUDGETS_COLLECTION, assignedId);
+        await setDoc(ref, {
           ownerId: uid,
           accountId,
           limit: Number(data.limit),
           month: data.month,
           name: data.name?.trim() || 'Budget',
           category: data.category?.trim() || '',
+          ...(data.categoryId?.trim() ? { categoryId: data.categoryId.trim() } : {}),
           date: day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const budget = await this.getBudgetDirect(ref.id, uid);
+        const budget = await this.getBudgetDirect(assignedId, uid);
         if (!budget) {
           throw new Error('Failed to read budget after creation.');
         }
@@ -72,9 +76,32 @@ export class BudgetsService {
         month: data.month,
         name: data.name?.trim() || 'Budget',
         category: data.category?.trim() || '',
+        ...(data.categoryId?.trim() ? { categoryId: data.categoryId.trim() } : {}),
         date: day,
       },
     );
+  }
+
+  async applyPendingBudgetCreate(docId: string, data: BudgetCreateInput): Promise<void> {
+    const uid = this.requireUid();
+    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const day = date().format('YYYY-MM-DD');
+    const ref = doc(this.firestore, BUDGETS_COLLECTION, docId);
+    await setDoc(ref, {
+      ownerId: uid,
+      accountId,
+      limit: Number(data.limit),
+      month: data.month,
+      name: data.name?.trim() || 'Budget',
+      category: data.category?.trim() || '',
+      ...(data.categoryId?.trim() ? { categoryId: data.categoryId.trim() } : {}),
+      date: day,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    const budget = await this.getBudgetDirect(docId, uid);
+    if (!budget) throw new Error('Failed to read budget after pending create sync.');
+    await this.idbCache.put('budgets', { ...budget, _pendingSync: false });
   }
 
   async updateBudget(budgetId: string, patch: BudgetUpdateInput): Promise<void> {
@@ -100,6 +127,8 @@ export class BudgetsService {
     if (patch.month !== undefined) patchRecord['month'] = patch.month;
     if (patch.name !== undefined) patchRecord['name'] = patch.name?.trim() || '';
     if (patch.category !== undefined) patchRecord['category'] = patch.category?.trim() || '';
+    if (patch.categoryId !== undefined)
+      patchRecord['categoryId'] = patch.categoryId?.trim() || null;
 
     await this.offlineCrud.update<Budget>(
       'budgets',
@@ -174,6 +203,7 @@ export class BudgetsService {
     const createdAt = data['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = data['updatedAt'] as { toDate?: () => Date } | null | undefined;
     const created = createdAt?.toDate?.() ?? null;
+    const cid = data['categoryId'];
     return {
       id,
       ownerId: (data['ownerId'] as string) ?? '',
@@ -182,6 +212,7 @@ export class BudgetsService {
       month: (data['month'] as string) ?? '',
       name: (data['name'] as string) ?? undefined,
       category: (data['category'] as string) ?? undefined,
+      ...(typeof cid === 'string' && cid.trim() ? { categoryId: cid.trim() } : {}),
       createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
       date: docCalendarDate(data, created),

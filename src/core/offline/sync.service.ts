@@ -107,41 +107,93 @@ export class SyncService {
     }
   }
 
+  private extractPreassignedCreate(
+    payload: Record<string, unknown>,
+  ): { id: string; rest: Record<string, unknown> } | null {
+    const raw = payload['_syncPreassignedId'];
+    if (typeof raw !== 'string') return null;
+    const { _syncPreassignedId: _x, ...rest } = payload;
+    return { id: raw, rest };
+  }
+
   private async processCreate(entry: SyncQueueEntry): Promise<boolean> {
-    const p = entry.payload;
+    const p = entry.payload as Record<string, unknown>;
+    const pre = this.extractPreassignedCreate(p);
     let created = false;
 
     switch (entry.storeName) {
       case 'transactions':
-        await this.transactionsService.createTransaction(p as unknown as TransactionCreateInput);
+        if (pre) {
+          await this.transactionsService.applyPendingTransactionCreate(
+            pre.id,
+            pre.rest as unknown as TransactionCreateInput,
+          );
+        } else {
+          await this.transactionsService.createTransaction(p as unknown as TransactionCreateInput);
+        }
         created = true;
         break;
       case 'budgets':
-        await this.budgetsService.createBudget(p as unknown as BudgetCreateInput);
+        if (pre) {
+          await this.budgetsService.applyPendingBudgetCreate(pre.id, pre.rest as unknown as BudgetCreateInput);
+        } else {
+          await this.budgetsService.createBudget(p as unknown as BudgetCreateInput);
+        }
         created = true;
         break;
       case 'goals':
-        await this.goalsService.createGoal(p as unknown as GoalCreateInput);
+        if (pre) {
+          await this.goalsService.applyPendingGoalCreate(pre.id, pre.rest as unknown as GoalCreateInput);
+        } else {
+          await this.goalsService.createGoal(p as unknown as GoalCreateInput);
+        }
         created = true;
         break;
       case 'categories':
-        await this.categoriesService.createCategory(p as unknown as CategoryCreateInput);
+        if (pre) {
+          await this.categoriesService.applyPendingCategoryCreate(
+            pre.id,
+            pre.rest as unknown as CategoryCreateInput,
+          );
+        } else {
+          await this.categoriesService.createCategory(p as unknown as CategoryCreateInput);
+        }
         created = true;
         break;
       case 'accounts':
-        await this.accountsService.createAccount(p as unknown as AccountCreateInput);
+        if (pre) {
+          await this.accountsService.applyPendingAccountCreate(pre.id, pre.rest as unknown as AccountCreateInput);
+        } else {
+          await this.accountsService.createAccount(p as unknown as AccountCreateInput);
+        }
         created = true;
         break;
       case 'recurring-transactions':
-        await this.transactionsService.createRecurringTransaction(p as unknown as RecurringTransactionCreateInput);
+        if (pre) {
+          await this.transactionsService.applyPendingRecurringCreate(
+            pre.id,
+            pre.rest as unknown as RecurringTransactionCreateInput,
+          );
+        } else {
+          await this.transactionsService.createRecurringTransaction(
+            p as unknown as RecurringTransactionCreateInput,
+          );
+        }
+        created = true;
+        break;
+      case 'monthly-reports':
+        if (pre) {
+          await this.reportsService.applyPendingMonthlyReportCreate(pre.id, pre.rest);
+        } else {
+          return false;
+        }
         created = true;
         break;
       default:
         return false;
     }
 
-    // Remove the temp cached entry
-    if (created && entry.tempLocalId) {
+    if (created && entry.tempLocalId?.startsWith('offline_')) {
       await this.cache.delete(entry.storeName, entry.tempLocalId);
     }
 
@@ -233,5 +285,8 @@ export class SyncService {
     await this.cache.clear('goals');
     await this.cache.clear('categories');
     await this.cache.clear('sync-metadata');
+    await this.cache.clear('monthly-reports').catch(() => {
+      /* store missing until IndexedDB schema upgrade (version bump) */
+    });
   }
 }

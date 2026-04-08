@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { Firestore, collection, doc } from '@angular/fire/firestore';
 import { NetworkService } from './network.service';
 import { IndexedDbCacheService } from './indexed-db-cache.service';
 import { SyncQueueService } from './sync-queue.service';
@@ -13,8 +14,20 @@ import {
   TransactionPagedResult,
 } from '../../shared/models/transaction-query.model';
 
+/** Firestore collection id for each IndexedDB store (pre-assigned doc ids + setDoc). */
+const FIRESTORE_COLLECTION_BY_STORE: Record<string, string> = {
+  transactions: 'transactions',
+  budgets: 'budgets',
+  goals: 'goals',
+  categories: 'categories',
+  accounts: 'accounts',
+  'monthly-reports': 'monthlyReports',
+  'recurring-transactions': 'recurring-transactions',
+};
+
 @Injectable({ providedIn: 'root' })
 export class OfflineCrudService {
+  private readonly firestore = inject(Firestore);
   private readonly network = inject(NetworkService);
   private readonly cache = inject(IndexedDbCacheService);
   private readonly syncQueue = inject(SyncQueueService);
@@ -144,29 +157,63 @@ export class OfflineCrudService {
   }
 
   /**
-   * CREATE: tries Firestore if online. If offline or fails, queues + caches locally.
+   * CREATE: IndexedDB first (accurate local state immediately), then Firestore when online.
+   * Uses a pre-assigned Firestore doc id ({@link doc(collection()).id} or `fixedDocId` for accounts).
    */
   async create<T>(
     storeName: string,
     keyField: string,
-    firestoreFn: () => Promise<T>,
+    firestoreFn: (assignedId: string) => Promise<T>,
     payload: Record<string, unknown>,
+    options?: { fixedDocId?: string },
   ): Promise<T> {
-    if (this.network.isOnline()) {
-      try {
-        const result = await firestoreFn();
-        await this.cache.put(storeName, result);
-        return result;
-      } catch {
-        return this.createOffline<T>(storeName, keyField, payload);
-      }
+    const collectionPath = FIRESTORE_COLLECTION_BY_STORE[storeName];
+    if (!collectionPath) {
+      throw new Error(`Unknown offline store for create: ${storeName}`);
     }
 
-    return this.createOffline<T>(storeName, keyField, payload);
+    const assignedId =
+      options?.fixedDocId ?? doc(collection(this.firestore, collectionPath)).id;
+    const now = new Date();
+    const optimistic = {
+      ...payload,
+      [keyField]: assignedId,
+      createdAt: now,
+      updatedAt: now,
+      _pendingSync: true,
+    } as unknown as T;
+
+    await this.cache.put(storeName, optimistic);
+
+    const enqueuePending = async () => {
+      await this.syncQueue.enqueue({
+        storeName,
+        operation: 'create',
+        payload: { ...payload, _syncPreassignedId: assignedId },
+        tempLocalId: assignedId,
+        timestamp: Date.now(),
+      });
+      this.notifier.show('Saved locally. Will sync when connected.', NotifierSeverity.WARNING);
+    };
+
+    if (!this.network.isOnline()) {
+      await enqueuePending();
+      return optimistic;
+    }
+
+    try {
+      const result = await firestoreFn(assignedId);
+      const merged = { ...(result as object), _pendingSync: false } as unknown as T;
+      await this.cache.put(storeName, merged);
+      return merged;
+    } catch {
+      await enqueuePending();
+      return optimistic;
+    }
   }
 
   /**
-   * UPDATE: tries Firestore if online. If offline or fails, queues + patches cache.
+   * UPDATE: patch IndexedDB first, then Firestore when online (or queue for sync).
    */
   async update<T>(
     storeName: string,
@@ -175,39 +222,72 @@ export class OfflineCrudService {
     patch: Record<string, unknown>,
     currentDoc: Record<string, unknown>,
   ): Promise<T> {
-    if (this.network.isOnline()) {
-      try {
-        await firestoreFn();
-        const updated = { ...currentDoc, ...patch, updatedAt: new Date() } as T;
-        await this.cache.put(storeName, updated);
-        return updated;
-      } catch {
-        return this.updateOffline<T>(storeName, docId, patch, currentDoc);
-      }
+    const updated = {
+      ...currentDoc,
+      ...patch,
+      updatedAt: new Date(),
+      _pendingSync: true,
+    } as unknown as T;
+    await this.cache.put(storeName, updated);
+
+    const enqueuePending = async () => {
+      await this.syncQueue.enqueue({
+        storeName,
+        operation: 'update',
+        payload: patch,
+        docId,
+        timestamp: Date.now(),
+      });
+      this.notifier.show('Saved locally. Will sync when connected.', NotifierSeverity.WARNING);
+    };
+
+    if (!this.network.isOnline()) {
+      await enqueuePending();
+      return updated;
     }
 
-    return this.updateOffline<T>(storeName, docId, patch, currentDoc);
+    try {
+      await firestoreFn();
+      const done = { ...(updated as object), _pendingSync: false } as unknown as T;
+      await this.cache.put(storeName, done);
+      return done;
+    } catch {
+      await enqueuePending();
+      return updated;
+    }
   }
 
   /**
-   * DELETE: tries Firestore if online. If offline or fails, queues + removes from cache.
+   * DELETE: remove from IndexedDB first, then Firestore when online (or queue delete for sync).
    */
   async remove(
     storeName: string,
     docId: string,
     firestoreFn: () => Promise<void>,
   ): Promise<void> {
-    if (this.network.isOnline()) {
-      try {
-        await firestoreFn();
-        await this.cache.delete(storeName, docId);
-        return;
-      } catch {
-        return this.deleteOffline(storeName, docId);
-      }
+    await this.cache.delete(storeName, docId);
+
+    const enqueuePending = async () => {
+      await this.syncQueue.enqueue({
+        storeName,
+        operation: 'delete',
+        payload: {},
+        docId,
+        timestamp: Date.now(),
+      });
+      this.notifier.show('Deleted offline. Will sync when connected.', NotifierSeverity.WARNING);
+    };
+
+    if (!this.network.isOnline()) {
+      await enqueuePending();
+      return;
     }
 
-    return this.deleteOffline(storeName, docId);
+    try {
+      await firestoreFn();
+    } catch {
+      await enqueuePending();
+    }
   }
 
   // ─── Background revalidation ──────────────────────────────────
@@ -275,75 +355,12 @@ export class OfflineCrudService {
     return this.cache.getAll<T>(storeName);
   }
 
-  private async createOffline<T>(
-    storeName: string,
-    keyField: string,
-    payload: Record<string, unknown>,
-  ): Promise<T> {
-    const tempId = `offline_${crypto.randomUUID()}`;
-    const now = new Date();
-    const tempDoc = {
-      ...payload,
-      [keyField]: tempId,
-      createdAt: now,
-      updatedAt: now,
-      _pendingSync: true,
-    } as unknown as T;
-
-    await this.cache.put(storeName, tempDoc);
-
-    await this.syncQueue.enqueue({
-      storeName,
-      operation: 'create',
-      payload,
-      tempLocalId: tempId,
-      timestamp: Date.now(),
-    });
-
-    this.notifier.show('Saved offline. Will sync when connected.', NotifierSeverity.WARNING);
-    return tempDoc;
-  }
-
-  private async updateOffline<T>(
-    storeName: string,
-    docId: string,
-    patch: Record<string, unknown>,
-    currentDoc: Record<string, unknown>,
-  ): Promise<T> {
-    const updated = { ...currentDoc, ...patch, updatedAt: new Date(), _pendingSync: true } as unknown as T;
-    await this.cache.put(storeName, updated);
-
-    await this.syncQueue.enqueue({
-      storeName,
-      operation: 'update',
-      payload: patch,
-      docId,
-      timestamp: Date.now(),
-    });
-
-    this.notifier.show('Saved offline. Will sync when connected.', NotifierSeverity.WARNING);
-    return updated;
-  }
-
-  private async deleteOffline(storeName: string, docId: string): Promise<void> {
-    await this.cache.delete(storeName, docId);
-
-    await this.syncQueue.enqueue({
-      storeName,
-      operation: 'delete',
-      payload: {},
-      docId,
-      timestamp: Date.now(),
-    });
-
-    this.notifier.show('Deleted offline. Will sync when connected.', NotifierSeverity.WARNING);
-  }
-
   private getKeyField(storeName: string): string {
     switch (storeName) {
       case 'transactions':
       case 'recurring-transactions':
       case 'categories':
+      case 'monthly-reports':
         return 'uid';
       default:
         return 'id';

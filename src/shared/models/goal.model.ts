@@ -7,6 +7,8 @@ export interface GoalDocument {
   target: number;
   dueDate: string;
   currentAmount: number;
+  /** Optional {@link Category.uid} for reporting / UI linkage. */
+  categoryId?: string;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -28,5 +30,5 @@ export interface GoalCreateInput {
 }
 
 export type GoalUpdateInput = Partial<
-  Pick<GoalDocument, 'name' | 'target' | 'dueDate' | 'currentAmount'>
+  Pick<GoalDocument, 'name' | 'target' | 'dueDate' | 'currentAmount' | 'categoryId'>
 >;

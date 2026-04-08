@@ -57,8 +57,8 @@ export class NewCategory {
     };
 
     try {
-      await this.categoriesService.createCategory(payload);
-      await this.reportsService.rebuildCurrentMonthReport();
+      const created = await this.categoriesService.createCategory(payload);
+      await this.reportsService.appendCategoryToCurrentMonthReport(created.uid, created.name);
       this.router.navigateByUrl('/user/categories');
     } catch (err) {
       console.error(err);
