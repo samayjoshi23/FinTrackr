@@ -10,7 +10,7 @@
     <h1 class="text-xl font-semibold title-font">New Goal</h1>
   </header>
 
-  <form class="flex flex-col gap-4">
+  <form class="flex flex-col gap-4" #goalForm="ngForm" (ngSubmit)="onCreate(goalForm)">
     <!-- Goal Name -->
     <div class="flex flex-col gap-2">
       <label for="goalName" class="text-xs text-gray-400">Goal Name</label>
@@ -25,8 +25,20 @@
           class="w-full"
           placeholder="e.g. Emergency Fund"
           [(ngModel)]="goalName"
+          required
+          [minlength]="limits.nameMinLen"
+          [maxlength]="limits.nameMax"
+          #nameCtrl="ngModel"
         />
       </div>
+      @if (nameCtrl.invalid && nameCtrl.touched) {
+        <p class="text-xs text-red-600">
+          Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
+        </p>
+      }
+      @if (nameCtrl.valid && goalName.trim() && isGoalNameDuplicate(goalName)) {
+        <p class="text-xs text-red-600">This goal name is already used.</p>
+      }
     </div>
 
     <!-- Target Amount -->
@@ -42,10 +54,19 @@
           name="goalTarget"
           class="w-full"
           placeholder="0"
-          min="0"
+          required
+          [min]="limits.amountMin"
+          [max]="limits.amountMax"
+          step="0.01"
           [(ngModel)]="targetAmount"
+          #targetCtrl="ngModel"
         />
       </div>
+      @if (targetCtrl.invalid && targetCtrl.touched) {
+        <p class="text-xs text-red-600">
+          Enter a target between {{ limits.amountMin }} and {{ limits.amountMax }}.
+        </p>
+      }
     </div>
 
     <!-- Due Date -->
@@ -55,13 +76,18 @@
         <span class="field-icon before">
           <ico name="calendar" size="sm"></ico>
         </span>
-        <input
-          type="date"
-          id="goalDueDate"
-          name="goalDueDate"
+        <app-date-picker
           class="w-full"
-          [(ngModel)]="dueDate"
+          modalTitle="Due Date"
+          placeholder="YYYY-MM-DD"
+          compactFieldIcon
+          [ngModel]="dueDate"
+          #dueDateCtrl="ngModel"
+          required
         />
+        @if (dueDateCtrl.invalid && dueDateCtrl.touched) {
+          <p class="text-xs text-red-600">Pick a due date.</p>
+        }
       </div>
     </div>
 
@@ -78,18 +104,24 @@
           name="goalCurrentAmount"
           class="w-full"
           placeholder="0"
+          required
           min="0"
+          [max]="currentSavedMax()"
+          step="0.01"
           [(ngModel)]="currentAmount"
+          #currentCtrl="ngModel"
         />
       </div>
+      @if (currentCtrl.invalid && currentCtrl.touched) {
+        <p class="text-xs text-red-600">Must be 0 up to your target amount.</p>
+      }
     </div>
 
     <!-- Submit -->
     <div class="flex flex-col gap-2 mt-2">
       <button
-        type="button"
+        type="submit"
         class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
-        (click)="onCreate()"
       >
         <span>Create Goal</span>
         <ico name="right-arrow" size="sm"></ico>
@@ -97,4 +129,3 @@
     </div>
   </form>
 </div>
-

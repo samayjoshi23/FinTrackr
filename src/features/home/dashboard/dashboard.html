@@ -24,7 +24,7 @@
   <div class="flex flex-col gap-3 p-3 bg-primary-light rounded-2xl">
     <div class="flex flex-col">
       <p class="text-xs">Total Balance</p>
-      <p class="text-xl title-font font-medium">
+      <p class="text-2xl title-font font-medium">
         @if (selectedAccount()) {
           {{ selectedAccount()?.balance | currency: currency() : 'symbol-narrow' : '1.0-2' }}
         } @else {
@@ -33,10 +33,17 @@
       </p>
     </div>
     <div class="flex gap-3 justify-between items-center">
-      <div class="flex w-100 bg-primary-soft rounded-xl p-3 gap-2 items-center">
-        <ico name="stock-up" size="md"></ico>
+      <div
+        class="flex w-100 bg-primary-soft rounded-xl p-2 gap-2 items-center cursor-pointer hover:opacity-90 transition-opacity"
+        role="button"
+        tabindex="0"
+        (click)="goToIncomeTransactions()"
+        (keydown.enter)="goToIncomeTransactions()"
+        (keydown.space)="$event.preventDefault(); goToIncomeTransactions()"
+      >
+        <ico name="stock-up" size="sn"></ico>
         <div class="flex flex-col">
-          <p class="text-xs">Income | {{ summaryMonthLabel() || '—' }}</p>
+          <p class="text-xs font-light">Income | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
             <p class="text-md title-font font-medium">
               {{ monthlyIncome() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
@@ -46,10 +53,17 @@
           }
         </div>
       </div>
-      <div class="flex w-100 bg-primary-soft rounded-xl p-3 gap-2 items-center">
-        <ico name="stock-down" size="md"></ico>
+      <div
+        class="flex w-100 bg-primary-soft rounded-xl p-2 gap-2 items-center cursor-pointer hover:opacity-90 transition-opacity"
+        role="button"
+        tabindex="0"
+        (click)="goToExpenseTransactions()"
+        (keydown.enter)="goToExpenseTransactions()"
+        (keydown.space)="$event.preventDefault(); goToExpenseTransactions()"
+      >
+        <ico name="stock-down" size="sm"></ico>
         <div class="flex flex-col">
-          <p class="text-xs">Expenses | {{ summaryMonthLabel() || '—' }}</p>
+          <p class="text-xs font-light">Expenses | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
             <p class="text-md title-font font-medium">
               {{ monthlyExpense() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
@@ -60,19 +74,39 @@
         </div>
       </div>
     </div>
-    <div class="flex flex-col p-3 bg-primary-soft rounded-xl gap-1">
+    <div
+      class="flex flex-col p-3 bg-primary-soft rounded-xl gap-1 cursor-pointer hover:opacity-90 transition-opacity"
+      role="button"
+      tabindex="0"
+      (click)="goToBudgets()"
+      (keydown.enter)="goToBudgets()"
+      (keydown.space)="$event.preventDefault(); goToBudgets()"
+    >
       @if (hasMonthlyBudget()) {
         <div class="flex justify-between items-center">
-          <p class="text-xs">Monthly budget used</p>
+          <p class="text-xs font-light">Monthly budget used</p>
           <p class="text-xs">{{ budgetUsedPercent() }}%</p>
         </div>
-        <div class="h-1.5 w-full bg-primary-light rounded-full">
-          <div class="h-full rounded-full bg-primary" [style.width]="budgetBarWidth()"></div>
+        <div class="h-1.5 w-full bg-primary-light rounded-full overflow-hidden">
+          <div
+            class="h-full rounded-full min-w-0 budget-progress-fill"
+            [style.width]="budgetProgressShown() ? budgetBarWidth() : '0%'"
+            [style.background-color]="budgetBarFillColor()"
+          ></div>
         </div>
         <div class="flex justify-between items-center">
-          <p class="text-xs">
-            {{ budgetRemaining() | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining of
-            {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+          <p class="text-xs" [class.text-red-600]="isBudgetOver()">
+            @if (isBudgetOver()) {
+              <span class="title-font font-medium">
+                {{ budgetOverAmount() | currency: currency() : 'symbol-narrow' : '1.0-2' }} over budget
+              </span>
+              <span class="text-secondary font-light">
+                · {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }} planned
+              </span>
+            } @else {
+              {{ budgetRemaining() | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining of
+              {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+            }
           </p>
         </div>
       } @else if (selectedAccount()) {
@@ -119,7 +153,14 @@
         </div>
       } @else {
         @for (transaction of recentTransactions(); track transaction.uid) {
-          <div class="flex items-center justify-between gap-1 card rounded-2xl p-4">
+          <div
+            class="flex cursor-pointer items-center justify-between gap-1 rounded-2xl p-4 card transition-opacity hover:opacity-90"
+            role="button"
+            tabindex="0"
+            (click)="openTransactionDetail(transaction)"
+            (keydown.enter)="openTransactionDetail(transaction)"
+            (keydown.space)="$event.preventDefault(); openTransactionDetail(transaction)"
+          >
             <div class="flex items-center gap-4">
               <ico [name]="transaction.icon ?? ''" size="md" class="text-secondary"></ico>
               <div class="flex flex-col">
@@ -147,4 +188,10 @@
       }
     </div>
   </div>
+
+  <app-transaction-detail-modal
+    [(open)]="txDetailOpen"
+    [transaction]="selectedTransaction()"
+    [currency]="currency()"
+  />
 </div>

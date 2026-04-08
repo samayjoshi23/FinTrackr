@@ -3,9 +3,10 @@
   background-color: color-mix(in srgb, var(--color-secondary) 20%, transparent);
 }
 
+/* .budget-progress-fill — global styles.css */
+
 /* Ensure currency amount text doesn't wrap awkwardly on narrow screens. */
 /* Tailwind handles most spacing; this is just a small safeguard. */
 .rounded-2xl {
   overflow: hidden;
 }
-

@@ -1,0 +1,89 @@
+<app-modal [(open)]="open" title="Transaction details">
+  @if (transaction(); as tx) {
+    <div class="flex flex-col gap-4">
+      @if (tx.description.trim()) {
+        <p class="text-sm leading-relaxed text-[var(--color-text)]">{{ tx.description }}</p>
+      }
+
+      <div
+        class="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3"
+      >
+        <div
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-light"
+        >
+          <ico [name]="iconFor(tx)" size="md" class="text-primary"></ico>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-xs text-secondary">Amount</p>
+          <p
+            class="text-xl title-font font-semibold tabular-nums"
+            [class.text-income]="tx.type === 'income'"
+            [class.text-expense]="tx.type !== 'income'"
+          >
+            {{ tx.type === 'income' ? '+' : '-' }}
+            {{ tx.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+          </p>
+          <p class="mt-0.5 text-xs capitalize text-secondary">{{ tx.type }}</p>
+        </div>
+      </div>
+
+      <dl class="flex flex-col gap-3 text-sm">
+        <div class="flex justify-between gap-4">
+          <dt class="text-secondary shrink-0">Category</dt>
+          <dd class="min-w-0 text-right font-medium">{{ tx.category || '—' }}</dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-secondary shrink-0">Source / label</dt>
+          <dd class="min-w-0 text-right font-medium">{{ sourceLabel(tx) }}</dd>
+        </div>
+        @if (tx.date?.trim()) {
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Transaction date</dt>
+            <dd class="min-w-0 text-right font-medium">{{ tx.date }}</dd>
+          </div>
+        }
+        <div class="flex justify-between gap-4">
+          <dt class="text-secondary shrink-0">Recorded on</dt>
+          <dd class="min-w-0 text-right font-medium">
+            {{ tx.createdAt ? (tx.createdAt | date: 'medium') : '—' }}
+          </dd>
+        </div>
+        @if (
+          tx.updatedAt &&
+          tx.createdAt &&
+          tx.updatedAt.getTime() !== tx.createdAt.getTime()
+        ) {
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Last updated</dt>
+            <dd class="min-w-0 text-right font-medium">{{ tx.updatedAt | date: 'medium' }}</dd>
+          </div>
+        }
+        @if (tx.isRecurring) {
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Recurring</dt>
+            <dd class="min-w-0 text-right font-medium">
+              Yes
+              @if (tx.recurringFrequency?.trim()) {
+                <span class="text-secondary"> · {{ tx.recurringFrequency }}</span>
+              }
+            </dd>
+          </div>
+        }
+        @if (tx.nextPaymentDate) {
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Next payment</dt>
+            <dd class="min-w-0 text-right font-medium">
+              {{ tx.nextPaymentDate | date: 'mediumDate' }}
+            </dd>
+          </div>
+        }
+        @if (tx.isAutoPay != null) {
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Auto pay</dt>
+            <dd class="min-w-0 text-right font-medium">{{ tx.isAutoPay ? 'Yes' : 'No' }}</dd>
+          </div>
+        }
+      </dl>
+    </div>
+  }
+</app-modal>

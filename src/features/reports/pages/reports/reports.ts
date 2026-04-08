@@ -56,6 +56,9 @@ export class Reports implements OnInit {
   budgetCards = signal<BudgetTrackingCard[]>([]);
   topCategories = signal<{ category: string; amount: number; color: string; icon: string }[]>([]);
 
+  /** Progress bars grow 0 → target after chart data loads. */
+  progressBarsShown = signal(false);
+
   readonly periods: { label: string; value: ReportTimePeriod }[] = [
     { label: 'Day', value: 'day' },
     { label: 'Week', value: 'week' },
@@ -87,6 +90,7 @@ export class Reports implements OnInit {
 
   private async loadData() {
     this.loading.set(true);
+    this.progressBarsShown.set(false);
     try {
       const data: ReportViewData = await this.reportsService.getReportViewData(
         this.selectedPeriod(),
@@ -104,6 +108,9 @@ export class Reports implements OnInit {
       console.error('Failed to load report data', e);
     } finally {
       this.loading.set(false);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => this.progressBarsShown.set(true));
+      });
     }
   }
 }

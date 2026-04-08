@@ -11,7 +11,14 @@
   </header>
 
   <!-- Form (template-driven with ngModel) -->
-  <form class="w-full flex flex-col gap-4">
+  <form
+    #txForm="ngForm"
+    class="w-full flex flex-col gap-4"
+    (ngSubmit)="onSubmit(txForm)"
+  >
+    <input type="hidden" name="src" [ngModel]="transaction().source" required />
+    <input type="hidden" name="cat" [ngModel]="transaction().category" required />
+
     <!-- Expense type -->
     <div class="button-secondary rounded-2xl p-1 flex items-center gap-2 w-full">
       <p
@@ -46,9 +53,18 @@
           placeholder="0.00"
           [ngModel]="transaction().amount"
           (ngModelChange)="transaction.set({ ...transaction(), amount: $event })"
-          min="0"
+          required
+          [min]="limits.amountMin"
+          [max]="limits.amountMax"
+          step="0.01"
+          #amountCtrl="ngModel"
         />
       </div>
+      @if (amountCtrl.invalid && amountCtrl.touched) {
+        <p class="mt-1 text-center text-xs text-red-600">
+          Enter an amount between {{ limits.amountMin }} and {{ limits.amountMax }}.
+        </p>
+      }
     </div>
 
     <!-- Description -->
@@ -62,7 +78,14 @@
         placeholder="What is this for?"
         [ngModel]="transaction().description"
         (ngModelChange)="transaction.set({ ...transaction(), description: $event })"
+        required
+        [minlength]="1"
+        [maxlength]="limits.transactionDescriptionMax"
+        #descCtrl="ngModel"
       />
+      @if (descCtrl.invalid && descCtrl.touched) {
+        <p class="text-xs text-red-600">Description is required (max {{ limits.transactionDescriptionMax }} characters).</p>
+      }
     </div>
 
     <!-- Source -->
@@ -90,6 +113,9 @@
           </div>
         }
       </div>
+      @if (txForm.submitted && !transaction().source?.trim()) {
+        <p class="text-xs text-red-600">Select a payment source.</p>
+      }
     </div>
 
     <!-- Category -->
@@ -117,6 +143,9 @@
           </div>
         }
       </div>
+      @if (txForm.submitted && !transaction().category.trim()) {
+        <p class="text-xs text-red-600">Select a category.</p>
+      }
     </div>
 
     <!-- Recurring -->
@@ -138,7 +167,7 @@
               class="theme-switch__checkbox"
               id="recurring-switch"
               [checked]="transaction().isRecurring"
-              (change)="transaction.set({ ...transaction(), isRecurring: $event.target.checked })"
+              (change)="onRecurringToggle($any($event.target).checked)"
             />
             <span class="theme-switch__track">
               <span class="theme-switch__thumb"></span>
@@ -161,7 +190,7 @@
                 class="theme-switch__checkbox"
                 id="auto-pay-switch"
                 [checked]="transaction().isAutoPay"
-                (change)="transaction.set({ ...transaction(), isAutoPay: $event.target.checked })"
+                (change)="onAutoPayToggle($any($event.target).checked)"
               />
               <span class="theme-switch__track">
                 <span class="theme-switch__thumb"></span>
@@ -174,6 +203,13 @@
     </div>
 
     @if (transaction().isRecurring) {
+      <input
+        type="hidden"
+        name="recurringFrequency"
+        [ngModel]="transaction().recurringFrequency"
+        required
+      />
+
       <!-- Frequency -->
       <div class="flex flex-col gap-2">
         <label for="recurring-frequency" class="text-xs text-gray-400">Frequency</label>
@@ -189,18 +225,34 @@
             </div>
           }
         </div>
+        @if (txForm.submitted && transaction().isRecurring && !transaction().recurringFrequency?.trim()) {
+          <p class="text-xs text-red-600">Select how often this repeats.</p>
+        }
       </div>
+
+      <!-- Next Payment Date -->
       <div class="flex flex-col gap-1 w-full">
         <label for="next-payment-date" class="text-xs text-gray-400">Next Payment Date</label>
-        <input
-          type="date"
-          id="next-payment-date"
-          name="next-payment-date"
-          class="w-full"
-          [min]="today()"
-          [ngModel]="transaction().nextPaymentDate"
-          (ngModelChange)="transaction.set({ ...transaction(), nextPaymentDate: $event })"
-        />
+        <div class="field-wrapper before relative">
+          <span class="field-icon before">
+            <ico name="calendar" size="sm"></ico>
+          </span>
+          <app-date-picker
+            class="absolute top-0 left-0 z-[1] h-full w-full"
+            id="next-payment-date"
+            name="nextPaymentDate"
+            modalTitle="Next Payment Date"
+            placeholder="Select date"
+            compactFieldIcon
+            required
+            [ngModel]="transaction().nextPaymentDate"
+            (ngModelChange)="transaction.set({ ...transaction(), nextPaymentDate: $event })"
+            #nextPayCtrl="ngModel"
+          />
+        </div>
+        @if (nextPayCtrl.invalid && nextPayCtrl.touched) {
+          <p class="text-xs text-red-600">Choose the next payment date.</p>
+        }
       </div>
     }
 
@@ -209,7 +261,6 @@
       <button
         type="submit"
         class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2"
-        (click)="onSubmit()"
       >
         <ico name="tick" size="sm"></ico>
         Add {{ transaction().type === 'expense' ? 'Expense' : 'Income' }}

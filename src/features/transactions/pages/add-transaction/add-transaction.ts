@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { Icon } from '../../../../shared/components/icon/icon';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import {
   RecurringTransactionCreateInput,
   TransactionCreateInput,
@@ -17,10 +17,12 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 import { ReportsService } from '../../../../services/reports.service';
 import { date } from '../../../../core/date';
 import { paymentSourceOptions, recurringFrequencyOptions } from '../../types';
+import { DatePicker } from '../../../../shared/components/date-picker/date-picker';
+import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-add-transaction',
-  imports: [Icon, FormsModule],
+  imports: [Icon, FormsModule, DatePicker],
   templateUrl: './add-transaction.html',
   styleUrl: './add-transaction.css',
 })
@@ -38,6 +40,8 @@ export class AddTransaction {
   today = signal<string>(date().format('YYYY-MM-DD'));
   paymentSources = signal<{ name: string; icon: string }[]>(paymentSourceOptions);
   recurringFrequencies = signal<{ name: string; value: string }[]>(recurringFrequencyOptions);
+
+  readonly limits = FORM_LIMITS;
 
   async ngOnInit() {
     let account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
@@ -96,17 +100,59 @@ export class AddTransaction {
     });
   }
 
-  async onSubmit() {
+  onRecurringToggle(checked: boolean): void {
+    this.transaction.set({ ...this.transaction(), isRecurring: checked });
+  }
+
+  onAutoPayToggle(checked: boolean): void {
+    this.transaction.set({ ...this.transaction(), isAutoPay: checked });
+  }
+
+  async onSubmit(form: NgForm) {
+    if (form.invalid) {
+      form.control.markAllAsTouched();
+      this.notifier.error('Please fix the highlighted fields.');
+      return;
+    }
+
     const account = this.selectedAccount();
     if (!account) {
       this.notifier.error('No account selected.');
       return;
     }
 
+    const rawAmount = Number(this.transaction().amount);
+    if (
+      !Number.isFinite(rawAmount) ||
+      rawAmount < FORM_LIMITS.amountMin ||
+      rawAmount > FORM_LIMITS.amountMax
+    ) {
+      this.notifier.error(`Amount must be between ${FORM_LIMITS.amountMin} and ${FORM_LIMITS.amountMax}.`);
+      return;
+    }
+
+    if (this.transaction().isRecurring) {
+      const freq = this.transaction().recurringFrequency?.trim();
+      if (!freq) {
+        this.notifier.error('Select a recurring frequency.');
+        return;
+      }
+      const nextVal = this.transaction().nextPaymentDate as Date | string | null | undefined;
+      const nextOk =
+        nextVal != null &&
+        (typeof nextVal === 'string'
+          ? nextVal.trim().length > 0
+          : nextVal instanceof Date && !Number.isNaN(nextVal.getTime()));
+      if (!nextOk) {
+        this.notifier.error('Select a next payment date.');
+        return;
+      }
+    }
+
     const transactionPayload: TransactionCreateInput = {
       accountId: account.uid ?? '',
-      amount: this.transaction().amount ?? 0,
-      description: this.transaction().description,
+      amount: rawAmount,
+      description: this.transaction().description.trim(),
       category: this.transaction().category,
       icon: this.transaction().icon ?? null,
       type: this.transaction().type,
@@ -148,12 +194,16 @@ export class AddTransaction {
     }
 
     if (this.transaction().isRecurring) {
+      const nextDate =
+        this.transaction().nextPaymentDate instanceof Date
+          ? this.transaction().nextPaymentDate
+          : new Date(String(this.transaction().nextPaymentDate));
       const recurringTransactionPayload: RecurringTransactionCreateInput = {
         uid: transactionResponse.uid,
         accountId: account.uid ?? '',
         transactionId: transactionResponse.uid,
         lastPaymentDate: new Date(),
-        nextPaymentDate: new Date(),
+        nextPaymentDate: nextDate ?? new Date(),
       };
       try {
         await this.transactionsService.createRecurringTransaction(recurringTransactionPayload);

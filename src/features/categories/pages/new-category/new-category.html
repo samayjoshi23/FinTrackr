@@ -9,7 +9,7 @@
     <h1 class="text-xl font-semibold title-font">New category</h1>
   </header>
 
-  <form class="flex flex-col gap-4">
+  <form class="flex flex-col gap-4" #catForm="ngForm" (ngSubmit)="onCreate(catForm)">
     <div class="flex flex-col gap-2">
       <label for="categoryName" class="text-xs text-gray-400">Name</label>
       <div class="field-wrapper before">
@@ -23,8 +23,20 @@
           class="w-full"
           placeholder="e.g. Groceries"
           [(ngModel)]="categoryName"
+          required
+          [minlength]="limits.nameMinLen"
+          [maxlength]="limits.nameMax"
+          #nameCtrl="ngModel"
         />
       </div>
+      @if (nameCtrl.invalid && nameCtrl.touched) {
+        <p class="text-xs text-red-600">
+          Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
+        </p>
+      }
+      @if (nameCtrl.valid && categoryName.trim() && isNameDuplicate(categoryName)) {
+        <p class="text-xs text-red-600">This name is already taken.</p>
+      }
     </div>
 
     <div class="flex flex-col gap-2">
@@ -40,6 +52,7 @@
           class="w-full"
           placeholder="Short note"
           [(ngModel)]="description"
+          [maxlength]="limits.descriptionMax"
         />
       </div>
     </div>
@@ -50,11 +63,13 @@
         @for (iconId of iconOptions; track iconId) {
           <button
             type="button"
-            class="card rounded-xl p-2 flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem]"
+            class="card rounded-xl p-2 flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] disabled:cursor-not-allowed disabled:opacity-40"
             [ngClass]="{ 'selected-card': selectedIcon === iconId }"
-            (click)="selectedIcon = iconId"
+            [disabled]="isIconUnavailable(iconId) && selectedIcon !== iconId"
+            (click)="pickIcon(iconId)"
             [attr.aria-pressed]="selectedIcon === iconId"
             [attr.aria-label]="'Icon ' + iconId"
+            [attr.title]="isIconUnavailable(iconId) && selectedIcon !== iconId ? 'Icon already in use' : ''"
           >
             <ico
               [name]="iconId"
@@ -65,13 +80,15 @@
           </button>
         }
       </div>
+      @if (isIconUnavailable(selectedIcon)) {
+        <p class="text-xs text-red-600">Choose an icon that is not already used.</p>
+      }
     </div>
 
     <div class="flex flex-col gap-2 mt-2">
       <button
-        type="button"
+        type="submit"
         class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
-        (click)="onCreate()"
       >
         <span>Create category</span>
         <ico name="right-arrow" size="sm"></ico>

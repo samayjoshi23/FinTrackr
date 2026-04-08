@@ -196,6 +196,7 @@
   z-index: 90;
   display: inline-flex;
   align-items: center;
+  gap: 0.5rem;
   cursor: pointer;
   user-select: none;
 }
@@ -208,12 +209,13 @@
   height: 1px;
 }
 
+/* Off = light UI; track/thumb follow current theme tokens */
 .theme-switch__track {
   width: 2.25rem;
   height: 1.25rem;
   border-radius: 999px;
-  background-color: var(--color-secondary-light, #bdbdbd);
-  border: 1px solid var(--color-border-strong, #d1d5db);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
@@ -225,36 +227,40 @@
   width: 0.85rem;
   height: 0.85rem;
   border-radius: 999px;
-  background-color: var(--color-text, #111827);
+  /* Light: dark knob on pale track; dark: light knob on deep track */
+  background-color: var(--color-tertiary-inverse);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 20%, transparent);
   position: absolute;
   top: 50%;
   left: 0.2rem;
   transform: translateY(-50%);
   transition:
     left 0.22s ease,
-    background-color 0.2s ease;
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .theme-switch__label {
   font-size: 0.85rem;
   line-height: 1;
-  color: var(--color-text, #111827);
+  font-weight: 500;
+  color: var(--color-text);
 }
 
-/* Checked state (dark) */
+/* On = dark mode selected — accent track + primary thumb */
 .theme-switch__checkbox:checked ~ .theme-switch__track {
   background-color: var(--color-primary-soft);
-  border-color: var(--color-primary);
+  border-color: var(--color-border-primary);
 }
 
 .theme-switch__checkbox:checked ~ .theme-switch__track .theme-switch__thumb {
   left: calc(100% - 1rem);
   background-color: var(--color-primary);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-primary) 40%, transparent);
 }
 
-/* Keyboard focus */
+/* Keyboard focus — theme ring only, no hardcoded shadow color */
 .theme-switch__checkbox:focus-visible ~ .theme-switch__track {
-  box-shadow:
-    0 0 0 3px var(--color-primary-soft),
-    0 10px 15px rgba(15, 23, 42, 0.15);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
 }

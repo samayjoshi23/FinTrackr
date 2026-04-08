@@ -1,13 +1,14 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { CategoriesService } from '../../../../services/categories.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Account } from '../../../../shared/models/account.model';
-import { CATEGORY_ICON_OPTIONS, CategoryCreateInput } from '../../types';
+import { CATEGORY_ICON_OPTIONS, Category, CategoryCreateInput } from '../../types';
+import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-new-category',
@@ -22,7 +23,9 @@ export class NewCategory {
   private readonly notifier = inject(NotifierService);
 
   selectedAccount = signal<Account | null>(null);
+  existingCategories = signal<Category[]>([]);
   readonly iconOptions = CATEGORY_ICON_OPTIONS;
+  readonly limits = FORM_LIMITS;
 
   categoryName = '';
   description = '';
@@ -31,28 +34,68 @@ export class NewCategory {
   async ngOnInit() {
     const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.selectedAccount.set(account);
+    try {
+      const list = await this.categoriesService.getCategories();
+      this.existingCategories.set(list ?? []);
+      const taken = new Set((list ?? []).map((c) => (c.icon || '').trim()));
+      const firstFree = CATEGORY_ICON_OPTIONS.find((id) => !taken.has(id));
+      if (firstFree) this.selectedIcon = firstFree;
+    } catch {
+      this.existingCategories.set([]);
+    }
+  }
+
+  pickIcon(iconId: string): void {
+    if (this.isIconUnavailable(iconId) && this.selectedIcon !== iconId) return;
+    this.selectedIcon = iconId;
+  }
+
+  /** Icon is taken by another category (for new: any existing). */
+  isIconUnavailable(iconId: string): boolean {
+    const inUse = this.existingCategories().some((c) => (c.icon || '').trim() === iconId);
+    return inUse;
+  }
+
+  isNameDuplicate(name: string): boolean {
+    const key = name.trim().toLowerCase();
+    if (!key) return false;
+    return this.existingCategories().some((c) => c.name.trim().toLowerCase() === key);
   }
 
   onBack() {
     this.router.navigateByUrl('/user/categories');
   }
 
-  async onCreate() {
+  async onCreate(form: NgForm) {
+    if (form.invalid) {
+      form.control.markAllAsTouched();
+      this.notifier.error('Please fix the highlighted fields.');
+      return;
+    }
+
     const account = this.selectedAccount();
     if (!account) {
       this.notifier.error('Select an account first.');
       return;
     }
-    const name = this.categoryName?.trim();
+    const name = this.categoryName?.trim() ?? '';
     if (!name) {
       this.notifier.error('Enter a category name.');
+      return;
+    }
+    if (this.isNameDuplicate(name)) {
+      this.notifier.error('A category with this name already exists.');
+      return;
+    }
+    if (this.isIconUnavailable(this.selectedIcon)) {
+      this.notifier.error('That icon is already used by another category.');
       return;
     }
 
     const payload: CategoryCreateInput = {
       accountId: account.id ?? account.uid ?? '',
       name,
-      description: this.description?.trim() ?? '',
+      description: (this.description?.trim() ?? '').slice(0, FORM_LIMITS.descriptionMax),
       icon: this.selectedIcon || 'tags',
     };
 

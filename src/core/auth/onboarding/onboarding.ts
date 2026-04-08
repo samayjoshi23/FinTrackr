@@ -6,6 +6,7 @@ import { UserProfile } from 'firebase/auth';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Icon } from '../../../shared/components/icon/icon';
+import { DatePicker } from '../../../shared/components/date-picker/date-picker';
 import { currencies, onboardingPages } from './types';
 import { budgetSuggestionCards } from './types';
 import { Router } from '@angular/router';
@@ -24,7 +25,7 @@ import { ReportsService } from '../../../services/reports.service';
 
 @Component({
   selector: 'app-onboarding',
-  imports: [CommonModule, FormsModule, Icon],
+  imports: [CommonModule, FormsModule, Icon, DatePicker],
   templateUrl: './onboarding.html',
   styleUrl: './onboarding.css',
 })

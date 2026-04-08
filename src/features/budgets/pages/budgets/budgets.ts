@@ -11,6 +11,10 @@ import { Category } from '../../../categories/types';
 import { Account } from '../../../../shared/models/account.model';
 import { transactionEventDate } from '../../../../core/date';
 import { ProgressStatus, CategoryBudgetCardModel, SummaryCardModel } from '../../types';
+import {
+  budgetUsageFillColor,
+  categoryBudgetBarColor,
+} from '../../../../shared/utils/budget-usage-color';
 @Component({
   selector: 'app-budgets',
   imports: [CommonModule, Icon],
@@ -27,6 +31,9 @@ export class Budgets {
   budgets = signal<Budget[]>([]);
   transactions = signal<TransactionRecord[]>([]);
   categories = signal<Category[]>([]);
+
+  /** After layout, set true so bar widths animate from 0 → computed %. */
+  progressBarsShown = signal(false);
 
   monthLabel = computed(() => {
     const monthFromBudgets = this.budgets()
@@ -50,6 +57,7 @@ export class Budgets {
       .reduce((acc, b) => acc + Number(b.limit ?? 0), 0);
     const remaining = totalLimit - monthSpent;
     const remainingDisplay = Math.max(0, remaining);
+    const overBudgetAmount = remaining < 0 ? -remaining : 0;
 
     const daysLeft = this.daysLeftInMonth(new Date());
     return {
@@ -58,8 +66,23 @@ export class Budgets {
       totalSpent: monthSpent,
       remaining,
       remainingDisplay,
+      overBudgetAmount,
       daysLeft,
     };
+  });
+
+  readonly summaryUsagePercent = computed(() => {
+    const s = this.summary();
+    if (s.totalLimit <= 0) return 0;
+    return (s.totalSpent / s.totalLimit) * 100;
+  });
+
+  readonly summaryBarColor = computed(() => budgetUsageFillColor(this.summaryUsagePercent()));
+
+  readonly summaryBarWidthPercent = computed(() => {
+    const s = this.summary();
+    if (s.totalLimit <= 0) return 0;
+    return Math.min(100, (s.totalSpent / s.totalLimit) * 100);
   });
 
   readonly categoryCards = computed<CategoryBudgetCardModel[]>(() => {
@@ -91,6 +114,7 @@ export class Budgets {
       const spent = data.spent;
       const percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
       const status: ProgressStatus = spent <= limit ? 'under' : 'over';
+      const overAmount = spent > limit ? spent - limit : 0;
       return {
         category: cat,
         icon: iconByCategory.get(cat) ?? 'tags',
@@ -98,6 +122,7 @@ export class Budgets {
         limit,
         percent,
         status,
+        overAmount,
       };
     });
   });
@@ -122,10 +147,23 @@ export class Budgets {
       this.transactions.set([]);
       this.categories.set([]);
     }
+
+    this.queueProgressBarAnimation();
+  }
+
+  private queueProgressBarAnimation(): void {
+    this.progressBarsShown.set(false);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => this.progressBarsShown.set(true));
+    });
   }
 
   onNewBudget() {
     this.router.navigateByUrl('/user/budgets/new');
+  }
+
+  categoryBarColor(card: CategoryBudgetCardModel): string {
+    return categoryBudgetBarColor(card.percent, card.status === 'over');
   }
 
   private isInMonth(date: Date | null, monthLabel: string): boolean {

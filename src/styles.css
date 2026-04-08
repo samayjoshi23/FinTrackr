@@ -103,3 +103,10 @@ body {
 .bg-expense {
   background-color: var(--color-expense);
 }
+
+/** Progress fills: smooth grow 0 → target % (dashboard, budgets, reports). */
+.budget-progress-fill {
+  transition:
+    width 1s cubic-bezier(0.33, 1, 0.68, 1),
+    background-color 1s ease;
+}

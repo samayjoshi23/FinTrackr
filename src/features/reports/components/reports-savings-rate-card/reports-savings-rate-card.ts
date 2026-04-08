@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { booleanAttribute, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReportSummary } from '../../../../shared/models/report.model';
 
@@ -11,4 +11,5 @@ import { ReportSummary } from '../../../../shared/models/report.model';
 export class ReportsSavingsRateCard {
   @Input({ required: true }) summary!: ReportSummary;
   @Input() currency = 'INR';
+  @Input({ transform: booleanAttribute }) barsShown = true;
 }

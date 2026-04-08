@@ -41,16 +41,31 @@
           </div>
           <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
             <div
-              class="h-full rounded-full transition-all"
+              class="h-full rounded-full min-w-0 budget-progress-fill"
               [class.bg-green-500]="!card.overspent"
               [class.bg-red-500]="card.overspent"
-              [style.width.%]="card.used > 100 ? 100 : card.used"
+              [style.width.%]="barsShown ? (card.used > 100 ? 100 : card.used) : 0"
             ></div>
           </div>
-          <div class="flex justify-between text-xs text-secondary">
-            <span> {{ card.amount | currency: currency : 'symbol-narrow' : '1.0-0' }} spent </span>
-            <span> {{ card.budget | currency: currency : 'symbol-narrow' : '1.0-0' }} limit </span>
-          </div>
+          @if (card.overspent && card.budget != null) {
+            <p class="text-xs text-red-600 title-font font-medium">
+              {{
+                card.amount - card.budget
+                  | currency: currency : 'symbol-narrow' : '1.0-0'
+              }}
+              over this category's budget
+              <span class="text-secondary font-light font-sans">
+                (
+                {{ card.amount | currency: currency : 'symbol-narrow' : '1.0-0' }} spent ·
+                {{ card.budget | currency: currency : 'symbol-narrow' : '1.0-0' }} limit)
+              </span>
+            </p>
+          } @else {
+            <div class="flex justify-between text-xs text-secondary">
+              <span> {{ card.amount | currency: currency : 'symbol-narrow' : '1.0-0' }} spent </span>
+              <span> {{ card.budget | currency: currency : 'symbol-narrow' : '1.0-0' }} limit </span>
+            </div>
+          }
         </div>
       }
     </div>

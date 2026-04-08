@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { booleanAttribute, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { BudgetTrackingCard } from '../../../../shared/models/report.model';
@@ -12,6 +12,8 @@ import { BudgetTrackingCard } from '../../../../shared/models/report.model';
 export class ReportsBudgetTracking {
   @Input({ required: true }) cards: BudgetTrackingCard[] = [];
   @Input() currency = 'INR';
+  /** When false, bar width is 0 (animate in when parent sets true). */
+  @Input({ transform: booleanAttribute }) barsShown = true;
 
   get overspentCards(): BudgetTrackingCard[] {
     return this.cards.filter((c) => c.overspent);

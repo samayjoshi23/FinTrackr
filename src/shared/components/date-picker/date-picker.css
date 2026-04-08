@@ -1,0 +1,261 @@
+:host {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * The overlay is rendered inside the host. Following siblings (e.g. another
+ * .field-wrapper) use .field-icon at z-index 101, which can paint above a host
+ * at z-index 100. While the modal is open, lift the whole host above the form.
+ */
+:host:has(.date-picker-overlay) {
+  z-index: 50000;
+  isolation: isolate;
+}
+
+.date-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  min-height: 2.5rem;
+  padding: 0.75rem 1rem;
+  padding-left: 2.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  outline: none;
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text);
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 300;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.date-picker-trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+.date-picker-trigger:disabled {
+  cursor: not-allowed;
+  background-color: rgba(148, 163, 184, 0.16);
+  color: var(--color-placeholder);
+}
+
+.date-picker-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+.date-picker-icon-btn:hover {
+  background: var(--color-bg);
+}
+
+.date-picker-cell {
+  position: relative;
+  display: flex;
+  height: 2.25rem;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.date-picker-cell--muted {
+  color: var(--color-text-muted);
+}
+
+.date-picker-cell--today {
+  color: var(--color-danger);
+}
+
+.date-picker-cell--selected {
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+}
+
+.date-picker-today-dot {
+  pointer-events: none;
+  position: absolute;
+  bottom: 0.2rem;
+  left: 50%;
+  height: 0.25rem;
+  width: 0.25rem;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: var(--color-danger);
+}
+
+.date-picker-today-dot--on-selected {
+  background: var(--color-primary);
+}
+
+.date-picker-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-primary);
+}
+
+.date-picker-chevron:hover {
+  background: var(--color-primary-soft);
+}
+
+.date-picker-chip {
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9999px;
+  background: var(--color-bg-elevated);
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.date-picker-chip:hover {
+  border-color: var(--color-border-primary);
+  background: var(--color-primary-soft);
+}
+
+.date-picker-sheet {
+  background: var(--color-tertiary);
+  animation: date-picker-sheet-in-mobile 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+:root.theme-dark .date-picker-sheet {
+  background: var(--color-bg-elevated);
+}
+
+.date-picker-overlay {
+  opacity: 1;
+  animation: date-picker-backdrop-in 0.5s ease forwards;
+}
+
+.date-picker-overlay--closing {
+  animation: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+@keyframes date-picker-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes date-picker-sheet-in-mobile {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  .date-picker-sheet {
+    animation: date-picker-sheet-in-desktop 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+}
+
+@keyframes date-picker-sheet-in-desktop {
+  from {
+    transform: translateY(1.5rem) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.date-picker-sheet--closing {
+  animation: none !important;
+  transition:
+    transform 0.5s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.5s ease;
+}
+
+@media (max-width: 639px) {
+  .date-picker-sheet--closing {
+    transform: translateY(100%) !important;
+    opacity: 0.92;
+  }
+}
+
+@media (min-width: 640px) {
+  .date-picker-sheet--closing {
+    transform: translateY(1.5rem) scale(0.96) !important;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .date-picker-overlay {
+    animation: none;
+    opacity: 1;
+  }
+
+  .date-picker-sheet {
+    animation: none;
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  @media (min-width: 640px) {
+    .date-picker-sheet {
+      transform: none;
+    }
+  }
+
+  .date-picker-sheet--closing {
+    transition:
+      transform 0.5s ease,
+      opacity 0.5s ease;
+    transform: translateY(100%) !important;
+    opacity: 0;
+  }
+
+  @media (min-width: 640px) {
+    .date-picker-sheet--closing {
+      transform: translateY(0.75rem) scale(0.98) !important;
+    }
+  }
+
+  .date-picker-overlay--closing {
+    transition: opacity 0.5s ease;
+  }
+}

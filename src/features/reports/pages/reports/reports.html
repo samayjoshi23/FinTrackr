@@ -122,8 +122,16 @@
       </div>
     </div>
 
-    <app-reports-budget-tracking [cards]="budgetCards()" [currency]="currency()" />
+    <app-reports-budget-tracking
+      [cards]="budgetCards()"
+      [currency]="currency()"
+      [barsShown]="progressBarsShown()"
+    />
 
-    <app-reports-savings-rate-card [summary]="summary()" [currency]="currency()" />
+    <app-reports-savings-rate-card
+      [summary]="summary()"
+      [currency]="currency()"
+      [barsShown]="progressBarsShown()"
+    />
   }
 </div>

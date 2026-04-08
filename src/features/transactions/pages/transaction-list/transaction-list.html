@@ -121,7 +121,14 @@
         </p>
       }
       @for (t of displayedTransactions(); track t.uid) {
-        <div class="flex items-center justify-between gap-2 card rounded-2xl p-4">
+        <div
+          class="flex cursor-pointer items-center justify-between gap-2 rounded-2xl p-4 card transition-opacity hover:opacity-90"
+          role="button"
+          tabindex="0"
+          (click)="openTransactionDetail(t)"
+          (keydown.enter)="openTransactionDetail(t)"
+          (keydown.space)="$event.preventDefault(); openTransactionDetail(t)"
+        >
           <div class="flex items-center gap-4">
             <div class="flex items-center justify-center">
               <ico [name]="iconForRow(t)" size="md" class="text-secondary"></ico>
@@ -160,4 +167,10 @@
       }
     }
   </div>
+
+  <app-transaction-detail-modal
+    [(open)]="txDetailOpen"
+    [transaction]="selectedTransaction()"
+    [currency]="currency()"
+  />
 </div>

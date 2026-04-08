@@ -1,0 +1,136 @@
+/* Layout lives in template (Tailwind); host is non-intrusive */
+:host {
+  display: contents;
+}
+
+.modal-backdrop {
+  opacity: 1;
+  animation: modal-backdrop-in 0.2s ease forwards;
+}
+
+.modal-backdrop--closing {
+  animation: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * Enter: keyframe animation only (no transition on transform here — mixing
+ * transition + animation on the same property can leave the sheet stuck at
+ * translateY(100%) in some browsers).
+ */
+.modal-panel {
+  animation: modal-sheet-in-mobile 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes modal-sheet-in-mobile {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  .modal-panel {
+    animation: modal-sheet-in-desktop 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+}
+
+@keyframes modal-sheet-in-desktop {
+  from {
+    transform: translateY(1.5rem) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Exit: transition only */
+.modal-panel--closing {
+  animation: none !important;
+  transition:
+    transform 0.5s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.5s ease;
+}
+
+@media (max-width: 639px) {
+  .modal-panel--closing {
+    transform: translateY(100%) !important;
+    opacity: 0.92;
+  }
+}
+
+@media (min-width: 640px) {
+  .modal-panel--closing {
+    transform: translateY(1.5rem) scale(0.96) !important;
+    opacity: 0;
+  }
+}
+
+.modal-close-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+.modal-close-btn:hover {
+  background: var(--color-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop {
+    animation: none;
+    opacity: 1;
+  }
+
+  .modal-panel {
+    animation: none;
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  @media (min-width: 640px) {
+    .modal-panel {
+      transform: none;
+    }
+  }
+
+  .modal-panel--closing {
+    /* Keep a transform transition so transitionend still runs (opacity-only would hang). */
+    transition:
+      transform 0.5s ease,
+      opacity 0.5s ease;
+    transform: translateY(100%) !important;
+    opacity: 0;
+  }
+
+  @media (min-width: 640px) {
+    .modal-panel--closing {
+      transform: translateY(0.75rem) scale(0.98) !important;
+    }
+  }
+
+  .modal-backdrop--closing {
+    transition: opacity 0.15s ease;
+  }
+}

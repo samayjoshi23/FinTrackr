@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, model, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { TransactionsService } from '../../../../services/transactions.service';
@@ -10,15 +10,17 @@ import { Category } from '../../../categories/types';
 import { CategoriesService } from '../../../../services/categories.service';
 import { Account } from '../../../../shared/models/account.model';
 import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
+import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 
 @Component({
   selector: 'app-transaction-list',
-  imports: [CommonModule, Icon, FormsModule],
+  imports: [CommonModule, Icon, FormsModule, TransactionDetailModal],
   templateUrl: './transaction-list.html',
   styleUrl: './transaction-list.css',
 })
 export class TransactionList {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly transactionsService = inject(TransactionsService);
   private readonly notifier = inject(NotifierService);
   private readonly categoriesService = inject(CategoriesService);
@@ -44,6 +46,15 @@ export class TransactionList {
 
   categories = signal<Category[]>([]);
 
+  txDetailOpen = model(false);
+  selectedTransaction = signal<TransactionRecord | null>(null);
+
+  constructor() {
+    effect(() => {
+      if (!this.txDetailOpen()) this.selectedTransaction.set(null);
+    });
+  }
+
   /** Category chips from the catalog only (no full transaction scan). */
   readonly categoryChipLabels = computed(() => {
     const names = this.categories()
@@ -55,6 +66,8 @@ export class TransactionList {
   async ngOnInit() {
     const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
     this.currency.set(account?.currency ?? 'INR');
+
+    this.applyQueryParams();
 
     try {
       const cats = await this.categoriesService.getCategories();
@@ -70,6 +83,29 @@ export class TransactionList {
     }
 
     await this.reloadFromFilters();
+  }
+
+  /** Deep links from dashboard: ?type=income|expense&date=month&category=all&advanced=1 */
+  private applyQueryParams(): void {
+    const q = this.route.snapshot.queryParamMap;
+    const type = q.get('type');
+    if (type === 'income' || type === 'expense' || type === 'all') {
+      this.typeFilter.set(type);
+    }
+    const date = q.get('date');
+    if (date === 'today' || date === 'week' || date === 'month' || date === 'all') {
+      this.dateFilter.set(date);
+    }
+    const category = q.get('category');
+    if (category === 'all') {
+      this.categoryFilter.set('all');
+    } else if (category?.trim()) {
+      this.categoryFilter.set(category.trim());
+    }
+    const advanced = q.get('advanced');
+    if (advanced === '1' || advanced === 'true' || advanced === 'yes') {
+      this.isFilterActive.set(true);
+    }
   }
 
   onBack() {
@@ -190,5 +226,10 @@ export class TransactionList {
     if (!value) {
       this.clearSearch();
     }
+  }
+
+  openTransactionDetail(t: TransactionRecord): void {
+    this.selectedTransaction.set(t);
+    this.txDetailOpen.set(true);
   }
 }

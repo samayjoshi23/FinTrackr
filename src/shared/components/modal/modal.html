@@ -1,0 +1,39 @@
+@if (open() || closing()) {
+  <div
+    class="modal-backdrop fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+    [class.modal-backdrop--closing]="closing()"
+    (click)="onBackdropClick()"
+    role="presentation"
+  >
+    <div
+      class="modal-panel card max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--color-border)] p-4 shadow-xl"
+      [class.modal-panel--closing]="closing()"
+      (click)="$event.stopPropagation()"
+      (transitionend)="onPanelTransitionEnd($event)"
+      role="dialog"
+      aria-modal="true"
+    >
+      @if (title() || closable()) {
+        <div class="mb-3 flex items-start justify-between gap-3">
+          @if (title()) {
+            <h2 class="title-font text-lg font-semibold text-[var(--color-title-font)]">{{ title() }}</h2>
+          } @else {
+            <span></span>
+          }
+          @if (closable()) {
+            <button type="button" class="modal-close-btn" (click)="close()" aria-label="Close">
+              <ico name="times" size="sm"></ico>
+            </button>
+          }
+        </div>
+      }
+
+      @let tpl = bodyTemplate();
+      @if (tpl) {
+        <ng-container *ngTemplateOutlet="tpl; context: templateContext()"></ng-container>
+      } @else {
+        <ng-content />
+      }
+    </div>
+  </div>
+}

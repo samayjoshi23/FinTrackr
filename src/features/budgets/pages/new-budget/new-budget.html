@@ -10,7 +10,9 @@
     <h1 class="text-xl font-semibold title-font">New Budget</h1>
   </header>
 
-  <div class="flex flex-col gap-3 w-full">
+  <form class="flex flex-col gap-3 w-full" #budgetForm="ngForm" (ngSubmit)="onCreate(budgetForm)">
+    <input type="hidden" name="categoryKey" [ngModel]="selectedCategory" required />
+
     <!-- Budget Name -->
     <div class="flex flex-col gap-2">
       <label for="budgetName" class="text-xs text-gray-400">Budget Name</label>
@@ -25,8 +27,20 @@
           class="w-full"
           placeholder="e.g. Groceries"
           [(ngModel)]="budgetName"
+          required
+          [minlength]="limits.nameMinLen"
+          [maxlength]="limits.nameMax"
+          #nameCtrl="ngModel"
         />
       </div>
+      @if (nameCtrl.invalid && nameCtrl.touched) {
+        <p class="text-xs text-red-600">
+          Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
+        </p>
+      }
+      @if (nameCtrl.valid && budgetName.trim() && isBudgetNameDuplicate(budgetName)) {
+        <p class="text-xs text-red-600">This budget name is already used.</p>
+      }
     </div>
 
     <!-- Category -->
@@ -35,9 +49,14 @@
       <div class="flex flex-wrap gap-2">
         @for (c of categories(); track c.uid) {
           <div
-            class="card rounded-full py-2 px-4 flex items-center gap-2 cursor-pointer"
+            class="card rounded-full py-2 px-4 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-40"
             [ngClass]="{ 'selected-card': c.name === selectedCategory }"
-            (click)="selectedCategory = c.name"
+            [class.cursor-not-allowed]="categoryAlreadyBudgeted(c)"
+            [class.opacity-40]="categoryAlreadyBudgeted(c)"
+            (click)="selectCategory(c)"
+            [attr.title]="
+              categoryAlreadyBudgeted(c) ? 'Budget already exists for ' + monthLabel : null
+            "
           >
             <ico
               [name]="c.icon"
@@ -51,6 +70,14 @@
           </div>
         }
       </div>
+      @if (categories().length && !hasAvailableCategory()) {
+        <p class="text-xs text-amber-600">
+          Every category already has a budget for {{ monthLabel }}.
+        </p>
+      }
+      @if (budgetForm.submitted && !selectedCategory.trim()) {
+        <p class="text-xs text-red-600">Select a category.</p>
+      }
     </div>
 
     <!-- Monthly Limit -->
@@ -67,22 +94,29 @@
           class="w-full"
           placeholder="0.00"
           [(ngModel)]="monthlyLimit"
-          min="0"
+          required
+          [min]="limits.amountMin"
+          [max]="limits.budgetLimitMax"
+          step="0.01"
+          #limitCtrl="ngModel"
         />
       </div>
+      @if (limitCtrl.invalid && limitCtrl.touched) {
+        <p class="text-xs text-red-600">
+          Enter an amount between {{ limits.amountMin }} and {{ limits.budgetLimitMax }}.
+        </p>
+      }
     </div>
-  </div>
 
-  <!-- Submit -->
-  <div class="flex flex-col gap-2 mt-2">
-    <button
-      type="button"
-      class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
-      (click)="onCreate()"
-    >
-      <span>Create Budget</span>
-      <ico name="right-arrow" size="sm"></ico>
-    </button>
-  </div>
+    <!-- Submit -->
+    <div class="flex flex-col gap-2 mt-2">
+      <button
+        type="submit"
+        class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+      >
+        <span>Create Budget</span>
+        <ico name="right-arrow" size="sm"></ico>
+      </button>
+    </div>
+  </form>
 </div>
-

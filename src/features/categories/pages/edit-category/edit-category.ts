@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { CategoriesService } from '../../../../services/categories.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { CATEGORY_ICON_OPTIONS, Category } from '../../types';
+import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-edit-category',
@@ -22,11 +23,14 @@ export class EditCategory {
   private readonly notifier = inject(NotifierService);
 
   private readonly extraIcon = signal<string | null>(null);
+  allCategories = signal<Category[]>([]);
 
   readonly displayIcons = computed(() => {
     const extra = this.extraIcon();
     return extra ? [extra, ...CATEGORY_ICON_OPTIONS] : CATEGORY_ICON_OPTIONS;
   });
+
+  readonly limits = FORM_LIMITS;
 
   categoryId = '';
   categoryName = '';
@@ -45,7 +49,11 @@ export class EditCategory {
     }
 
     try {
-      const row = await this.categoriesService.getCategory(id);
+      const [row, all] = await Promise.all([
+        this.categoriesService.getCategory(id),
+        this.categoriesService.getCategories().catch(() => []),
+      ]);
+      this.allCategories.set(all ?? []);
       if (!row) {
         this.notifier.error('Category not found.');
         this.router.navigateByUrl('/user/categories');
@@ -71,22 +79,56 @@ export class EditCategory {
     }
   }
 
+  /** Another category (not this one) already uses this icon. */
+  isIconUnavailable(iconId: string): boolean {
+    return this.allCategories().some(
+      (c) => c.uid !== this.categoryId && (c.icon || '').trim() === iconId,
+    );
+  }
+
+  isNameDuplicate(name: string): boolean {
+    const key = name.trim().toLowerCase();
+    if (!key) return false;
+    return this.allCategories().some(
+      (c) => c.uid !== this.categoryId && c.name.trim().toLowerCase() === key,
+    );
+  }
+
+  pickIcon(iconId: string): void {
+    if (this.isIconUnavailable(iconId) && this.selectedIcon !== iconId) return;
+    this.selectedIcon = iconId;
+  }
+
   onBack() {
     this.router.navigateByUrl('/user/categories');
   }
 
-  async onSave() {
-    const name = this.categoryName?.trim();
+  async onSave(form: NgForm) {
+    if (form.invalid) {
+      form.control.markAllAsTouched();
+      this.notifier.error('Please fix the highlighted fields.');
+      return;
+    }
+
+    const name = this.categoryName?.trim() ?? '';
     if (!name) {
       this.notifier.error('Enter a category name.');
       return;
     }
     if (!this.categoryId) return;
+    if (this.isNameDuplicate(name)) {
+      this.notifier.error('Another category already uses this name.');
+      return;
+    }
+    if (this.isIconUnavailable(this.selectedIcon)) {
+      this.notifier.error('That icon is already used by another category.');
+      return;
+    }
 
     try {
       await this.categoriesService.updateCategory(this.categoryId, {
         name,
-        description: this.description?.trim() ?? '',
+        description: (this.description?.trim() ?? '').slice(0, FORM_LIMITS.descriptionMax),
         icon: this.selectedIcon || 'tags',
       });
       await this.reportsService.patchCategoryNameInCurrentMonthReport(this.categoryId, name);

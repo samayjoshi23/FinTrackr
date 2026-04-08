@@ -1,7 +1,7 @@
 <div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold title-font">Budgets &amp; Goals</h1>
+    <h1 class="text-2xl font-semibold title-font">Budgets</h1>
     <div
       class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
       (click)="onNewBudget()"
@@ -42,20 +42,30 @@
       <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
         @if (summary().totalLimit > 0) {
           <div
-            class="h-full rounded-full"
-            [class.bg-green-600]="summary().totalSpent <= summary().totalLimit"
-            [class.bg-red-600]="summary().totalSpent > summary().totalLimit"
-            [style.width.%]="(summary().totalSpent / summary().totalLimit) * 100"
+            class="h-full rounded-full min-w-0 budget-progress-fill"
+            [style.width.%]="progressBarsShown() ? summaryBarWidthPercent() : 0"
+            [style.background-color]="summaryBarColor()"
           ></div>
         }
       </div>
 
       <div class="flex justify-between text-xs font-light">
-        <p class="flex items-center gap-1">
-          <span class="text-secondary">
-            {{ summary().remainingDisplay | currency: currency() : 'symbol-narrow' : '1.0-0' }}
-            remaining
-          </span>
+        <p class="flex items-center gap-1 flex-wrap">
+          @if (summary().overBudgetAmount > 0) {
+            <span class="text-red-600 title-font font-medium">
+              {{ summary().overBudgetAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+              over budget
+            </span>
+            <span class="text-secondary">·</span>
+            <span class="text-secondary">
+              {{ summary().totalLimit | currency: currency() : 'symbol-narrow' : '1.0-0' }} planned
+            </span>
+          } @else {
+            <span class="text-secondary">
+              {{ summary().remainingDisplay | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+              remaining
+            </span>
+          }
           <span>·</span>
           <span class="text-secondary">{{ summary().daysLeft }} days left</span>
         </p>
@@ -77,7 +87,7 @@
             </div>
             <p
               class="text-sm title-font font-semibold"
-              [class.text-green-600]="card.status === 'under'"
+              [class.text-amber-700]="card.status === 'under'"
               [class.text-red-600]="card.status === 'over'"
             >
               {{ card.percent }}%
@@ -86,21 +96,31 @@
 
           <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
             <div
-              class="h-full rounded-full"
-              [class.bg-green-600]="card.status === 'under'"
-              [class.bg-red-600]="card.status === 'over'"
-              [style.width.%]="card.percent"
+              class="h-full rounded-full min-w-0 budget-progress-fill"
+              [style.width.%]="progressBarsShown() ? (card.percent > 100 ? 100 : card.percent) : 0"
+              [style.background-color]="categoryBarColor(card)"
             ></div>
           </div>
 
-          <div class="flex justify-between text-xs text-secondary font-light">
-            <span>
-              {{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }}
-            </span>
-            <span>
-              {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }}
-            </span>
-          </div>
+          @if (card.status === 'over' && card.overAmount > 0) {
+            <p class="text-xs text-red-600 title-font font-medium">
+              {{ card.overAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }} over this
+              category's budget
+              <span class="text-secondary font-light font-sans">
+                ({{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent ·
+                {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit)
+              </span>
+            </p>
+          } @else {
+            <div class="flex justify-between text-xs text-secondary font-light">
+              <span>
+                {{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
+              </span>
+              <span>
+                {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit
+              </span>
+            </div>
+          }
         </div>
       }
     </div>

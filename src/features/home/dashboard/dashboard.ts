@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, model, signal } from '@angular/core';
 import { UserProfile } from 'firebase/auth';
 import { CommonModule } from '@angular/common';
 import { Icon } from '../../../shared/components/icon/icon';
@@ -11,10 +11,12 @@ import { CategoryBreakdownEntry, MonthlyReport } from '../../../shared/models/re
 import { Router } from '@angular/router';
 import { NotifierService } from '../../../shared/components/notifier/notifier.service';
 import { TransactionRecord } from '../../../shared/models/transaction.model';
+import { budgetUsageFillColor } from '../../../shared/utils/budget-usage-color';
+import { TransactionDetailModal } from '../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, Icon],
+  imports: [CommonModule, Icon, TransactionDetailModal],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
@@ -29,6 +31,9 @@ export class Dashboard {
     effect(() => {
       this.applyMonthlyReport(this.reportsService.dashboardMonthReport());
     });
+    effect(() => {
+      if (!this.txDetailOpen()) this.selectedTransaction.set(null);
+    });
   }
 
   userProfile = signal<UserProfile | null>(null);
@@ -39,6 +44,8 @@ export class Dashboard {
   selectedAccount = signal<Account | null>(null);
   recentTransactions = signal<TransactionRecord[]>([]);
   currency = signal<string>('INR');
+  txDetailOpen = model(false);
+  selectedTransaction = signal<TransactionRecord | null>(null);
 
   /** Current calendar month summary from {@link ReportsService.ensureCurrentMonthReport}. */
   summaryMonthLabel = signal<string>('');
@@ -47,12 +54,21 @@ export class Dashboard {
   budgetUsedPercent = signal<number>(0);
   monthlyBudgetTotal = signal<number>(0);
 
+  /** Animate budget bar from 0 → width after first data + layout. */
+  budgetProgressShown = signal(false);
+
   hasMonthlyBudget = computed(() => this.monthlyBudgetTotal() > 0);
   budgetBarWidth = computed(() => {
     const p = this.budgetUsedPercent();
     return `${Math.min(100, Math.max(0, p))}%`;
   });
+  budgetBarFillColor = computed(() => budgetUsageFillColor(this.budgetUsedPercent()));
   budgetRemaining = computed(() => this.monthlyBudgetTotal() - this.monthlyExpense());
+  /** Positive amount past the monthly budget total. */
+  budgetOverAmount = computed(() =>
+    Math.max(0, this.monthlyExpense() - this.monthlyBudgetTotal()),
+  );
+  isBudgetOver = computed(() => this.monthlyBudgetTotal() > 0 && this.monthlyExpense() > this.monthlyBudgetTotal());
 
   async ngOnInit() {
     let profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
@@ -78,6 +94,15 @@ export class Dashboard {
       ]);
       this.recentTransactions.set(recentTransactions.items);
     }
+
+    this.queueBudgetProgressAnimation();
+  }
+
+  private queueBudgetProgressAnimation(): void {
+    this.budgetProgressShown.set(false);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => this.budgetProgressShown.set(true));
+    });
   }
 
   private applyMonthlyReport(report: MonthlyReport | null): void {
@@ -117,6 +142,28 @@ export class Dashboard {
     this.router.navigateByUrl(`/${clean}`);
   }
 
+  private static readonly txListPrefillQuery = {
+    date: 'month',
+    category: 'all',
+    advanced: '1',
+  } as const;
+
+  goToIncomeTransactions(): void {
+    void this.router.navigate(['/user/transactions/list'], {
+      queryParams: { type: 'income', ...Dashboard.txListPrefillQuery },
+    });
+  }
+
+  goToExpenseTransactions(): void {
+    void this.router.navigate(['/user/transactions/list'], {
+      queryParams: { type: 'expense', ...Dashboard.txListPrefillQuery },
+    });
+  }
+
+  goToBudgets(): void {
+    void this.router.navigate(['/user/budgets']);
+  }
+
   setUserInitials() {
     const displayName = (this.userProfile()?.['displayName'] as string) ?? '';
     const displayNameArr = displayName.split(' ');
@@ -149,5 +196,10 @@ export class Dashboard {
 
   goToProfile() {
     this.router.navigateByUrl('/settings');
+  }
+
+  openTransactionDetail(t: TransactionRecord): void {
+    this.selectedTransaction.set(t);
+    this.txDetailOpen.set(true);
   }
 }
