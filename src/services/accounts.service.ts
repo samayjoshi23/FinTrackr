@@ -15,7 +15,13 @@ import {
 } from '@angular/fire/firestore';
 import { increment } from 'firebase/firestore';
 import { UserProfile } from 'firebase/auth';
-import { Account, AccountCreateInput, AccountUpdateInput } from '../shared/models/account.model';
+import {
+  Account,
+  AccountCreateInput,
+  AccountMember,
+  AccountType,
+  AccountUpdateInput,
+} from '../shared/models/account.model';
 import { Router } from '@angular/router';
 import { NotifierService } from '../shared/components/notifier/notifier.service';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
@@ -39,10 +45,29 @@ export class AccountsService {
     return doc(this.firestore, `${ACCOUNTS_COLLECTION}/${userId}`);
   }
 
-  /** Upsert a single account doc for the current user. Returns the account document. */
+  /**
+   * Creates the user's primary account (document id defaults to the owner's uid).
+   * For additional accounts use {@link createAdditionalAccount}.
+   */
   async createAccount(data: AccountCreateInput, userId?: string): Promise<Account> {
-    const uid = userId ?? this.requireUid();
+    const ownerUid = userId ?? this.requireUid();
+    return this.createAccountInternal(data, { fixedDocId: ownerUid });
+  }
+
+  /** Creates an account with a new Firestore document id (multiple accounts per owner). */
+  async createAdditionalAccount(data: AccountCreateInput): Promise<Account> {
+    this.requireUid();
+    return this.createAccountInternal(data, { useAutoId: true });
+  }
+
+  private async createAccountInternal(
+    data: AccountCreateInput,
+    opts: { fixedDocId: string } | { useAutoId: true },
+  ): Promise<Account> {
     const day = date().format('YYYY-MM-DD');
+    const accountType: AccountType = data.accountType ?? 'single-user';
+    const members = serializeMembersForWrite(data.members);
+
     return this.offlineCrud.create<Account>(
       'accounts',
       'id',
@@ -56,7 +81,8 @@ export class AccountsService {
           currency: data.currency,
           isSelected: data.isSelected,
           isActive: data.isActive,
-          members: data.members,
+          members,
+          accountType,
           ownerId: data.ownerId,
           updatedAt: serverTimestamp(),
         };
@@ -72,17 +98,17 @@ export class AccountsService {
         return account;
       },
       {
-        uid,
         name: data.name.trim(),
         balance: Number(data.balance),
         currency: data.currency,
         isSelected: data.isSelected,
         isActive: data.isActive,
-        members: data.members,
+        members,
+        accountType,
         ownerId: data.ownerId,
         date: day,
       },
-      { fixedDocId: uid },
+      'fixedDocId' in opts ? { fixedDocId: opts.fixedDocId } : undefined,
     );
   }
 
@@ -90,6 +116,8 @@ export class AccountsService {
     const day = date().format('YYYY-MM-DD');
     const ref = this.accountDocRef(docId);
     const existing = await getDoc(ref);
+    const accountType: AccountType = data.accountType ?? 'single-user';
+    const members = serializeMembersForWrite(data.members);
     const payload: Record<string, unknown> = {
       uid: docId,
       name: data.name.trim(),
@@ -97,7 +125,8 @@ export class AccountsService {
       currency: data.currency,
       isSelected: data.isSelected,
       isActive: data.isActive,
-      members: data.members,
+      members,
+      accountType,
       ownerId: data.ownerId,
       updatedAt: serverTimestamp(),
     };
@@ -183,7 +212,10 @@ export class AccountsService {
     if (patch.currency !== undefined) patchRecord['currency'] = patch.currency;
     if (patch.isSelected !== undefined) patchRecord['isSelected'] = patch.isSelected;
     if (patch.isActive !== undefined) patchRecord['isActive'] = patch.isActive;
-    if (patch.members !== undefined) patchRecord['members'] = patch.members;
+    if (patch.members !== undefined) {
+      patchRecord['members'] = serializeMembersForWrite(patch.members as AccountMember[]);
+    }
+    if (patch.accountType !== undefined) patchRecord['accountType'] = patch.accountType;
 
     await this.offlineCrud.update<Account>(
       'accounts',
@@ -255,6 +287,7 @@ export class AccountsService {
       accounts.map((account) =>
         this.updateAccount(account.id, {
           isSelected: account.id === selectedDocId,
+          isActive: account.id === selectedDocId,
         }),
       ),
     );
@@ -266,6 +299,7 @@ export class AccountsService {
     }
 
     refreshed.isSelected = true;
+    refreshed.isActive = true;
     localStorage.setItem('currentAccount', JSON.stringify(refreshed));
     return refreshed;
   }
@@ -339,6 +373,9 @@ export class AccountsService {
     const createdAt = d['createdAt'] as { toDate?: () => Date } | null | undefined;
     const updatedAt = d['updatedAt'] as { toDate?: () => Date } | null | undefined;
     const created = createdAt?.toDate?.() ?? null;
+    const rawType = d['accountType'] as AccountType | undefined;
+    const accountType: AccountType =
+      rawType === 'multi-user' || rawType === 'single-user' ? rawType : 'single-user';
     return {
       id,
       uid: (d['uid'] as string) ?? id,
@@ -347,11 +384,41 @@ export class AccountsService {
       currency: (d['currency'] as string) ?? '',
       isSelected: d['isSelected'] as boolean | undefined,
       isActive: d['isActive'] as boolean | undefined,
-      members: (d['members'] as string[] | undefined) ?? undefined,
+      members: normalizeMembersFromFirestore(d['members']),
       ownerId: (d['ownerId'] as string | undefined) ?? undefined,
+      accountType,
       createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
       date: docCalendarDate(d, created),
     };
   }
+}
+
+function serializeMembersForWrite(members: AccountMember[]): Record<string, unknown>[] {
+  return members.map((m) => ({
+    memberId: m.memberId.trim(),
+    memberDisplayName: (m.memberDisplayName ?? '').trim(),
+    isJoined: Boolean(m.isJoined),
+    isActive: Boolean(m.isActive),
+  }));
+}
+
+function normalizeMembersFromFirestore(raw: unknown): AccountMember[] | undefined {
+  if (raw == null) return undefined;
+  if (!Array.isArray(raw)) return undefined;
+  if (raw.length === 0) return [];
+  if (typeof raw[0] === 'string') {
+    return (raw as string[]).map((memberId) => ({
+      memberId: memberId,
+      memberDisplayName: '',
+      isJoined: false,
+      isActive: false,
+    }));
+  }
+  return (raw as Record<string, unknown>[]).map((row) => ({
+    memberId: String(row['memberId'] ?? ''),
+    memberDisplayName: String(row['memberDisplayName'] ?? ''),
+    isJoined: Boolean(row['isJoined']),
+    isActive: Boolean(row['isActive']),
+  }));
 }

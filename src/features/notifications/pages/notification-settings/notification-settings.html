@@ -1,0 +1,44 @@
+<div class="w-full h-dvh flex flex-col overflow-hidden">
+  <header class="flex items-center gap-2 px-4 pt-4 pb-3 shrink-0">
+    <button
+      type="button"
+      class="h-9 w-9 rounded-full button-secondary flex items-center justify-center shrink-0"
+      (click)="onBack()"
+      aria-label="Back"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </button>
+    <h1 class="text-xl font-semibold title-font flex-1 text-center pr-9">Notifications</h1>
+  </header>
+
+  <div class="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-2">
+    @for (row of rows; track row.key) {
+      <div class="card rounded-2xl p-3 flex items-center gap-3">
+        <div
+          class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 notif-setting-icon"
+        >
+          <ico [name]="row.icon" size="md" class="text-primary"></ico>
+        </div>
+        <div class="min-w-0 flex-1 flex flex-col gap-0.5">
+          <span class="text-sm title-font font-semibold">{{ row.title }}</span>
+          <span class="text-xs text-secondary font-light">{{ row.description }}</span>
+        </div>
+        <div class="flex items-center justify-center shrink-0">
+          <label class="theme-switch" [attr.for]="'notif-pref-' + row.key">
+            <input
+              type="checkbox"
+              class="theme-switch__checkbox"
+              [id]="'notif-pref-' + row.key"
+              [checked]="notificationPrefs.prefs()[row.key]"
+              (change)="setPref(row.key, $any($event.target).checked)"
+            />
+            <span class="theme-switch__track">
+              <span class="theme-switch__thumb"></span>
+            </span>
+            <span class="theme-switch__label"></span>
+          </label>
+        </div>
+      </div>
+    }
+  </div>
+</div>

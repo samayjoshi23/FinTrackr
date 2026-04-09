@@ -29,7 +29,7 @@
   --color-secondary-button-hover-border: var(--color-slate-300);
 
   /* Border colors */
-  --color-border: var(--color-slate-200);
+  --color-border: var(--color-slate-300);
   --color-border-strong: var(--color-slate-300);
   --color-border-primary: var(--color-emerald-600);
   --color-border-secondary: var(--color-gray-300);

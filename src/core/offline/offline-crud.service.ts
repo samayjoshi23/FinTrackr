@@ -183,6 +183,10 @@ export class OfflineCrudService {
       _pendingSync: true,
     } as unknown as T;
 
+    if (storeName === 'accounts') {
+      (optimistic as Record<string, unknown>)['uid'] = assignedId;
+    }
+
     await this.cache.put(storeName, optimistic);
 
     const enqueuePending = async () => {

@@ -58,9 +58,7 @@ export const routes: Routes = [
       {
         path: 'budgets/new',
         loadComponent: () =>
-          import('./../features/budgets/pages/new-budget/new-budget').then(
-            (m) => m.NewBudget,
-          ),
+          import('./../features/budgets/pages/new-budget/new-budget').then((m) => m.NewBudget),
       },
       {
         path: 'goals',
@@ -96,6 +94,20 @@ export const routes: Routes = [
           import('./../features/reports/pages/reports/reports').then((m) => m.Reports),
       },
       {
+        path: 'settings/notifications',
+        loadComponent: () =>
+          import('./../features/notifications/pages/notification-settings/notification-settings').then(
+            (m) => m.NotificationSettings,
+          ),
+      },
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./../features/notifications/pages/notification-list/notification-list').then(
+            (m) => m.NotificationList,
+          ),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./../features/settings/pages/global-settings/global-settings').then(
@@ -111,6 +123,13 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'accounts/new',
+            loadComponent: () =>
+              import('./../features/accounts/pages/create-account/create-account').then(
+                (m) => m.CreateAccount,
+              ),
+          },
+          {
             path: 'accounts/:id',
             loadComponent: () =>
               import('./../features/settings/pages/account-details/account-details').then(
@@ -118,17 +137,10 @@ export const routes: Routes = [
               ),
           },
           {
-            path: 'notifications',
-            loadComponent: () =>
-              import('./../features/settings/pages/notification-settings/notification-settings').then(
-                (m) => m.NotificationSettings,
-              ),
-          },
-          {
             path: 'privacy',
             loadComponent: () =>
-              import('./../features/settings/pages/privacy-and-security/privacy-and-security').then(
-                (m) => m.PrivacyAndSecurity,
+              import('./../features/settings/pages/privacy-security/privacy-security').then(
+                (m) => m.PrivacySecurity,
               ),
           },
         ],

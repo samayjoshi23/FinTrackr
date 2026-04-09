@@ -65,10 +65,10 @@ export class Dashboard {
   budgetBarFillColor = computed(() => budgetUsageFillColor(this.budgetUsedPercent()));
   budgetRemaining = computed(() => this.monthlyBudgetTotal() - this.monthlyExpense());
   /** Positive amount past the monthly budget total. */
-  budgetOverAmount = computed(() =>
-    Math.max(0, this.monthlyExpense() - this.monthlyBudgetTotal()),
+  budgetOverAmount = computed(() => Math.max(0, this.monthlyExpense() - this.monthlyBudgetTotal()));
+  isBudgetOver = computed(
+    () => this.monthlyBudgetTotal() > 0 && this.monthlyExpense() > this.monthlyBudgetTotal(),
   );
-  isBudgetOver = computed(() => this.monthlyBudgetTotal() > 0 && this.monthlyExpense() > this.monthlyBudgetTotal());
 
   async ngOnInit() {
     let profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
@@ -195,7 +195,11 @@ export class Dashboard {
   }
 
   goToProfile() {
-    this.router.navigateByUrl('/settings');
+    this.router.navigateByUrl('/user/settings');
+  }
+
+  goToNotifications(): void {
+    void this.router.navigateByUrl('/user/notifications');
   }
 
   openTransactionDetail(t: TransactionRecord): void {

@@ -1,0 +1,383 @@
+<form class="gap-4 flex flex-col h-full min-h-dvh justify-between p-4 md:p-5 pb-15">
+  <div class="step-wrapper flex flex-col gap-1 w-full justify-between">
+    <div class="flex items-center justify-between">
+      <p class="text-sm text-secondary font-light">
+        Step {{ currentPage() }} of {{ pages().length }}
+      </p>
+      <a
+        class="text-sm text-primary font-light flex items-center gap-1 cursor-pointer hover:gap-2 transition-all duration-300 bg-transparent border-0 p-0"
+        (click)="goToPreviousStep()"
+      >
+        <ico name="left-arrow" size="xs"></ico>
+        {{ currentPage() === 1 ? 'Cancel' : 'Back' }}
+      </a>
+    </div>
+    <div class="flex gap-2 w-full justify-between">
+      @for (page of pages(); track page.sequence) {
+        <div
+          class="step-content min-h-1 w-full"
+          [ngClass]="{
+            'bg-primary': page.sequence <= currentPage(),
+            'bg-secondary': page.sequence > currentPage(),
+          }"
+        ></div>
+      }
+    </div>
+  </div>
+
+  <div class="flex flex-col">
+    <div class="flex flex-col mb-6">
+      <h1 class="text-2xl title-font font-medium">{{ pages()[currentPage() - 1].title }}</h1>
+      <p class="text-sm text-secondary font-light">
+        {{ pages()[currentPage() - 1].description }}
+      </p>
+    </div>
+
+    <!-- Step 1: name + balance -->
+    <div
+      class="flex flex-col gap-3"
+      [class.hidden]="currentPage() !== 1"
+      [attr.inert]="currentPage() !== 1 ? '' : null"
+    >
+      <div class="flex flex-col gap-1">
+        <label for="accName" class="text-xs text-gray-400">Account name</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="office-building" size="sm"></ico>
+          </span>
+          <input
+            type="text"
+            class="w-full"
+            id="accName"
+            name="accName"
+            placeholder="e.g. Joint / Family / Office"
+            [(ngModel)]="formModel.account.name"
+            [maxlength]="limits.nameMax"
+          />
+        </div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="accBalance" class="text-xs text-gray-400">Balance</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            class="w-full"
+            id="accBalance"
+            name="accBalance"
+            placeholder="e.g. 1000"
+            [(ngModel)]="formModel.account.balance"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: currency -->
+    <div
+      class="flex flex-col gap-3"
+      [class.hidden]="currentPage() !== 2"
+      [attr.inert]="currentPage() !== 2 ? '' : null"
+    >
+      @for (currency of currencies(); track $index) {
+        <div
+          class="card rounded-xl p-4 cursor-pointer"
+          [ngClass]="{ 'selected-card': currency.isSelected }"
+          (click)="onSelectCurrency(currency.value)"
+        >
+          <p class="text-sm font-light" [class.font-semibold]="currency.isSelected">
+            {{ currency.label }}
+          </p>
+        </div>
+      }
+    </div>
+
+    <!-- Step 3: account type + invites -->
+    <div
+      class="flex flex-col gap-4"
+      [class.hidden]="currentPage() !== 3"
+      [attr.inert]="currentPage() !== 3 ? '' : null"
+    >
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          class="card rounded-xl p-4 text-left border-0 cursor-pointer"
+          [ngClass]="{ 'selected-card': accountType() === 'single-user' }"
+          (click)="setAccountType('single-user')"
+        >
+          <p
+            class="text-sm font-semibold title-font text-[var(--color-tertiary-inverse)]"
+            [class.text-primary]="accountType() === 'single-user'"
+          >
+            Single-user
+          </p>
+          <p class="text-xs text-secondary font-light mt-1">Only you use this account.</p>
+        </button>
+        <button
+          type="button"
+          class="card rounded-xl p-4 text-left border-0 cursor-pointer"
+          [ngClass]="{ 'selected-card': accountType() === 'multi-user' }"
+          (click)="setAccountType('multi-user')"
+        >
+          <p
+            class="text-sm font-semibold title-font text-[var(--color-tertiary-inverse)]"
+            [class.text-primary]="accountType() === 'multi-user'"
+          >
+            Multi-user
+          </p>
+          <p class="text-xs text-secondary font-light mt-1">Share with others by email.</p>
+        </button>
+      </div>
+
+      @if (accountCommitted()) {
+        <p class="text-xs text-amber-600 font-light">
+          Account created. You can still review your choices below; go forward to add a budget or
+          goal.
+        </p>
+      }
+
+      @if (accountType() === 'multi-user') {
+        <div class="flex flex-col gap-2">
+          <span class="text-xs text-gray-400">Invite by email</span>
+          <p class="text-xs text-secondary font-light">
+            Search each person, tap Add, then repeat. You can invite as many members as you need
+            before continuing.
+          </p>
+          <div class="flex gap-2">
+            <div class="field-wrapper before flex-1">
+              <span class="field-icon before">
+                <ico name="envelope" size="sm"></ico>
+              </span>
+              <input
+                type="email"
+                class="w-full"
+                name="inviteEmail"
+                placeholder="friend@example.com"
+                [(ngModel)]="searchEmail"
+                [disabled]="accountCommitted()"
+                (keydown)="onInviteEmailKeydown($event)"
+              />
+            </div>
+            <button
+              type="button"
+              class="button-secondary rounded-xl px-4 shrink-0"
+              (click)="searchUserByEmail()"
+              [disabled]="searchingUser || accountCommitted()"
+            >
+              Search
+            </button>
+          </div>
+          @if (searchHit(); as hit) {
+            <div class="card rounded-xl p-3 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-sm font-medium truncate">{{ hit.displayName || 'User' }}</p>
+                <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
+              </div>
+              @if (isInvited(hit.uid)) {
+                <span class="text-xs font-medium text-secondary shrink-0">Already added</span>
+              } @else {
+                <button
+                  type="button"
+                  class="button-primary rounded-lg px-3 py-2 text-xs shrink-0"
+                  (click)="addInvitedMember()"
+                >
+                  Add
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        @if (invitedMembers().length > 0) {
+          <div class="flex flex-col gap-2">
+            <span class="text-xs text-gray-400">Invited ({{ invitedMembers().length }})</span>
+            <div class="flex flex-wrap gap-2">
+              @for (m of invitedMembers(); track m.uid) {
+                <div class="card rounded-full py-2 px-3 flex items-center gap-2 text-xs">
+                  <span class="truncate max-w-[12rem]">{{ m.displayName || m.email }}</span>
+                  @if (!accountCommitted()) {
+                    <button
+                      type="button"
+                      class="text-red-600 p-0 border-0 bg-transparent cursor-pointer"
+                      (click)="removeInvitedMember(m.uid)"
+                      aria-label="Remove"
+                    >
+                      <ico name="times" size="xs"></ico>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Step 4: budget -->
+    <div
+      class="flex flex-col gap-3"
+      [class.hidden]="currentPage() !== 4"
+      [attr.inert]="currentPage() !== 4 ? '' : null"
+    >
+      @if (accountCategories().length === 0) {
+        <p class="text-sm text-secondary">
+          No categories yet. You can skip and add a budget later.
+        </p>
+      } @else {
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Category</label>
+          <div class="flex flex-wrap gap-2">
+            @for (c of accountCategories(); track c.uid) {
+              <div
+                class="card flex cursor-pointer items-center gap-2 rounded-full px-4 py-2"
+                [ngClass]="{ 'selected-card': c.uid === formModel.budget.categoryUid }"
+                (click)="selectBudgetCategory(c.uid)"
+              >
+                <ico
+                  [name]="c.icon"
+                  size="sm"
+                  [class.text-primary]="c.uid === formModel.budget.categoryUid"
+                  [class.text-secondary]="c.uid !== formModel.budget.categoryUid"
+                ></ico>
+                <p class="text-xs" [class.font-semibold]="c.uid === formModel.budget.categoryUid">
+                  {{ c.name }}
+                </p>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label for="monthlyBudget" class="text-xs text-gray-400">Monthly limit</label>
+          <div class="field-wrapper before">
+            <span class="field-icon before">
+              <ico name="bullseye" size="sm"></ico>
+            </span>
+            <input
+              type="number"
+              class="w-full"
+              id="monthlyBudget"
+              name="monthlyBudgetLimit"
+              [placeholder]="
+                'e.g. ' + (10000 | currency: formModel.account.currency : 'symbol' : '1.0-0')
+              "
+              [(ngModel)]="formModel.budget.limit"
+              [min]="limits.amountMin"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-1">
+          @for (suggestion of budgetSuggestions(); track $index) {
+            <div
+              class="card w-full rounded-full px-3 py-2 cursor-pointer"
+              [ngClass]="{ 'selected-card': suggestion.isSelected }"
+              (click)="onSelectBudgetSuggestion(suggestion.amount)"
+            >
+              <p
+                class="text-center text-xs font-light text-secondary"
+                [class.font-semibold]="suggestion.isSelected"
+              >
+                {{ suggestion.amount | currency: formModel.account.currency : 'symbol' : '1.0-0' }}
+              </p>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Step 5: goal -->
+    <div
+      class="flex flex-col gap-3"
+      [class.hidden]="currentPage() !== 5"
+      [attr.inert]="currentPage() !== 5 ? '' : null"
+    >
+      <div class="flex flex-col gap-1">
+        <label for="goalName" class="text-xs text-gray-400">Goal name</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="target" size="sm"></ico>
+          </span>
+          <input
+            type="text"
+            class="w-full"
+            id="goalName"
+            name="goalName"
+            placeholder="e.g. Vacation fund"
+            [(ngModel)]="formModel.goal.name"
+          />
+        </div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="goalTarget" class="text-xs text-gray-400">Target amount</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            class="w-full"
+            id="goalTarget"
+            name="goalTarget"
+            [(ngModel)]="formModel.goal.target"
+          />
+        </div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="goalDueDate" class="text-xs text-gray-400">Due date</label>
+        <div class="field-wrapper before relative">
+          <span class="field-icon before z-[101]">
+            <ico name="calendar" size="sm"></ico>
+          </span>
+          <app-date-picker
+            class="absolute top-0 left-0 z-[1] h-full w-full"
+            id="goalDueDate"
+            name="goalDueDate"
+            modalTitle="Due date"
+            placeholder="Select due date"
+            compactFieldIcon
+            [(ngModel)]="formModel.goal.dueDate"
+          />
+        </div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="goalCurrentAmount" class="text-xs text-gray-400">Current amount saved</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            class="w-full"
+            id="goalCurrentAmount"
+            name="goalCurrentAmount"
+            [(ngModel)]="formModel.goal.currentAmount"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <button
+      type="button"
+      class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+      (click)="goToNextStep(false)"
+    >
+      {{ currentPage() < pages().length ? 'Continue' : 'Finish' }}
+      <ico name="right-arrow" size="sm"></ico>
+    </button>
+
+    @if (pages()[currentPage() - 1].skippable) {
+      <button
+        type="button"
+        class="text-sm text-secondary font-light w-full flex items-center justify-center gap-2 cursor-pointer bg-transparent border-0"
+        (click)="goToNextStep(true)"
+      >
+        <ico name="forward" size="sm"></ico>
+        <span>Skip for now</span>
+      </button>
+    }
+  </div>
+</form>

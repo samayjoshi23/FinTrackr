@@ -422,6 +422,7 @@ export class Onboarding {
       isActive: true,
       members: [],
       ownerId,
+      accountType: 'single-user',
     };
 
     const existing = await this.accountsService.getAccount(ownerId);

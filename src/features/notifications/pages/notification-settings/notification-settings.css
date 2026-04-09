@@ -1,0 +1,3 @@
+.notif-setting-icon {
+  background-color: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}

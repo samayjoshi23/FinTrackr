@@ -1,11 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
+import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { UserProfile } from 'firebase/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
+import { Modal } from '../../../../shared/components/modal/modal';
+import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { AccountsService } from '../../../../services/accounts.service';
 import { AuthService } from '../../../../services/auth.service';
 import { TransactionsService } from '../../../../services/transactions.service';
+import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import { Account } from '../../../../shared/models/account.model';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
@@ -14,7 +18,7 @@ const THEME_KEY = 'fintrackr-theme';
 
 @Component({
   selector: 'app-settings-home',
-  imports: [CommonModule, RouterLink, Icon],
+  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule],
   templateUrl: './settings-home.html',
   styleUrl: './settings-home.css',
 })
@@ -22,6 +26,7 @@ export class SettingsHome {
   private readonly accountsService = inject(AccountsService);
   private readonly transactionsService = inject(TransactionsService);
   private readonly authService = inject(AuthService);
+  private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
 
   userProfile = signal<UserProfile | null>(null);
@@ -31,6 +36,12 @@ export class SettingsHome {
   totalTransactions = signal(0);
   totalBalance = signal(0);
   initials = signal('');
+
+  personalInfoModalOpen = false;
+  editDisplayName = '';
+  savingProfile = false;
+  dateJoined = signal<Date>(new Date());
+  readonly limits = FORM_LIMITS;
 
   constructor() {
     if (typeof window !== 'undefined' && window.matchMedia) {
@@ -47,10 +58,12 @@ export class SettingsHome {
     );
     this.applyBodyTheme();
 
-    let userProfile = JSON.parse(
+    let userProfile: UserProfile | null = JSON.parse(
       localStorage.getItem('userProfile') ?? 'null',
     ) as UserProfile | null;
     this.userProfile.set(userProfile ?? null);
+    const date: string | null = (userProfile?.['date'] as string) ?? null;
+    this.dateJoined.set(!!date ? new Date(date) : new Date());
     let accounts = await this.accountsService.getAccounts().catch(() => []);
     this.accounts.set(accounts ?? []);
 
@@ -69,6 +82,12 @@ export class SettingsHome {
     }
     this.totalTransactions.set(txTotal);
     this.totalBalance.set(balanceSum);
+  }
+
+  private refreshUserProfileFromStorage() {
+    const next = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    this.userProfile.set(next ?? null);
+    this.setInitials();
   }
 
   private setInitials() {
@@ -114,5 +133,34 @@ export class SettingsHome {
 
   openAccount(a: Account) {
     this.router.navigateByUrl(`/user/settings/accounts/${a.id}`);
+  }
+
+  editPersonalInfo() {
+    this.editDisplayName = (this.userProfile()?.['displayName'] as string) ?? '';
+    this.personalInfoModalOpen = true;
+  }
+
+  async savePersonalInfo(form: NgForm) {
+    if (form.invalid) {
+      form.control.markAllAsTouched();
+      this.notifier.error('Please fix the highlighted fields.');
+      return;
+    }
+    this.savingProfile = true;
+    try {
+      await this.authService.updateDisplayName(this.editDisplayName);
+      this.refreshUserProfileFromStorage();
+      this.personalInfoModalOpen = false;
+      this.notifier.success('Profile updated.');
+    } catch (e) {
+      console.error(e);
+      this.notifier.error(e instanceof Error ? e.message : 'Could not update your profile.');
+    } finally {
+      this.savingProfile = false;
+    }
+  }
+
+  addAccount() {
+    this.router.navigateByUrl('/user/settings/accounts/new');
   }
 }

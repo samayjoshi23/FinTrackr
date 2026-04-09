@@ -8,7 +8,11 @@
     </div>
     <!-- Profile Picture -->
     <div class="flex items-center gap-2">
-      <div class="h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center">
+      <div
+        class="h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center cursor-pointer border-0 p-0 shrink-0 hover:opacity-90 transition-opacity"
+        (click)="goToNotifications()"
+        aria-label="Notifications"
+      >
         <ico name="bell" size="sm"></ico>
       </div>
       <div
@@ -95,16 +99,20 @@
           ></div>
         </div>
         <div class="flex justify-between items-center">
-          <p class="text-xs" [class.text-red-600]="isBudgetOver()">
+          <p class="text-xs">
             @if (isBudgetOver()) {
               <span class="title-font font-medium">
-                {{ budgetOverAmount() | currency: currency() : 'symbol-narrow' : '1.0-2' }} over budget
+                {{ budgetOverAmount() | currency: currency() : 'symbol-narrow' : '1.0-2' }} over
+                budget
               </span>
               <span class="text-secondary font-light">
-                · {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }} planned
+                ·
+                {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+                planned
               </span>
             } @else {
-              {{ budgetRemaining() | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining of
+              {{ budgetRemaining() | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining
+              of
               {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
             }
           </p>
@@ -143,7 +151,10 @@
   <div class="flex flex-col gap-3">
     <div class="flex justify-between items-center">
       <p class="text-sm title-font font-medium">Recent Transactions</p>
-      <a href="/user/transactions/list" class="text-xs text-primary">See all</a>
+      <a href="/user/transactions/list" class="text-xs text-primary flex gap-1 items-center"
+        >See all
+        <ico name="chevron-right" size="xs"></ico>
+      </a>
     </div>
     <div class="flex flex-col gap-2">
       @if (recentTransactions().length === 0) {

@@ -105,6 +105,31 @@ export class AuthService {
     await sendPasswordResetEmail(this.auth, email);
   }
 
+  /** Updates Firebase Auth profile and merged `users/{uid}` document; refreshes `userProfile` in localStorage. */
+  async updateDisplayName(displayName: string): Promise<void> {
+    const u = this.auth.currentUser;
+    if (!u) throw new Error('You must be signed in.');
+    const name = displayName.trim();
+    if (!name) throw new Error('Enter your name.');
+    await updateProfile(u, { displayName: name });
+    const provider: 'password' | 'google' = u.providerData.some(
+      (p) => p.providerId === 'google.com',
+    )
+      ? 'google'
+      : 'password';
+    await this.upsertUserProfile({
+      uid: u.uid,
+      email: u.email ?? '',
+      displayName: name,
+      photoURL: u.photoURL,
+      provider,
+    });
+    const doc = await this.getUserProfile(u.uid);
+    if (doc) {
+      localStorage.setItem('userProfile', JSON.stringify(doc));
+    }
+  }
+
   async logout() {
     await signOut(this.auth);
     // Clear IndexedDB cached data and sync queue

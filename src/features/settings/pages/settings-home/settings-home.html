@@ -45,13 +45,17 @@
   <div class="flex flex-col gap-2">
     <div class="flex items-center justify-between">
       <h2 class="text-sm title-font font-medium">Personal Information</h2>
-      <a href="#" class="text-xs text-primary flex items-center gap-1">
+      <a
+        class="text-xs text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer"
+        (click)="editPersonalInfo()"
+      >
         <ico name="pencil" size="xs"></ico>
         Edit
       </a>
     </div>
     <div class="card rounded-2xl flex flex-col">
-      <div class="flex gap-3 p-4">
+      <!-- Full Name -->
+      <div class="flex gap-3 px-4 py-3">
         <ico name="user" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
         <div class="flex flex-col gap-0.5 min-w-0">
           <span class="text-xs text-secondary font-light">Full Name</span>
@@ -60,12 +64,23 @@
           }}</span>
         </div>
       </div>
-      <hr class="text-gray-300" />
-      <div class="flex gap-3 p-4">
+      <hr class="text-[var(--color-border-secondary)]" />
+      <!-- Email -->
+      <div class="flex gap-3 px-4 py-3">
         <ico name="envelope" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
         <div class="flex flex-col gap-0.5 min-w-0">
           <span class="text-xs text-secondary font-light">Email</span>
           <span class="text-sm font-medium truncate">{{ userProfile()?.['email'] || '—' }}</span>
+        </div>
+      </div>
+      <hr class="text-[var(--color-border-secondary)]" />
+      <div class="flex gap-3 px-4 py-3">
+        <ico name="calendar" size="sm" class="text-secondary shrink-0 mt-0.5"></ico>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <span class="text-xs text-secondary font-light">Member since</span>
+          <span class="text-sm font-medium truncate">
+            {{ dateJoined() | date: 'dd MMM, yyyy' }}
+          </span>
         </div>
       </div>
     </div>
@@ -104,7 +119,16 @@
 
   <!-- Manage accounts -->
   <div class="flex flex-col gap-2">
-    <h2 class="text-sm title-font font-medium">Manage Accounts</h2>
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm title-font font-medium">Manage Accounts</h2>
+      <a
+        class="text-xs text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer"
+        (click)="addAccount()"
+      >
+        <ico name="plus" size="xs"></ico>
+        Add new
+      </a>
+    </div>
     <div class="flex flex-col gap-2">
       @for (a of accounts(); track a.id) {
         <div
@@ -137,11 +161,13 @@
       class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
     >
       <div class="rounded-xl flex items-center justify-center shrink-0">
-        <ico name="bell" size="md" class="text-secondary"></ico>
+        <ico name="sliders" size="md" class="text-secondary"></ico>
       </div>
       <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-        <span class="text-sm font-semibold">Notifications</span>
-        <span class="text-xs text-secondary font-light">Manage alert preferences</span>
+        <span class="text-sm font-semibold">Notification settings</span>
+        <span class="text-xs text-secondary font-light"
+          >Expense alerts, budgets, bills, and more</span
+        >
       </div>
       <ico name="chevron-right" size="sm" class="text-secondary"></ico>
     </div>
@@ -168,4 +194,61 @@
     <ico name="exit" size="sm"></ico>
     <span>Log out</span>
   </button>
+
+  <app-modal [(open)]="personalInfoModalOpen" title="Edit personal information">
+    <form
+      class="flex flex-col gap-4"
+      #profileForm="ngForm"
+      (ngSubmit)="savePersonalInfo(profileForm)"
+    >
+      <div class="flex flex-col gap-2 rounded-xl p-4 bg-primary-light">
+        <span class="text-xs text-secondary font-light">Email</span>
+        <p class="text-sm font-medium">{{ userProfile()?.['email'] || '—' }}</p>
+        <p class="text-xs text-secondary font-light">Email can't be changed here.</p>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label for="editDisplayName" class="text-xs text-secondary font-light">Full name</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="user" size="sm"></ico>
+          </span>
+          <input
+            type="text"
+            id="editDisplayName"
+            name="editDisplayName"
+            class="w-full"
+            [(ngModel)]="editDisplayName"
+            required
+            [minlength]="limits.nameMinLen"
+            [maxlength]="limits.nameMax"
+            #nameCtrl="ngModel"
+            autocomplete="name"
+          />
+        </div>
+        @if (nameCtrl.invalid && nameCtrl.touched) {
+          <p class="text-xs text-red-600">
+            Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
+          </p>
+        }
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button
+          type="button"
+          class="button-secondary rounded-xl py-3 flex-1 font-semibold"
+          (click)="personalInfoModalOpen = false"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="button-primary rounded-xl py-3 flex-1 font-semibold"
+          [disabled]="savingProfile"
+        >
+          {{ savingProfile ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </form>
+  </app-modal>
 </div>

@@ -1,0 +1,99 @@
+<div class="w-full h-dvh flex flex-col overflow-hidden p-4 md:p-5 gap-4">
+  <header class="flex items-center gap-2 shrink-0">
+    <div class="flex items-center gap-2">
+      <div
+        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        (click)="onBack()"
+      >
+        <ico name="left-arrow" size="sm"></ico>
+      </div>
+      <h1 class="text-xl font-semibold title-font">Privacy & Security</h1>
+    </div>
+  </header>
+
+  <div class="flex-1 overflow-y-auto pb-20 flex flex-col gap-4">
+    <div class="card rounded-2xl p-4 flex items-center gap-3">
+      <div class="privacy-icon-wrap h-10 w-10 rounded-xl flex items-center justify-center shrink-0">
+        <ico name="fingerprint" size="md" class="text-primary"></ico>
+      </div>
+      <div class="min-w-0 flex-1 flex flex-col gap-0.5">
+        <span class="text-sm font-semibold title-font">Biometric lock</span>
+        <span class="text-xs text-secondary font-light">Use fingerprint or face ID</span>
+      </div>
+      <div class="flex items-center justify-center shrink-0">
+        <label class="theme-switch" for="privacy-biometric">
+          <input
+            type="checkbox"
+            class="theme-switch__checkbox"
+            id="privacy-biometric"
+            [checked]="prefs().biometricLock"
+            (change)="onBiometricChange($any($event.target).checked)"
+          />
+          <span class="theme-switch__track">
+            <span class="theme-switch__thumb"></span>
+          </span>
+          <span class="theme-switch__label"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card rounded-2xl p-4 flex items-center gap-3">
+      <div class="privacy-icon-wrap h-10 w-10 rounded-xl flex items-center justify-center shrink-0">
+        <ico name="eye-open" size="md" class="text-primary"></ico>
+      </div>
+      <div class="min-w-0 flex-1 flex flex-col gap-0.5">
+        <span class="text-sm font-semibold title-font">Hide balances by default</span>
+        <span class="text-xs text-secondary font-light">Require tap to reveal balances</span>
+      </div>
+      <div class="flex items-center justify-center shrink-0">
+        <label class="theme-switch" for="privacy-hide-balances">
+          <input
+            type="checkbox"
+            class="theme-switch__checkbox"
+            id="privacy-hide-balances"
+            [checked]="prefs().hideBalancesByDefault"
+            (change)="onHideBalancesChange($any($event.target).checked)"
+          />
+          <span class="theme-switch__track">
+            <span class="theme-switch__thumb"></span>
+          </span>
+          <span class="theme-switch__label"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <p class="text-sm title-font font-medium">Change password</p>
+      <div
+        class="card rounded-2xl p-4 flex items-center gap-3 w-full text-left cursor-pointer"
+        (click)="onChangePassword()"
+      >
+        <div
+          class="privacy-icon-wrap h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+        >
+          <ico name="lock" size="md" class="text-primary"></ico>
+        </div>
+        <div class="min-w-0 flex-1 flex flex-col gap-0.5">
+          <span class="text-sm font-semibold title-font">Update password</span>
+          <span class="text-xs text-secondary font-light">Change your account password</span>
+        </div>
+        <ico name="chevron-right" size="sm" class="text-secondary shrink-0"></ico>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <p class="text-sm title-font font-medium">Security info</p>
+      <div class="card rounded-2xl p-4 flex gap-4 items-center">
+        <ico name="lock" size="md" class="text-primary"></ico>
+        <div class="min-w-0 flex flex-col gap-1">
+          <span class="text-xs text-secondary font-light">
+            <strong>Last login:</strong> {{ lastLoginLabel }}</span
+          >
+          <span class="text-xs text-secondary font-light">
+            <strong>Device:</strong> {{ deviceLabel }}</span
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

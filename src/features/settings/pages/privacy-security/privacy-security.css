@@ -1,0 +1,9 @@
+.privacy-icon-wrap {
+  background-color: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.security-info__badge {
+  background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
