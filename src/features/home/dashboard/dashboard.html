@@ -38,14 +38,14 @@
     </div>
     <div class="flex gap-3 justify-between items-center">
       <div
-        class="flex w-100 bg-primary-soft rounded-xl p-2 gap-2 items-center cursor-pointer hover:opacity-90 transition-opacity"
+        class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 gap-3 items-center cursor-pointer hover:opacity-90 transition-opacity"
         role="button"
         tabindex="0"
         (click)="goToIncomeTransactions()"
         (keydown.enter)="goToIncomeTransactions()"
         (keydown.space)="$event.preventDefault(); goToIncomeTransactions()"
       >
-        <ico name="stock-up" size="sn"></ico>
+        <ico name="stock-up" size="sm"></ico>
         <div class="flex flex-col">
           <p class="text-xs font-light">Income | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
@@ -58,7 +58,7 @@
         </div>
       </div>
       <div
-        class="flex w-100 bg-primary-soft rounded-xl p-2 gap-2 items-center cursor-pointer hover:opacity-90 transition-opacity"
+        class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 gap-3 items-center cursor-pointer hover:opacity-90 transition-opacity"
         role="button"
         tabindex="0"
         (click)="goToExpenseTransactions()"
@@ -95,7 +95,7 @@
           <div
             class="h-full rounded-full min-w-0 budget-progress-fill"
             [style.width]="budgetProgressShown() ? budgetBarWidth() : '0%'"
-            [style.background-color]="budgetBarFillColor()"
+            [ngClass]="budgetBarFillClass()"
           ></div>
         </div>
         <div class="flex justify-between items-center">
@@ -204,5 +204,6 @@
     [(open)]="txDetailOpen"
     [transaction]="selectedTransaction()"
     [currency]="currency()"
+    (transactionUpdated)="onTransactionUpdated($event)"
   />
 </div>

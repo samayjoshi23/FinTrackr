@@ -67,7 +67,7 @@ export class SettingsHome {
     let accounts = await this.accountsService.getAccounts().catch(() => []);
     this.accounts.set(accounts ?? []);
 
-    let current = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const current = await this.accountsService.getSelectedAccount();
     this.currentAccount.set(current);
 
     this.setInitials();
@@ -127,7 +127,6 @@ export class SettingsHome {
   }
 
   async logout() {
-    localStorage.removeItem('currentAccount');
     await this.authService.logout();
   }
 

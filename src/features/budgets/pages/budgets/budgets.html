@@ -5,7 +5,7 @@
     <div
       class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
       (click)="onNewBudget()"
-      aria-label="New category"
+      aria-label="New budget"
     >
       <ico name="plus" size="md"></ico>
     </div>
@@ -44,7 +44,7 @@
           <div
             class="h-full rounded-full min-w-0 budget-progress-fill"
             [style.width.%]="progressBarsShown() ? summaryBarWidthPercent() : 0"
-            [style.background-color]="summaryBarColor()"
+            [ngClass]="summaryBarClass()"
           ></div>
         }
       </div>
@@ -77,52 +77,120 @@
 
     <div class="flex flex-col gap-3">
       @for (card of categoryCards(); track card.category) {
-        <div class="card rounded-2xl p-4 flex flex-col gap-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
-                <ico [name]="card.icon" size="md" class="text-primary"></ico>
+        <div
+          class="card rounded-2xl overflow-hidden transition-all duration-200"
+          role="button"
+          tabindex="0"
+          (click)="onCardClick(card)"
+          (keydown.enter)="onCardClick(card)"
+          (keydown.space)="$event.preventDefault(); onCardClick(card)"
+        >
+          <!-- Card main content -->
+          <div class="p-4 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
+                  <ico [name]="card.icon" size="md" class="text-primary"></ico>
+                </div>
+                <p class="text-sm font-semibold title-font">{{ card.category }}</p>
               </div>
-              <p class="text-sm font-semibold title-font">{{ card.category }}</p>
+              <div class="flex items-center gap-2">
+                <p
+                  class="text-sm title-font font-semibold"
+                  [class.text-amber-700]="card.status === 'under'"
+                  [class.text-red-600]="card.status === 'over'"
+                >
+                  {{ card.percent }}%
+                </p>
+                <ico
+                  name="chevron-right"
+                  size="sm"
+                  class="text-secondary transition-transform duration-200"
+                  [class.rotate-90]="isCardExpanded(card)"
+                ></ico>
+              </div>
             </div>
-            <p
-              class="text-sm title-font font-semibold"
-              [class.text-amber-700]="card.status === 'under'"
-              [class.text-red-600]="card.status === 'over'"
-            >
-              {{ card.percent }}%
-            </p>
-          </div>
 
-          <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
-            <div
-              class="h-full rounded-full min-w-0 budget-progress-fill"
-              [style.width.%]="progressBarsShown() ? (card.percent > 100 ? 100 : card.percent) : 0"
-              [style.background-color]="categoryBarColor(card)"
-            ></div>
-          </div>
-
-          @if (card.status === 'over' && card.overAmount > 0) {
-            <p class="text-xs text-red-600 title-font font-medium">
-              {{ card.overAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }} over this
-              category's budget
-              <span class="text-secondary font-light font-sans">
-                ({{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent ·
-                {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit)
-              </span>
-            </p>
-          } @else {
-            <div class="flex justify-between text-xs text-secondary font-light">
-              <span>
-                {{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
-              </span>
-              <span>
-                {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit
-              </span>
+            <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
+              <div
+                class="h-full rounded-full min-w-0 budget-progress-fill"
+                [style.width.%]="
+                  progressBarsShown() ? (card.percent > 100 ? 100 : card.percent) : 0
+                "
+                [ngClass]="categoryBarClass(card)"
+              ></div>
             </div>
-          }
+
+            @if (card.status === 'over' && card.overAmount > 0) {
+              <p class="text-xs text-red-600 title-font font-medium">
+                {{ card.overAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }} over this
+                category's budget
+                <span class="text-secondary font-light font-sans">
+                  ({{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent ·
+                  {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit)
+                </span>
+              </p>
+            } @else {
+              <div class="flex justify-between text-xs text-secondary font-light">
+                <span>
+                  {{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
+                </span>
+                <span>
+                  {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit
+                </span>
+              </div>
+            }
+
+            <!-- Expandable action buttons -->
+            @if (isCardExpanded(card)) {
+              <div class="flex gap-2 items-center justify-between">
+                <div
+                  class="flex items-center gap-1 text-xs rounded-xl px-3 py-2 text-primary font-light card selected-card cursor-pointer"
+                  (click)="onSeeTransactions($event, card)"
+                >
+                  <ico name="arrow-right-left" size="sm"></ico>
+                  <span>See transactions</span>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 text-sm button-yellow rounded-xl p-3 font-light"
+                    (click)="onEditBudget($event, card)"
+                  >
+                    <ico name="pencil" size="sm"></ico>
+                  </button>
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 text-sm button-red rounded-xl p-3 font-light"
+                    [disabled]="deleting()"
+                    (click)="onDeleteRequest($event, card)"
+                  >
+                    <ico name="trash" size="sm"></ico>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
         </div>
       }
     </div>
   }
 </div>
+
+<!-- Delete budget confirmation -->
+<app-confirm-prompt
+  [(open)]="deletePromptOpen"
+  title="Delete budget?"
+  [message]="
+    'Remove the ' +
+    (deletingCard()?.category ?? '') +
+    ' budget for ' +
+    summary().monthLabel +
+    '? This won\'t affect existing transactions.'
+  "
+  icon="trash"
+  confirmText="Delete"
+  cancelText="Cancel"
+  severity="danger"
+  (confirmed)="onDeleteConfirmed($event)"
+/>

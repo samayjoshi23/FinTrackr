@@ -91,10 +91,16 @@
       <div class="flex flex-col gap-2 mt-2">
         <button
           type="submit"
-          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+          [disabled]="saving()"
         >
-          <span>Save changes</span>
-          <ico name="right-arrow" size="sm"></ico>
+          @if (saving()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Saving…</span>
+          } @else {
+            <span>Save changes</span>
+            <ico name="right-arrow" size="sm"></ico>
+          }
         </button>
       </div>
     </form>

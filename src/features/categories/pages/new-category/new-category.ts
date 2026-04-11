@@ -1,8 +1,9 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
+import { AccountsService } from '../../../../services/accounts.service';
 import { CategoriesService } from '../../../../services/categories.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
@@ -18,6 +19,8 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 })
 export class NewCategory {
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
+  private readonly accountsService = inject(AccountsService);
   private readonly categoriesService = inject(CategoriesService);
   private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
@@ -30,9 +33,10 @@ export class NewCategory {
   categoryName = '';
   description = '';
   selectedIcon = 'tags';
+  saving = signal(false);
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     this.selectedAccount.set(account);
     try {
       const list = await this.categoriesService.getCategories();
@@ -63,7 +67,7 @@ export class NewCategory {
   }
 
   onBack() {
-    this.router.navigateByUrl('/user/categories');
+    this.location.back();
   }
 
   async onCreate(form: NgForm) {
@@ -99,13 +103,16 @@ export class NewCategory {
       icon: this.selectedIcon || 'tags',
     };
 
+    this.saving.set(true);
     try {
       const created = await this.categoriesService.createCategory(payload);
       await this.reportsService.appendCategoryToCurrentMonthReport(created.uid, created.name);
-      this.router.navigateByUrl('/user/categories');
+      this.router.navigateByUrl('/user/categories', { replaceUrl: true });
     } catch (err) {
       console.error(err);
       this.notifier.error('Could not create category.');
+    } finally {
+      this.saving.set(false);
     }
   }
 }

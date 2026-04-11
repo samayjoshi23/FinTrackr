@@ -13,9 +13,9 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Goal, GoalCreateInput, GoalUpdateInput } from '../shared/models/goal.model';
-import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
+import { AccountsService } from './accounts.service';
 import { date, docCalendarDate } from '../core/date';
 
 const GOALS_COLLECTION = 'goals';
@@ -26,25 +26,22 @@ export class GoalsService {
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
+  private readonly accountsService = inject(AccountsService);
 
-  private get currentAccount(): Account | null {
-    return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-  }
-
-  private selectedAccountKey(): string | null {
-    const a = this.currentAccount;
+  private async selectedAccountKey(): Promise<string | null> {
+    const a = await this.accountsService.getSelectedAccount();
     return a?.uid ?? a?.id ?? null;
   }
 
-  private requireSelectedAccountKey(): string {
-    const id = this.selectedAccountKey();
+  private async requireSelectedAccountKey(): Promise<string> {
+    const id = await this.selectedAccountKey();
     if (!id) throw new Error('No account selected.');
     return id;
   }
 
   async createGoal(data: GoalCreateInput, userId?: string): Promise<Goal> {
     const uid = userId ?? this.requireUid();
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<Goal>(
       'goals',
@@ -82,7 +79,7 @@ export class GoalsService {
 
   async applyPendingGoalCreate(docId: string, data: GoalCreateInput): Promise<void> {
     const uid = this.requireUid();
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     const ref = doc(this.firestore, GOALS_COLLECTION, docId);
     await setDoc(ref, {
@@ -150,7 +147,7 @@ export class GoalsService {
   }
 
   async getGoals(): Promise<Goal[]> {
-    const accountId = this.selectedAccountKey();
+    const accountId = await this.selectedAccountKey();
     if (!accountId) return [];
     return this.offlineCrud.fetchAll<Goal>(
       'goals',

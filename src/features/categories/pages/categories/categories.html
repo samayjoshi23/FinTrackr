@@ -20,23 +20,60 @@
   } @else {
     <div class="flex flex-col gap-3">
       @for (c of categories(); track c.uid) {
-        <div
-          class="card rounded-xl p-4 flex items-center gap-3 w-full text-left cursor-pointer border-0"
-          (click)="onEdit(c)"
-        >
+        <div class="card rounded-xl p-4 flex items-center gap-3 w-full text-left border-0">
+          <!-- Icon -->
           <div
             class="h-11 w-11 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
           >
-            <ico [name]="c.icon" size="sm" class="text-primary"></ico>
+            <ico [name]="c.icon" size="md" class="text-primary"></ico>
           </div>
-          <div class="flex flex-col gap-0.5 min-w-0">
+
+          <!-- Name & description -->
+          <div class="flex flex-col gap-0.5 min-w-0 flex-1">
             <p class="text-sm font-semibold title-font truncate">{{ c.name }}</p>
             @if (c.description) {
               <p class="text-xs text-secondary font-light line-clamp-2">{{ c.description }}</p>
             }
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              title="Edit category"
+              class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
+              (click)="$event.stopPropagation(); onEdit(c)"
+            >
+              <ico name="pencil" size="sm"></ico>
+            </button>
+            <button
+              type="button"
+              title="Delete category"
+              class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-red"
+              [disabled]="deleting()"
+              (click)="onDeleteRequest($event, c)"
+            >
+              <ico name="trash" size="sm"></ico>
+            </button>
           </div>
         </div>
       }
     </div>
   }
 </div>
+
+<!-- Delete confirmation -->
+<app-confirm-prompt
+  [(open)]="deletePromptOpen"
+  title="Delete category?"
+  [message]="
+    'Delete \'' +
+    (deletingCategory()?.name ?? '') +
+    '\'? Existing transactions will keep their category label, but the category entry will be removed.'
+  "
+  icon="trash"
+  confirmText="Delete"
+  cancelText="Cancel"
+  severity="danger"
+  (confirmed)="onDeleteConfirmed($event)"
+/>

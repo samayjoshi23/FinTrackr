@@ -188,15 +188,6 @@ export class AccountsService {
       cached.updatedAt = new Date();
       cached._pendingSync = true;
       await this.cache.put('accounts', cached);
-      // Also update localStorage
-      const currentRaw = localStorage.getItem('currentAccount');
-      if (currentRaw) {
-        const current = JSON.parse(currentRaw) as Account;
-        if (current.id === accountDocId) {
-          current.balance = cached.balance;
-          localStorage.setItem('currentAccount', JSON.stringify(current));
-        }
-      }
       return cached.balance;
     }
     throw new Error('Account not found in cache.');
@@ -233,6 +224,22 @@ export class AccountsService {
     );
   }
 
+  /**
+   * Active account from IndexedDB: `isSelected === true`, else first account for the user.
+   */
+  async getSelectedAccount(): Promise<Account | null> {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) return null;
+    const accounts = await this.getAccounts(uid);
+    if (accounts.length === 0) return null;
+    return accounts.find((a) => a.isSelected) ?? accounts[0];
+  }
+
+  /** Persist an account row to the local cache (e.g. optimistic balance after a local-first save). */
+  async writeAccountToCache(account: Account): Promise<void> {
+    await this.cache.put('accounts', account);
+  }
+
   /** Get the account doc by user id (defaults to current user). */
   async getAccount(userId?: string): Promise<Account | null> {
     const uid = userId ?? this.requireUid();
@@ -259,7 +266,7 @@ export class AccountsService {
   }
 
   /**
-   * Marks one account selected in Firestore (`isSelected`) and caches it in localStorage.
+   * Marks one account selected in Firestore (`isSelected`) and IndexedDB.
    * Pass `accountId` as the Firestore document id (`Account.id`). Omit to resolve from flags/first.
    */
   async selectAccount(accountId?: string | null): Promise<Account | null> {
@@ -300,7 +307,6 @@ export class AccountsService {
 
     refreshed.isSelected = true;
     refreshed.isActive = true;
-    localStorage.setItem('currentAccount', JSON.stringify(refreshed));
     return refreshed;
   }
 
@@ -327,12 +333,6 @@ export class AccountsService {
         await deleteDoc(ref);
       },
     );
-
-    const currentRaw = localStorage.getItem('currentAccount');
-    const current = currentRaw ? (JSON.parse(currentRaw) as Account) : null;
-    if (current?.id === accountDocId) {
-      localStorage.removeItem('currentAccount');
-    }
 
     await this.selectAccount(null);
   }

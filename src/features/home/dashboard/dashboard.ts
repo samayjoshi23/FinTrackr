@@ -11,8 +11,9 @@ import { CategoryBreakdownEntry, MonthlyReport } from '../../../shared/models/re
 import { Router } from '@angular/router';
 import { NotifierService } from '../../../shared/components/notifier/notifier.service';
 import { TransactionRecord } from '../../../shared/models/transaction.model';
-import { budgetUsageFillColor } from '../../../shared/utils/budget-usage-color';
+import { budgetUsageBarClass } from '../../../shared/utils/budget-usage-color';
 import { TransactionDetailModal } from '../../../shared/components/transaction-detail-modal/transaction-detail-modal';
+import { RecordAction, RecordActionType } from '../../../shared/enums/recordActions.enum';
 
 @Component({
   selector: 'app-dashboard',
@@ -62,7 +63,7 @@ export class Dashboard {
     const p = this.budgetUsedPercent();
     return `${Math.min(100, Math.max(0, p))}%`;
   });
-  budgetBarFillColor = computed(() => budgetUsageFillColor(this.budgetUsedPercent()));
+  budgetBarFillClass = computed(() => budgetUsageBarClass(this.budgetUsedPercent()));
   budgetRemaining = computed(() => this.monthlyBudgetTotal() - this.monthlyExpense());
   /** Positive amount past the monthly budget total. */
   budgetOverAmount = computed(() => Math.max(0, this.monthlyExpense() - this.monthlyBudgetTotal()));
@@ -75,11 +76,19 @@ export class Dashboard {
     this.userProfile.set(profile ?? null);
     this.setUserInitials();
     this.setGreetingMessage();
-    let account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+
+    await this.initDashboard();
+  }
+
+  async initDashboard(): Promise<void> {
+    let account = await this.accountsService.getSelectedAccount();
+    if (!account) {
+      account = await this.accountsService.selectAccount(null);
+    }
     this.selectedAccount.set(account ?? null);
     this.currency.set(account?.currency ?? 'INR');
     if (this.selectedAccount()) {
-      const [recentTransactions] = await Promise.all([
+      const [recentTransactions, report] = await Promise.all([
         this.transactionsService.getTransactionsPage(
           {
             search: '',
@@ -92,6 +101,7 @@ export class Dashboard {
         ),
         this.reportsService.ensureCurrentMonthReport(),
       ]);
+      this.applyMonthlyReport(report);
       this.recentTransactions.set(recentTransactions.items);
     }
 
@@ -205,5 +215,18 @@ export class Dashboard {
   openTransactionDetail(t: TransactionRecord): void {
     this.selectedTransaction.set(t);
     this.txDetailOpen.set(true);
+  }
+
+  async onTransactionUpdated(event: {
+    transaction: TransactionRecord | null;
+    action: RecordActionType;
+  }): Promise<void> {
+    let { transaction, action } = event;
+    await this.initDashboard();
+    if (transaction && action === RecordAction.UPDATE) {
+      this.selectedTransaction.set(transaction);
+    } else if (action === RecordAction.DELETE) {
+      this.selectedTransaction.set(null);
+    }
   }
 }

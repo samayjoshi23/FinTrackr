@@ -362,17 +362,24 @@
   <div class="flex flex-col gap-2">
     <button
       type="button"
-      class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+      class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+      [disabled]="stepBusy()"
       (click)="goToNextStep(false)"
     >
-      {{ currentPage() < pages().length ? 'Continue' : 'Finish' }}
-      <ico name="right-arrow" size="sm"></ico>
+      @if (stepBusy()) {
+        <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+        <span>{{ currentPage() < pages().length ? 'Saving…' : 'Finishing…' }}</span>
+      } @else {
+        {{ currentPage() < pages().length ? 'Continue' : 'Finish' }}
+        <ico name="right-arrow" size="sm"></ico>
+      }
     </button>
 
     @if (pages()[currentPage() - 1].skippable) {
       <button
         type="button"
-        class="text-sm text-secondary font-light w-full flex items-center justify-center gap-2 cursor-pointer bg-transparent border-0"
+        class="text-sm text-secondary font-light w-full flex items-center justify-center gap-2 cursor-pointer bg-transparent border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+        [disabled]="stepBusy()"
         (click)="goToNextStep(true)"
       >
         <ico name="forward" size="sm"></ico>

@@ -7,10 +7,12 @@ import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Category } from '../../../categories/types';
+import { AccountsService } from '../../../../services/accounts.service';
 import { CategoriesService } from '../../../../services/categories.service';
 import { Account } from '../../../../shared/models/account.model';
 import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
+import { RecordAction, RecordActionType } from '../../../../shared/enums/recordActions.enum';
 
 @Component({
   selector: 'app-transaction-list',
@@ -23,6 +25,7 @@ export class TransactionList {
   private readonly route = inject(ActivatedRoute);
   private readonly transactionsService = inject(TransactionsService);
   private readonly notifier = inject(NotifierService);
+  private readonly accountsService = inject(AccountsService);
   private readonly categoriesService = inject(CategoriesService);
 
   private readonly pageSize = 25;
@@ -64,7 +67,7 @@ export class TransactionList {
   });
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     this.currency.set(account?.currency ?? 'INR');
 
     this.applyQueryParams();
@@ -231,5 +234,18 @@ export class TransactionList {
   openTransactionDetail(t: TransactionRecord): void {
     this.selectedTransaction.set(t);
     this.txDetailOpen.set(true);
+  }
+
+  async onTransactionUpdated(event: {
+    transaction: TransactionRecord | null;
+    action: RecordActionType;
+  }): Promise<void> {
+    let { transaction, action } = event;
+    if (transaction && action === RecordAction.UPDATE) {
+      this.selectedTransaction.set(transaction);
+    } else if (action === RecordAction.DELETE) {
+      this.selectedTransaction.set(null);
+      await this.reloadFromFilters();
+    }
   }
 }

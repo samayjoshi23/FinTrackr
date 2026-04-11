@@ -6,7 +6,12 @@
       </p>
       @if (currentPage() > 1) {
         <a
-          class="text-sm text-primary font-light flex items-center gap-1 cursor-pointer hover:text-primary-hover hover:gap-2 transition-all duration-300"
+          class="text-sm text-primary font-light flex items-center gap-1 transition-all duration-300"
+          [class.cursor-pointer]="!isStepBusy()"
+          [class.hover:text-primary-hover]="!isStepBusy()"
+          [class.hover:gap-2]="!isStepBusy()"
+          [class.pointer-events-none]="isStepBusy()"
+          [class.opacity-50]="isStepBusy()"
           (click)="goToPreviousStep()"
         >
           <ico name="left-arrow" size="xs"></ico>
@@ -273,15 +278,24 @@
   <div class="flex flex-col gap-2">
     <button
       severity="primary"
-      class="rounded-xl py-3 w-full flex items-center justify-center gap-2"
+      class="rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+      [disabled]="isStepBusy()"
       (click)="goToNextStep(false)"
     >
-      {{ currentPage() < pages().length ? 'Continue' : 'Get started' }}
-      <ico name="right-arrow" size="sm"></ico>
+      @if (isStepBusy()) {
+        <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+        <span>{{ currentPage() < pages().length ? 'Saving…' : 'Finishing…' }}</span>
+      } @else {
+        <span>{{ currentPage() < pages().length ? 'Continue' : 'Get started' }}</span>
+        <ico name="right-arrow" size="sm"></ico>
+      }
     </button>
     @if (pages()[currentPage() - 1].skippable) {
       <p
-        class="text-sm text-secondary font-light w-full flex items-center justify-center gap-2 cursor-pointer"
+        class="text-sm text-secondary font-light w-full flex items-center justify-center gap-2"
+        [class.cursor-pointer]="!isStepBusy()"
+        [class.pointer-events-none]="isStepBusy()"
+        [class.opacity-50]="isStepBusy()"
         (click)="goToNextStep(true)"
       >
         <ico name="forward" size="sm"></ico>

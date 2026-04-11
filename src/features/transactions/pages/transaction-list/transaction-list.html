@@ -26,23 +26,21 @@
         />
       </div>
       @if (isFilterActive()) {
-        <button
-          type="button"
+        <div
           class="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-primary-light text-primary cursor-pointer"
           (click)="setIsFilterActive(false)"
           aria-label="Clear search"
         >
           <ico name="times" size="sm"></ico>
-        </button>
+        </div>
       } @else {
-        <button
-          type="button"
+        <div
           class="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-secondary-light text-secondary cursor-pointer"
           (click)="setIsFilterActive(true)"
           aria-label="Clear search"
         >
           <ico name="sliders" size="sm"></ico>
-        </button>
+        </div>
       }
     </div>
   </header>
@@ -73,9 +71,12 @@
         @for (item of dateFilters; track item.value) {
           <div
             class="rounded-full px-3 py-1 text-xs cursor-pointer flex items-center justify-center {{
-              isDateChipActive(item.value) ? 'purple-card-selected' : 'card text-secondary'
+              isDateChipActive(item.value)
+                ? 'purple-card purple-card-selected'
+                : 'card text-secondary'
             }}"
             (click)="setDateFilter(item.value)"
+            aria-label="Select date"
           >
             {{ item.label }}
           </div>
@@ -90,9 +91,12 @@
         @for (label of categoryChipLabels(); track label) {
           <div
             class="rounded-full px-3 py-1 text-xs cursor-pointer flex items-center justify-center {{
-              isCategoryChipActive(label) ? 'purple-card-selected' : 'card text-secondary'
+              isCategoryChipActive(label)
+                ? 'purple-card purple-card-selected'
+                : 'card text-secondary'
             }}"
             (click)="setCategoryChip(label)"
+            aria-label="Select category"
           >
             {{ label }}
           </div>
@@ -172,5 +176,6 @@
     [(open)]="txDetailOpen"
     [transaction]="selectedTransaction()"
     [currency]="currency()"
+    (transactionUpdated)="onTransactionUpdated($event)"
   />
 </div>

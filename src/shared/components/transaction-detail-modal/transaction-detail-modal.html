@@ -1,89 +1,174 @@
-<app-modal [(open)]="open" title="Transaction details">
+<app-modal [(open)]="open" [title]="editMode() ? 'Edit amount' : 'Transaction details'">
   @if (transaction(); as tx) {
-    <div class="flex flex-col gap-4">
-      @if (tx.description.trim()) {
-        <p class="text-sm leading-relaxed text-[var(--color-text)]">{{ tx.description }}</p>
-      }
+    @if (editMode()) {
+      <!-- Edit mode: amount input only -->
+      <div class="flex flex-col gap-5">
+        <p class="text-sm text-secondary leading-relaxed">
+          Editing amount for
+          <span class="font-medium text-[var(--color-text)]">{{
+            tx.description || 'this transaction'
+          }}</span>
+        </p>
 
-      <div
-        class="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3"
-      >
-        <div
-          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-light"
-        >
-          <ico [name]="iconFor(tx)" size="md" class="text-primary"></ico>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            class="w-full"
+            placeholder="0.00"
+            [ngModel]="editAmountValue()"
+            (ngModelChange)="editAmountValue.set($event)"
+            min="0.01"
+            step="0.01"
+            autocomplete="off"
+          />
         </div>
-        <div class="min-w-0 flex-1">
-          <p class="text-xs text-secondary">Amount</p>
-          <p
-            class="text-xl title-font font-semibold tabular-nums"
-            [class.text-income]="tx.type === 'income'"
-            [class.text-expense]="tx.type !== 'income'"
+
+        <div class="flex gap-3">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-secondary"
+            [disabled]="saving()"
+            (click)="onEditCancel()"
           >
-            {{ tx.type === 'income' ? '+' : '-' }}
-            {{ tx.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
-          </p>
-          <p class="mt-0.5 text-xs capitalize text-secondary">{{ tx.type }}</p>
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-primary flex items-center justify-center gap-2 disabled:opacity-60"
+            [disabled]="saving()"
+            (click)="onEditSave(tx)"
+          >
+            @if (saving()) {
+              <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+              <span>Saving…</span>
+            } @else {
+              <span>Save</span>
+            }
+          </button>
         </div>
       </div>
+    } @else {
+      <!-- View mode -->
+      <div class="flex flex-col gap-4">
+        <!-- Description row with edit & delete actions -->
+        <div class="flex items-start justify-between gap-3 min-h-[1.5rem]">
+          @if (tx.description.trim()) {
+            <p class="font-semibold leading-relaxed text-[var(--color-text)]">
+              {{ tx.description }}
+            </p>
+          } @else {
+            <span></span>
+          }
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
+              (click)="onEditStart(tx)"
+            >
+              <ico name="pencil" size="sm"></ico>
+            </button>
+            <div
+              type="button"
+              class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-red"
+              (click)="onDeleteRequested()"
+            >
+              <ico name="trash" size="sm"></ico>
+            </div>
+          </div>
+        </div>
 
-      <dl class="flex flex-col gap-3 text-sm">
-        <div class="flex justify-between gap-4">
-          <dt class="text-secondary shrink-0">Category</dt>
-          <dd class="min-w-0 text-right font-medium">{{ tx.category || '—' }}</dd>
-        </div>
-        <div class="flex justify-between gap-4">
-          <dt class="text-secondary shrink-0">Source / label</dt>
-          <dd class="min-w-0 text-right font-medium">{{ sourceLabel(tx) }}</dd>
-        </div>
-        @if (tx.date?.trim()) {
-          <div class="flex justify-between gap-4">
-            <dt class="text-secondary shrink-0">Transaction date</dt>
-            <dd class="min-w-0 text-right font-medium">{{ tx.date }}</dd>
+        <!-- Amount card -->
+        <div
+          class="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3"
+        >
+          <div
+            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-light"
+          >
+            <ico [name]="iconFor(tx)" size="md" class="text-primary"></ico>
           </div>
-        }
-        <div class="flex justify-between gap-4">
-          <dt class="text-secondary shrink-0">Recorded on</dt>
-          <dd class="min-w-0 text-right font-medium">
-            {{ tx.createdAt ? (tx.createdAt | date: 'medium') : '—' }}
-          </dd>
-        </div>
-        @if (
-          tx.updatedAt &&
-          tx.createdAt &&
-          tx.updatedAt.getTime() !== tx.createdAt.getTime()
-        ) {
-          <div class="flex justify-between gap-4">
-            <dt class="text-secondary shrink-0">Last updated</dt>
-            <dd class="min-w-0 text-right font-medium">{{ tx.updatedAt | date: 'medium' }}</dd>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs text-secondary">Amount</p>
+            <p
+              class="text-xl title-font font-semibold tabular-nums"
+              [class.text-income]="tx.type === 'income'"
+              [class.text-expense]="tx.type !== 'income'"
+            >
+              {{ tx.type === 'income' ? '+' : '-' }}
+              {{ tx.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+            </p>
           </div>
-        }
-        @if (tx.isRecurring) {
+        </div>
+
+        <!-- Details list -->
+        <dl class="flex flex-col gap-3 text-sm">
           <div class="flex justify-between gap-4">
-            <dt class="text-secondary shrink-0">Recurring</dt>
+            <dt class="text-secondary shrink-0">Category</dt>
+            <dd class="min-w-0 text-right font-medium">{{ tx.category || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Source / label</dt>
+            <dd class="min-w-0 text-right font-medium">{{ sourceLabel(tx) }}</dd>
+          </div>
+          @if (tx.date?.trim()) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary shrink-0">Transaction date</dt>
+              <dd class="min-w-0 text-right font-medium">{{ tx.date }}</dd>
+            </div>
+          }
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary shrink-0">Recorded on</dt>
             <dd class="min-w-0 text-right font-medium">
-              Yes
-              @if (tx.recurringFrequency?.trim()) {
-                <span class="text-secondary"> · {{ tx.recurringFrequency }}</span>
-              }
+              {{ tx.createdAt ? (tx.createdAt | date: 'medium') : '—' }}
             </dd>
           </div>
-        }
-        @if (tx.nextPaymentDate) {
-          <div class="flex justify-between gap-4">
-            <dt class="text-secondary shrink-0">Next payment</dt>
-            <dd class="min-w-0 text-right font-medium">
-              {{ tx.nextPaymentDate | date: 'mediumDate' }}
-            </dd>
-          </div>
-        }
-        @if (tx.isAutoPay != null) {
-          <div class="flex justify-between gap-4">
-            <dt class="text-secondary shrink-0">Auto pay</dt>
-            <dd class="min-w-0 text-right font-medium">{{ tx.isAutoPay ? 'Yes' : 'No' }}</dd>
-          </div>
-        }
-      </dl>
-    </div>
+          @if (tx.updatedAt && tx.createdAt && tx.updatedAt.getTime() !== tx.createdAt.getTime()) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary shrink-0">Last updated</dt>
+              <dd class="min-w-0 text-right font-medium">{{ tx.updatedAt | date: 'medium' }}</dd>
+            </div>
+          }
+          @if (tx.isRecurring) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary shrink-0">Recurring</dt>
+              <dd class="min-w-0 text-right font-medium">
+                Yes
+                @if (tx.recurringFrequency?.trim()) {
+                  <span class="text-secondary"> · {{ tx.recurringFrequency }}</span>
+                }
+              </dd>
+            </div>
+          }
+          @if (tx.nextPaymentDate) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary shrink-0">Next payment</dt>
+              <dd class="min-w-0 text-right font-medium">
+                {{ tx.nextPaymentDate | date: 'mediumDate' }}
+              </dd>
+            </div>
+          }
+          @if (tx.isAutoPay != null) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary shrink-0">Auto pay</dt>
+              <dd class="min-w-0 text-right font-medium">{{ tx.isAutoPay ? 'Yes' : 'No' }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+    }
   }
+
+  <!-- Delete confirmation prompt (renders on top as a separate modal) -->
+  <app-confirm-prompt
+    [(open)]="deletePromptOpen"
+    title="Delete transaction?"
+    message="This will permanently remove this transaction and reverse its effect on your account balance."
+    icon="trash"
+    confirmText="Delete"
+    cancelText="Cancel"
+    severity="danger"
+    (confirmed)="onDeleteConfirmed($event)"
+  />
 </app-modal>

@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
+  deleteDoc,
   doc,
   Firestore,
   getDoc,
@@ -19,9 +20,9 @@ import {
   CategoryUpdateInput,
   DEFAULT_CATEGORIES,
 } from '../features/categories/types';
-import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
+import { AccountsService } from './accounts.service';
 import { date, docCalendarDate } from '../core/date';
 
 const CATEGORIES_COLLECTION = 'categories';
@@ -32,25 +33,22 @@ export class CategoriesService {
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
+  private readonly accountsService = inject(AccountsService);
 
-  private get currentAccount(): Account | null {
-    return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-  }
-
-  private selectedAccountKey(): string | null {
-    const a = this.currentAccount;
+  private async selectedAccountKey(): Promise<string | null> {
+    const a = await this.accountsService.getSelectedAccount();
     return a?.uid ?? a?.id ?? null;
   }
 
-  private requireSelectedAccountKey(): string {
-    const id = this.selectedAccountKey();
+  private async requireSelectedAccountKey(): Promise<string> {
+    const id = await this.selectedAccountKey();
     if (!id) throw new Error('No account selected.');
     return id;
   }
 
   async getCategories(): Promise<Category[]> {
     const uid = this.requireUid();
-    const accountId = this.selectedAccountKey();
+    const accountId = await this.selectedAccountKey();
     if (!accountId) return [];
     return this.offlineCrud.fetchAll<Category>(
       'categories',
@@ -77,7 +75,7 @@ export class CategoriesService {
 
   async createCategory(data: CategoryCreateInput, userId?: string): Promise<Category> {
     const uid = userId ?? this.requireUid();
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<Category>(
       'categories',
@@ -113,7 +111,7 @@ export class CategoriesService {
 
   async applyPendingCategoryCreate(docId: string, data: CategoryCreateInput): Promise<void> {
     const uid = this.requireUid();
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     const ref = doc(this.firestore, CATEGORIES_COLLECTION, docId);
     await setDoc(ref, {
@@ -169,6 +167,18 @@ export class CategoriesService {
     );
   }
 
+  async deleteCategory(categoryId: string): Promise<void> {
+    await this.offlineCrud.remove('categories', categoryId, async () => {
+      const uid = this.requireUid();
+      const categoryRef = doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`);
+      const existing = await getDoc(categoryRef);
+      if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+        throw new Error('Category not found or access denied.');
+      }
+      await deleteDoc(categoryRef);
+    });
+  }
+
   /** Direct Firestore read bypassing offline layer (used internally after create). */
   private async getCategoryDirect(categoryId: string, uid: string): Promise<Category | null> {
     const snap = await getDoc(doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`));
@@ -201,7 +211,7 @@ export class CategoriesService {
   }
 
   async addDefaultCategories() {
-    const accountId = this.requireSelectedAccountKey();
+    const accountId = await this.requireSelectedAccountKey();
     DEFAULT_CATEGORIES.forEach(async (category: Category) => {
       let categoryData: CategoryCreateInput = {
         name: category.name,

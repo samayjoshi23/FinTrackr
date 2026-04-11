@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -17,6 +17,7 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 })
 export class EditCategory {
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly categoriesService = inject(CategoriesService);
   private readonly reportsService = inject(ReportsService);
@@ -37,6 +38,7 @@ export class EditCategory {
   description = '';
   selectedIcon = 'tags';
   loading = signal(true);
+  saving = signal(false);
 
   async ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
@@ -44,7 +46,7 @@ export class EditCategory {
     if (!id) {
       this.loading.set(false);
       this.notifier.error('Missing category.');
-      this.router.navigateByUrl('/user/categories');
+      this.router.navigateByUrl('/user/categories', { replaceUrl: true });
       return;
     }
 
@@ -56,14 +58,14 @@ export class EditCategory {
       this.allCategories.set(all ?? []);
       if (!row) {
         this.notifier.error('Category not found.');
-        this.router.navigateByUrl('/user/categories');
+        this.router.navigateByUrl('/user/categories', { replaceUrl: true });
         return;
       }
       this.applyCategory(row);
     } catch (err) {
       console.error(err);
       this.notifier.error('Could not load category.');
-      this.router.navigateByUrl('/user/categories');
+      this.router.navigateByUrl('/user/categories', { replaceUrl: true });
     } finally {
       this.loading.set(false);
     }
@@ -100,7 +102,7 @@ export class EditCategory {
   }
 
   onBack() {
-    this.router.navigateByUrl('/user/categories');
+    this.location.back();
   }
 
   async onSave(form: NgForm) {
@@ -125,6 +127,7 @@ export class EditCategory {
       return;
     }
 
+    this.saving.set(true);
     try {
       await this.categoriesService.updateCategory(this.categoryId, {
         name,
@@ -132,10 +135,12 @@ export class EditCategory {
         icon: this.selectedIcon || 'tags',
       });
       await this.reportsService.patchCategoryNameInCurrentMonthReport(this.categoryId, name);
-      this.router.navigateByUrl('/user/categories');
+      this.router.navigateByUrl('/user/categories', { replaceUrl: true });
     } catch (err) {
       console.error(err);
       this.notifier.error('Could not update category.');
+    } finally {
+      this.saving.set(false);
     }
   }
 }

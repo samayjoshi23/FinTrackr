@@ -84,6 +84,9 @@ export class Onboarding {
 
   onboardingCategories = signal<Category[]>([]);
 
+  /** True while a step save or final navigation runs. */
+  isStepBusy = signal(false);
+
   get rawForm() {
     return this.formModel;
   }
@@ -111,17 +114,17 @@ export class Onboarding {
         await this.refreshOnboardingCategoriesFromServer();
         await this.hydrateBudgetAndGoalFromServer();
       } else {
-        const cached = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-        if (cached && (cached.ownerId === uid || cached.id === uid)) {
-          this.patchAccountIntoSession(cached);
+        const selected = await this.accountsService.getSelectedAccount();
+        if (selected && (selected.ownerId === uid || selected.id === uid)) {
+          this.patchAccountIntoSession(selected);
           await this.refreshOnboardingCategoriesFromServer();
           await this.hydrateBudgetAndGoalFromServer();
         }
       }
     } catch {
-      const cached = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-      if (cached && (cached.ownerId === uid || cached.id === uid)) {
-        this.patchAccountIntoSession(cached);
+      const selected = await this.accountsService.getSelectedAccount();
+      if (selected && (selected.ownerId === uid || selected.id === uid)) {
+        this.patchAccountIntoSession(selected);
         await this.refreshOnboardingCategoriesFromServer();
         await this.hydrateBudgetAndGoalFromServer();
       }
@@ -130,7 +133,6 @@ export class Onboarding {
 
   private patchAccountIntoSession(account: Account): void {
     this.ids.update((s) => ({ ...s, accountId: account.id }));
-    localStorage.setItem('currentAccount', JSON.stringify(account));
     if (!this.formModel.account.name?.trim()) this.formModel.account.name = account.name ?? '';
     if (this.formModel.account.balance === '' || this.formModel.account.balance == null) {
       this.formModel.account.balance = String(account.balance ?? '');
@@ -251,15 +253,27 @@ export class Onboarding {
   }
 
   goToPreviousStep() {
+    if (this.isStepBusy()) return;
     this.currentPage.set(this.currentPage() - 1);
   }
 
+  private async withStepBusy<T>(fn: () => Promise<T>): Promise<T> {
+    this.isStepBusy.set(true);
+    try {
+      return await fn();
+    } finally {
+      this.isStepBusy.set(false);
+    }
+  }
+
   async goToNextStep(isSkipping: boolean = false) {
+    if (this.isStepBusy()) return;
+
     if (!isSkipping) {
       switch (this.currentPage()) {
         case 1: {
           if (!this.rawForm.user.fullName?.trim()) return;
-          const err = await this.runStepUpdateProfile();
+          const err = await this.withStepBusy(() => this.runStepUpdateProfile());
           if (err) {
             console.error(err);
             return;
@@ -271,7 +285,7 @@ export class Onboarding {
           break;
         case 3: {
           if (!this.rawForm.account.currency) return;
-          const err = await this.runStepCreateAccountAndCategories();
+          const err = await this.withStepBusy(() => this.runStepCreateAccountAndCategories());
           if (err) {
             console.error(err);
             return;
@@ -287,7 +301,7 @@ export class Onboarding {
           const catUid = this.formModel.budget.categoryUid?.trim();
           if (lim || catUid) {
             if (!lim || !catUid) return;
-            const err = await this.runStepCreateBudget();
+            const err = await this.withStepBusy(() => this.runStepCreateBudget());
             if (err) {
               console.error(err);
               return;
@@ -302,7 +316,7 @@ export class Onboarding {
           if (!g.name?.trim() || g.target === '' || !g.dueDate || !hasCurrent) {
             return;
           }
-          const err = await this.runStepCreateGoal();
+          const err = await this.withStepBusy(() => this.runStepCreateGoal());
           if (err) {
             console.error(err);
             return;
@@ -357,28 +371,32 @@ export class Onboarding {
   }
 
   private async finalizeOnboarding() {
-    const uid = this.userProfile()?.['uid'] as string;
-    if (uid) {
-      await this.authService.markOnboarded(uid);
-    }
+    this.isStepBusy.set(true);
+    try {
+      const uid = this.userProfile()?.['uid'] as string;
+      if (uid) {
+        await this.authService.markOnboarded(uid);
+      }
 
-    const accountId = this.ids().accountId;
-    const cats = this.onboardingCategories();
-    if (accountId && cats.length > 0) {
-      const b = this.formModel.budget;
-      const budgetMeta =
-        b.limit && b.categoryUid ? { categoryUid: b.categoryUid, limit: Number(b.limit) } : null;
-      // Last step: starter `monthlyReports` row (IDB + queue + Firestore when online) — zeros + category breakdown.
-      await this.reportsService
-        .createOnboardingStarterMonthlyReport(
-          accountId,
-          cats.map((c) => ({ uid: c.uid, name: c.name })),
-          budgetMeta,
-        )
-        .catch(() => {});
-    }
+      const accountId = this.ids().accountId;
+      const cats = this.onboardingCategories();
+      if (accountId && cats.length > 0) {
+        const b = this.formModel.budget;
+        const budgetMeta =
+          b.limit && b.categoryUid ? { categoryUid: b.categoryUid, limit: Number(b.limit) } : null;
+        await this.reportsService
+          .createOnboardingStarterMonthlyReport(
+            accountId,
+            cats.map((c) => ({ uid: c.uid, name: c.name })),
+            budgetMeta,
+          )
+          .catch(() => {});
+      }
 
-    this.router.navigateByUrl('/user/dashboard');
+      await this.router.navigateByUrl('/user/dashboard');
+    } finally {
+      this.isStepBusy.set(false);
+    }
   }
 
   onSelectCurrency(value: string) {
@@ -442,7 +460,6 @@ export class Onboarding {
       account = await this.accountsService.createAccount(accountData, ownerId);
       this.ids.update((s) => ({ ...s, accountId: account!.id }));
     }
-    if (account) localStorage.setItem('currentAccount', JSON.stringify(account));
   }
 
   /**
@@ -487,7 +504,7 @@ export class Onboarding {
       limit: budgetForm.limit,
       month: budgetForm.month,
       accountId: this.ids().accountId,
-      name: cat ? `${cat.name} budget` : 'Budget',
+      name: cat?.name ?? 'Budget',
       category: cat?.name ?? '',
       categoryId: budgetForm.categoryUid?.trim() || undefined,
     };

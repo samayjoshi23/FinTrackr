@@ -14,6 +14,9 @@ export class Modal {
   /** True while the sheet is animating out. */
   readonly closing = signal(false);
 
+  /** If `transitionend` never fires (browser quirks), still tear down the overlay. */
+  private closeFallbackTimer?: ReturnType<typeof setTimeout>;
+
   readonly title = input<string>('');
   /** When set, renders this template instead of default projected content. */
   readonly bodyTemplate = input<TemplateRef<unknown> | null>(null);
@@ -40,13 +43,26 @@ export class Modal {
   beginClose(): void {
     if (this.closing() || !this.open()) return;
     this.closing.set(true);
+    if (this.closeFallbackTimer) clearTimeout(this.closeFallbackTimer);
+    this.closeFallbackTimer = setTimeout(() => {
+      this.closeFallbackTimer = undefined;
+      if (this.closing()) this.finalizeClose();
+    }, 650);
+  }
+
+  private finalizeClose(): void {
+    if (this.closeFallbackTimer) {
+      clearTimeout(this.closeFallbackTimer);
+      this.closeFallbackTimer = undefined;
+    }
+    this.open.set(false);
+    this.closing.set(false);
   }
 
   onPanelTransitionEnd(event: TransitionEvent): void {
     if (!this.closing()) return;
     if (event.target !== event.currentTarget) return;
     if (event.propertyName !== 'transform') return;
-    this.open.set(false);
-    this.closing.set(false);
+    this.finalizeClose();
   }
 }

@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -79,6 +79,7 @@ export class CreateAccount {
   private readonly usersLookup = inject(UsersLookupService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   readonly pages = signal(CREATE_ACCOUNT_PAGES);
   readonly limits = FORM_LIMITS;
@@ -118,6 +119,8 @@ export class CreateAccount {
   /** Set after step 3 create + seed. */
   createdAccount = signal<Account | null>(null);
   accountCommitted = signal(false);
+  /** True while creating account, budget, goal, or finishing. */
+  stepBusy = signal(false);
 
   private ownerUid = '';
 
@@ -215,7 +218,7 @@ export class CreateAccount {
   goToPreviousStep() {
     const page = this.currentPage();
     if (page === 1) {
-      void this.router.navigateByUrl('/user/settings');
+      this.location.back();
       return;
     }
     if (page === 4 && this.accountCommitted()) {
@@ -234,6 +237,7 @@ export class CreateAccount {
   }
 
   async goToNextStep(skip = false) {
+    if (this.stepBusy()) return;
     if (!skip) {
       switch (this.currentPage()) {
         case 1: {
@@ -254,10 +258,15 @@ export class CreateAccount {
         }
         case 3: {
           if (!this.accountCommitted()) {
-            const err = await this.runCreateAccountAndSeedCategories();
-            if (err) {
-              console.error(err);
-              return;
+            this.stepBusy.set(true);
+            try {
+              const err = await this.runCreateAccountAndSeedCategories();
+              if (err) {
+                console.error(err);
+                return;
+              }
+            } finally {
+              this.stepBusy.set(false);
             }
           }
           break;
@@ -270,12 +279,15 @@ export class CreateAccount {
               this.notifier.error('Pick a category and budget amount, or skip.');
               return;
             }
+            this.stepBusy.set(true);
             try {
               await this.createBudgetRow();
             } catch (e) {
               console.error(e);
               this.notifier.error('Could not create budget.');
               return;
+            } finally {
+              this.stepBusy.set(false);
             }
           }
           break;
@@ -289,12 +301,15 @@ export class CreateAccount {
               this.notifier.error('Fill all goal fields or skip.');
               return;
             }
+            this.stepBusy.set(true);
             try {
               await this.createGoalRow();
             } catch (e) {
               console.error(e);
               this.notifier.error('Could not create goal.');
               return;
+            } finally {
+              this.stepBusy.set(false);
             }
           }
           break;
@@ -303,7 +318,12 @@ export class CreateAccount {
     }
 
     if (this.currentPage() === this.pages().length) {
-      await this.finalize();
+      this.stepBusy.set(true);
+      try {
+        await this.finalize();
+      } finally {
+        this.stepBusy.set(false);
+      }
       return;
     }
     this.currentPage.set(this.currentPage() + 1);
@@ -337,7 +357,7 @@ export class CreateAccount {
       const account = await this.accountsService.createAdditionalAccount(input);
       this.createdAccount.set(account);
       this.accountCommitted.set(true);
-      localStorage.setItem('currentAccount', JSON.stringify(account));
+      await this.accountsService.selectAccount(account.id);
 
       await this.seedDefaultCategories(account.id, ownerId);
 
@@ -390,7 +410,7 @@ export class CreateAccount {
       limit: this.formModel.budget.limit,
       month: this.formModel.budget.month,
       accountId: acc.id,
-      name: cat ? `${cat.name} budget` : 'Budget',
+      name: cat?.name ?? 'Budget',
       category: cat?.name ?? '',
       categoryId: this.formModel.budget.categoryUid?.trim() || undefined,
     };
@@ -420,7 +440,7 @@ export class CreateAccount {
     try {
       await this.accountsService.selectAccount(acc.id);
       this.notifier.success('Account created.');
-      await this.router.navigateByUrl('/user/settings');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not activate the new account.');

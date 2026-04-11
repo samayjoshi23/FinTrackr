@@ -1,0 +1,76 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 rounded-full button-secondary cursor-pointer flex items-center justify-center"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">Edit Budget</h1>
+  </header>
+
+  @if (loading()) {
+    <div class="flex items-center justify-center gap-2 card p-6 rounded-2xl text-secondary text-sm">
+      Loading…
+    </div>
+  } @else if (budget(); as b) {
+    <form class="flex flex-col gap-4 w-full" #editForm="ngForm" (ngSubmit)="onSave(editForm)">
+      <!-- Category (read-only) -->
+      <div class="flex flex-col gap-2">
+        <label class="text-xs text-gray-400">Category</label>
+        <div class="card rounded-xl px-4 py-3 flex items-center gap-3 opacity-60 cursor-not-allowed">
+          <ico name="tags" size="sm" class="text-secondary"></ico>
+          <p class="text-sm font-medium">{{ b.category || 'Uncategorized' }}</p>
+          <span class="ml-auto text-xs text-secondary">{{ b.month }}</span>
+        </div>
+        <p class="text-xs text-secondary">Category cannot be changed. Create a new budget for a different category.</p>
+      </div>
+
+      <!-- Monthly Limit -->
+      <div class="flex flex-col gap-2">
+        <label for="monthlyLimit" class="text-xs text-gray-400">Monthly Limit</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            id="monthlyLimit"
+            name="monthlyLimit"
+            class="w-full"
+            placeholder="0.00"
+            [(ngModel)]="monthlyLimit"
+            required
+            [min]="limits.amountMin"
+            [max]="limits.budgetLimitMax"
+            step="0.01"
+            #limitCtrl="ngModel"
+          />
+        </div>
+        @if (limitCtrl.invalid && limitCtrl.touched) {
+          <p class="text-xs text-red-600">
+            Enter an amount between {{ limits.amountMin }} and {{ limits.budgetLimitMax }}.
+          </p>
+        }
+      </div>
+
+      <!-- Submit -->
+      <div class="flex flex-col gap-2 mt-2">
+        <button
+          type="submit"
+          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+          [disabled]="saving()"
+        >
+          @if (saving()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Saving…</span>
+          } @else {
+            <span>Save Changes</span>
+            <ico name="right-arrow" size="sm"></ico>
+          }
+        </button>
+      </div>
+    </form>
+  }
+</div>

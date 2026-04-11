@@ -9,7 +9,7 @@ import {
 import { AccountsService } from '../../../../services/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
 import { Router } from '@angular/router';
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, Location } from '@angular/common';
 import { Category } from '../../../categories/types';
 import { CategoriesService } from '../../../../services/categories.service';
 import { TransactionsService } from '../../../../services/transactions.service';
@@ -29,6 +29,7 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 export class AddTransaction {
   private readonly accountsService = inject(AccountsService);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly categoriesService = inject(CategoriesService);
   private readonly transactionsService = inject(TransactionsService);
   private readonly notifier = inject(NotifierService);
@@ -43,8 +44,11 @@ export class AddTransaction {
 
   readonly limits = FORM_LIMITS;
 
+  /** True while IndexedDB write runs; buttons stay disabled until navigation. */
+  saving = signal(false);
+
   async ngOnInit() {
-    let account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     this.selectedAccount.set(account);
     this.currency.set(account?.currency ?? 'INR');
     let categories = await this.categoriesService.getCategories();
@@ -160,63 +164,66 @@ export class AddTransaction {
       isRecurring: this.transaction().isRecurring ?? false,
     };
 
-    let transactionResponse: TransactionRecord;
+    this.saving.set(true);
     try {
-      transactionResponse = await this.transactionsService.createTransaction(transactionPayload);
+      const transactionResponse = await this.transactionsService.createTransaction(
+        transactionPayload,
+        { syncRemoteInBackground: true },
+      );
+
+      const delta =
+        transactionPayload.type === 'income' ? rawAmount : -rawAmount;
+      const optimisticBalance = (Number(account.balance) || 0) + delta;
+      const updatedAccount: Account = { ...account, balance: optimisticBalance };
+      this.selectedAccount.set(updatedAccount);
+      await this.accountsService.writeAccountToCache(updatedAccount);
+
+      const accountDocId = account.id || account.uid;
+      void this.reportsService
+        .updateReportForTransaction(transactionResponse)
+        .catch((e) => console.error(e));
+      void this.accountsService
+        .adjustBalanceForTransaction(
+          accountDocId,
+          Number(transactionPayload.amount),
+          transactionPayload.type === 'income' ? 'income' : 'expense',
+        )
+        .catch((e) => {
+          console.error(e);
+          this.notifier.error(
+            'Balance will sync when online. Check your connection if this persists.',
+          );
+        });
+
+      if (this.transaction().isRecurring) {
+        const nextDate =
+          this.transaction().nextPaymentDate instanceof Date
+            ? this.transaction().nextPaymentDate
+            : new Date(String(this.transaction().nextPaymentDate));
+        const recurringTransactionPayload: RecurringTransactionCreateInput = {
+          uid: transactionResponse.uid,
+          accountId: account.uid ?? '',
+          transactionId: transactionResponse.uid,
+          lastPaymentDate: new Date(),
+          nextPaymentDate: nextDate ?? new Date(),
+        };
+        void this.transactionsService
+          .createRecurringTransaction(recurringTransactionPayload, {
+            syncRemoteInBackground: true,
+          })
+          .catch((e) => console.error(e));
+      }
+
+      await this.router.navigateByUrl('/user/dashboard', { replaceUrl: true });
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not save transaction.');
-      return;
+    } finally {
+      this.saving.set(false);
     }
-
-    try {
-      await this.reportsService.updateReportForTransaction(transactionResponse);
-    } catch (e) {
-      console.error(e);
-    }
-
-    const accountDocId = account.id || account.uid;
-    try {
-      const newBalance = await this.accountsService.adjustBalanceForTransaction(
-        accountDocId,
-        Number(transactionPayload.amount),
-        transactionPayload.type === 'income' ? 'income' : 'expense',
-      );
-      const updatedAccount: Account = { ...account, balance: newBalance };
-      this.selectedAccount.set(updatedAccount);
-      localStorage.setItem('currentAccount', JSON.stringify(updatedAccount));
-    } catch (e) {
-      console.error(e);
-      this.notifier.error(
-        'Transaction was saved, but the account balance could not be updated. Check your connection and try syncing again.',
-      );
-      return;
-    }
-
-    if (this.transaction().isRecurring) {
-      const nextDate =
-        this.transaction().nextPaymentDate instanceof Date
-          ? this.transaction().nextPaymentDate
-          : new Date(String(this.transaction().nextPaymentDate));
-      const recurringTransactionPayload: RecurringTransactionCreateInput = {
-        uid: transactionResponse.uid,
-        accountId: account.uid ?? '',
-        transactionId: transactionResponse.uid,
-        lastPaymentDate: new Date(),
-        nextPaymentDate: nextDate ?? new Date(),
-      };
-      try {
-        await this.transactionsService.createRecurringTransaction(recurringTransactionPayload);
-      } catch (e) {
-        console.error(e);
-        this.notifier.error('Could not save recurring schedule.');
-      }
-    }
-
-    this.router.navigateByUrl('/user/dashboard');
   }
 
   onBack() {
-    this.router.navigateByUrl('/user/dashboard');
+    this.location.back();
   }
 }

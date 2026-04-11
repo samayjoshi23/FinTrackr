@@ -260,10 +260,16 @@
     <div class="flex items-center justify-center">
       <button
         type="submit"
-        class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2"
+        class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+        [disabled]="saving()"
       >
-        <ico name="tick" size="sm"></ico>
-        Add {{ transaction().type === 'expense' ? 'Expense' : 'Income' }}
+        @if (saving()) {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+          <span>Saving…</span>
+        } @else {
+          <ico name="tick" size="sm"></ico>
+          <span>Add {{ transaction().type === 'expense' ? 'Expense' : 'Income' }}</span>
+        }
       </button>
     </div>
   </form>

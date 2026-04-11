@@ -165,7 +165,7 @@ export class OfflineCrudService {
     keyField: string,
     firestoreFn: (assignedId: string) => Promise<T>,
     payload: Record<string, unknown>,
-    options?: { fixedDocId?: string },
+    options?: { fixedDocId?: string; syncRemoteInBackground?: boolean },
   ): Promise<T> {
     const collectionPath = FIRESTORE_COLLECTION_BY_STORE[storeName];
     if (!collectionPath) {
@@ -205,6 +205,11 @@ export class OfflineCrudService {
       return optimistic;
     }
 
+    if (options?.syncRemoteInBackground) {
+      void this.syncRemoteCreate(storeName, assignedId, firestoreFn, enqueuePending);
+      return optimistic;
+    }
+
     try {
       const result = await firestoreFn(assignedId);
       const merged = { ...(result as object), _pendingSync: false } as unknown as T;
@@ -214,6 +219,24 @@ export class OfflineCrudService {
       await enqueuePending();
       return optimistic;
     }
+  }
+
+  /** Firestore write after optimistic IndexedDB row; failures fall back to sync queue. */
+  private syncRemoteCreate<T>(
+    storeName: string,
+    assignedId: string,
+    firestoreFn: (assignedId: string) => Promise<T>,
+    enqueuePending: () => Promise<void>,
+  ): void {
+    void (async () => {
+      try {
+        const result = await firestoreFn(assignedId);
+        const merged = { ...(result as object), _pendingSync: false } as unknown as T;
+        await this.cache.put(storeName, merged);
+      } catch {
+        await enqueuePending();
+      }
+    })();
   }
 
   /**

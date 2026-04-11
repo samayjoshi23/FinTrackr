@@ -1,8 +1,9 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
+import { AccountsService } from '../../../../services/accounts.service';
 import { GoalsService } from '../../../../services/goals.service';
 import { Goal, GoalCreateInput } from '../../../../shared/models/goal.model';
 import { Account } from '../../../../shared/models/account.model';
@@ -18,6 +19,8 @@ import { DatePicker } from '../../../../shared/components/date-picker/date-picke
 })
 export class NewGoal {
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
+  private readonly accountsService = inject(AccountsService);
   private readonly goalsService = inject(GoalsService);
   private readonly notifier = inject(NotifierService);
 
@@ -29,10 +32,11 @@ export class NewGoal {
   targetAmount: number | string = '';
   dueDate = '';
   currentAmount: number | string = 0;
+  saving = signal(false);
   readonly limits = FORM_LIMITS;
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     this.selectedAccount.set(account);
     this.currency.set(account?.currency ?? 'INR');
 
@@ -64,7 +68,7 @@ export class NewGoal {
   }
 
   onBack() {
-    this.router.navigateByUrl('/user/goals');
+    this.location.back();
   }
 
   async onCreate(form: NgForm) {
@@ -119,12 +123,15 @@ export class NewGoal {
       currentAmount: current,
     };
 
+    this.saving.set(true);
     try {
       await this.goalsService.createGoal(payload);
-      this.router.navigateByUrl('/user/goals');
+      this.router.navigateByUrl('/user/goals', { replaceUrl: true });
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not create goal.');
+    } finally {
+      this.saving.set(false);
     }
   }
 }

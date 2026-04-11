@@ -102,6 +102,9 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
   private onTouched: () => void = () => {};
   protected disabled = false;
 
+  /** If `transitionend` never fires, still tear down overlay + body scroll lock. */
+  private closeFallbackTimer?: ReturnType<typeof setTimeout>;
+
   protected readonly monthLabel = computed(() => {
     const d = new Date(this.viewYear(), this.viewMonth(), 1);
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -142,6 +145,10 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.closeFallbackTimer) {
+      clearTimeout(this.closeFallbackTimer);
+      this.closeFallbackTimer = undefined;
+    }
     this.unlockBodyScroll();
   }
 
@@ -186,6 +193,10 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
   protected openOverlay(event: Event): void {
     event.stopPropagation();
     if (this.disabled) return;
+    if (this.closeFallbackTimer) {
+      clearTimeout(this.closeFallbackTimer);
+      this.closeFallbackTimer = undefined;
+    }
     this.panelOpen.set(true);
     this.lockBodyScroll();
     const v = this.valueIso();
@@ -200,9 +211,18 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
   protected beginCloseOverlay(): void {
     if (this.panelClosing() || !this.panelOpen()) return;
     this.panelClosing.set(true);
+    if (this.closeFallbackTimer) clearTimeout(this.closeFallbackTimer);
+    this.closeFallbackTimer = setTimeout(() => {
+      this.closeFallbackTimer = undefined;
+      if (this.panelClosing()) this.finalizeOverlayClose();
+    }, 650);
   }
 
   private finalizeOverlayClose(): void {
+    if (this.closeFallbackTimer) {
+      clearTimeout(this.closeFallbackTimer);
+      this.closeFallbackTimer = undefined;
+    }
     this.panelOpen.set(false);
     this.panelClosing.set(false);
     this.unlockBodyScroll();

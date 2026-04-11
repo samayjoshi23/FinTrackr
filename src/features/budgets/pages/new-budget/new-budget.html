@@ -13,36 +13,6 @@
   <form class="flex flex-col gap-3 w-full" #budgetForm="ngForm" (ngSubmit)="onCreate(budgetForm)">
     <input type="hidden" name="categoryKey" [ngModel]="selectedCategory" required />
 
-    <!-- Budget Name -->
-    <div class="flex flex-col gap-2">
-      <label for="budgetName" class="text-xs text-gray-400">Budget Name</label>
-      <div class="field-wrapper before">
-        <span class="field-icon before">
-          <ico name="bullseye" size="sm"></ico>
-        </span>
-        <input
-          type="text"
-          id="budgetName"
-          name="budgetName"
-          class="w-full"
-          placeholder="e.g. Groceries"
-          [(ngModel)]="budgetName"
-          required
-          [minlength]="limits.nameMinLen"
-          [maxlength]="limits.nameMax"
-          #nameCtrl="ngModel"
-        />
-      </div>
-      @if (nameCtrl.invalid && nameCtrl.touched) {
-        <p class="text-xs text-red-600">
-          Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
-        </p>
-      }
-      @if (nameCtrl.valid && budgetName.trim() && isBudgetNameDuplicate(budgetName)) {
-        <p class="text-xs text-red-600">This budget name is already used.</p>
-      }
-    </div>
-
     <!-- Category -->
     <div class="flex flex-col gap-2">
       <label class="text-xs text-gray-400">Category</label>
@@ -69,6 +39,13 @@
             </p>
           </div>
         }
+        <div
+          class="card rounded-full py-2 px-4 flex items-center gap-2 border border-dashed border-primary/40 text-primary cursor-pointer"
+          (click)="onCreateNewCategory()"
+        >
+          <ico name="plus" size="sm"></ico>
+          <p class="text-xs font-semibold">Create New</p>
+        </div>
       </div>
       @if (categories().length && !hasAvailableCategory()) {
         <p class="text-xs text-amber-600">
@@ -112,10 +89,16 @@
     <div class="flex flex-col gap-2 mt-2">
       <button
         type="submit"
-        class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2"
+        class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+        [disabled]="saving()"
       >
-        <span>Create Budget</span>
-        <ico name="right-arrow" size="sm"></ico>
+        @if (saving()) {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+          <span>Saving…</span>
+        } @else {
+          <span>Create Budget</span>
+          <ico name="right-arrow" size="sm"></ico>
+        }
       </button>
     </div>
   </form>

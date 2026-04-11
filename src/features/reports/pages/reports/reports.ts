@@ -1,6 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { AccountsService } from '../../../../services/accounts.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { Icon } from '../../../../shared/components/icon/icon';
 import {
@@ -38,6 +39,7 @@ import { ReportsSavingsRateCard } from '../../components/reports-savings-rate-ca
   styleUrl: './reports.css',
 })
 export class Reports implements OnInit {
+  private readonly accountsService = inject(AccountsService);
   private readonly reportsService = inject(ReportsService);
   private readonly router = inject(Router);
 
@@ -66,11 +68,10 @@ export class Reports implements OnInit {
     { label: '3M', value: '3M' },
     { label: '6M', value: '6M' },
     { label: '1Y', value: '1Y' },
-    { label: 'All', value: 'all' },
   ];
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     this.currency.set(account?.currency ?? 'INR');
     await this.loadData();
   }

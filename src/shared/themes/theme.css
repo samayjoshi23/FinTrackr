@@ -40,6 +40,17 @@
   /* Transaction colors */
   --color-income: var(--color-green-700);
   --color-expense: var(--color-red-400);
+
+  /*
+   * Budget usage bar (yellow → orange → red; no “healthy” green).
+   * Referenced by Tailwind utilities bg-budget-fill-* in styles.css @theme.
+   */
+  --budget-fill-low: var(--color-yellow-500);
+  --budget-fill-mid: var(--color-yellow-400);
+  --budget-fill-raised: var(--color-amber-500);
+  --budget-fill-high: var(--color-orange-400);
+  --budget-fill-critical: var(--color-orange-600);
+  --budget-fill-over: var(--color-red-600);
 }
 
 .theme-dark {
@@ -84,6 +95,14 @@
   /* Transaction colors */
   --color-income: var(--color-green-600);
   --color-expense: var(--color-red-400);
+
+  /* Budget bar: slightly brighter on dark backgrounds */
+  --budget-fill-low: var(--color-yellow-400);
+  --budget-fill-mid: var(--color-yellow-300);
+  --budget-fill-raised: var(--color-amber-400);
+  --budget-fill-high: var(--color-orange-400);
+  --budget-fill-critical: var(--color-orange-500);
+  --budget-fill-over: rgb(210, 51, 51);
 }
 
 /* ============= Other Colors ============= */

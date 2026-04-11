@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { CommonModule, Location } from '@angular/common';
+import { Component, computed, effect, inject, model, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { AccountsService } from '../../../../services/accounts.service';
@@ -7,17 +7,19 @@ import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Account } from '../../../../shared/models/account.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
+import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { SETTINGS_CURRENCIES } from '../../settings-currencies';
 
 @Component({
   selector: 'app-account-details',
-  imports: [CommonModule, Icon],
+  imports: [CommonModule, Icon, TransactionDetailModal],
   templateUrl: './account-details.html',
   styleUrl: './account-details.css',
 })
 export class AccountDetails {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly accountsService = inject(AccountsService);
   private readonly transactionsService = inject(TransactionsService);
   private readonly notifier = inject(NotifierService);
@@ -30,22 +32,29 @@ export class AccountDetails {
   selecting = signal(false);
   removing = signal(false);
 
-  private readonly currentStored = signal<Account | null>(
-    JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null,
-  );
+  txDetailOpen = model(false);
+  selectedTransaction = signal<TransactionRecord | null>(null);
+
+  private readonly selectedAccount = signal<Account | null>(null);
 
   readonly isCurrentAccount = computed(() => {
     const a = this.account();
-    const c = this.currentStored();
+    const c = this.selectedAccount();
     if (!a || !c) return false;
     return a.id === c.id;
   });
+
+  constructor() {
+    effect(() => {
+      if (!this.txDetailOpen()) this.selectedTransaction.set(null);
+    });
+  }
 
   async ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     if (!id) {
       this.notifier.error('Missing account.');
-      await this.router.navigateByUrl('/user/settings');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
       return;
     }
 
@@ -53,29 +62,31 @@ export class AccountDetails {
       const row = await this.accountsService.getAccount(id);
       if (!row) {
         this.notifier.error('Account not found.');
-        await this.router.navigateByUrl('/user/settings');
+        await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
         return;
       }
       this.account.set(row);
-      const txs = await this.transactionsService.getTransactions().catch(() => []);
+      this.selectedAccount.set(await this.accountsService.getSelectedAccount());
+      const accountKey = row.uid ?? row.id;
+      const txs = await this.transactionsService
+        .getTransactionsForAccount(accountKey)
+        .catch(() => []);
       this.recentActivity.set((txs ?? []).slice(0, 8));
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load account.');
-      await this.router.navigateByUrl('/user/settings');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
     } finally {
       this.loading.set(false);
     }
   }
 
-  private refreshCurrentStored() {
-    this.currentStored.set(
-      JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null,
-    );
+  private async refreshSelectedAccount() {
+    this.selectedAccount.set(await this.accountsService.getSelectedAccount());
   }
 
   onBack() {
-    this.router.navigateByUrl('/user/settings');
+    this.location.back();
   }
 
   async onSelectThisAccount() {
@@ -84,9 +95,9 @@ export class AccountDetails {
     this.selecting.set(true);
     try {
       await this.accountsService.selectAccount(a.id);
-      this.refreshCurrentStored();
+      await this.refreshSelectedAccount();
       this.notifier.success('This account is now active.');
-      await this.router.navigateByUrl('/user/settings');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not select account.');
@@ -118,17 +129,20 @@ export class AccountDetails {
       if (fresh) {
         this.account.set(fresh);
       }
-      const stored = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-      if (stored?.id === a.id) {
-        const next = fresh ?? { ...stored, currency: code };
-        next.isSelected = true;
-        localStorage.setItem('currentAccount', JSON.stringify(next));
-        this.refreshCurrentStored();
+      const sel = this.selectedAccount();
+      if (sel?.id === a.id && fresh) {
+        await this.accountsService.writeAccountToCache(fresh);
+        await this.refreshSelectedAccount();
       }
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not update currency.');
     }
+  }
+
+  openTransactionDetail(t: TransactionRecord): void {
+    this.selectedTransaction.set(t);
+    this.txDetailOpen.set(true);
   }
 
   async onRemoveAccount() {
@@ -139,7 +153,7 @@ export class AccountDetails {
     try {
       await this.accountsService.deleteAccount(a.id);
       this.notifier.success('Account removed.');
-      await this.router.navigateByUrl('/user/settings');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
     } catch (e) {
       console.error(e);
       const msg = e instanceof Error ? e.message : 'Could not remove account.';

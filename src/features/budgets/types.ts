@@ -13,6 +13,8 @@ export interface SummaryCardModel {
 
 export interface CategoryBudgetCardModel {
   category: string;
+  /** Firestore document id of the first budget for this category (used for edit/delete). */
+  budgetId: string;
   icon: string;
   spent: number;
   limit: number;

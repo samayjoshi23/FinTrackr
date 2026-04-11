@@ -19,7 +19,6 @@ import { CategoriesService } from './categories.service';
 import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
 import { NetworkService } from '../core/offline/network.service';
 import { date, transactionEventDate } from '../core/date';
-import { Account } from '../shared/models/account.model';
 import { TransactionRecord } from '../shared/models/transaction.model';
 import { Budget } from '../shared/models/budget.model';
 import { Category } from '../features/categories/types';
@@ -36,6 +35,7 @@ import {
   monthlyReportCategoryKey,
 } from '../shared/models/report.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
+import { AccountsService } from './accounts.service';
 
 const STORE = 'monthly-reports';
 const COLLECTION = 'monthlyReports';
@@ -76,16 +76,13 @@ export class ReportsService {
   private readonly cache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
   private readonly offlineCrud = inject(OfflineCrudService);
+  private readonly accountsService = inject(AccountsService);
 
   /** Latest current-month row for the dashboard (updates after background re-fetch). */
   readonly dashboardMonthReport = signal<MonthlyReport | null>(null);
 
-  get currentAccount(): Account | null {
-    return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-  }
-
-  private get accountKey(): string | null {
-    const a = this.currentAccount;
+  private async resolveAccountKey(): Promise<string | null> {
+    const a = await this.accountsService.getSelectedAccount();
     return a?.uid ?? a?.id ?? null;
   }
 
@@ -124,7 +121,7 @@ export class ReportsService {
    * existing metadata (createdAt, recurrings, isFinalized).
    */
   async updateReportForTransaction(transaction: TransactionRecord): Promise<void> {
-    const accountId = this.accountKey;
+    const accountId = await this.resolveAccountKey();
     if (!accountId) return;
 
     const occurred = transactionEventDate(transaction) ?? new Date();
@@ -138,7 +135,7 @@ export class ReportsService {
    * writes + Firestore) and refreshes the signal when done.
    */
   async ensureCurrentMonthReport(): Promise<MonthlyReport | null> {
-    const accountId = this.accountKey;
+    const accountId = await this.resolveAccountKey();
     if (!accountId) {
       this.dashboardMonthReport.set(null);
       return null;
@@ -183,7 +180,7 @@ export class ReportsService {
    * Lightweight update when a category is renamed: same `cat_<id>` key; only `name` is updated.
    */
   async patchCategoryNameInCurrentMonthReport(categoryId: string, newName: string): Promise<void> {
-    const accountId = this.accountKey;
+    const accountId = await this.resolveAccountKey();
     if (!accountId) return;
 
     const month = this.toMonthKey(date().toDate());
@@ -209,7 +206,7 @@ export class ReportsService {
    * If there is no monthly report yet, builds the month once (includes the new category).
    */
   async appendCategoryToCurrentMonthReport(categoryId: string, displayName: string): Promise<void> {
-    const accountId = this.accountKey;
+    const accountId = await this.resolveAccountKey();
     if (!accountId) return;
 
     const month = this.toMonthKey(date().toDate());
@@ -288,9 +285,11 @@ export class ReportsService {
   // ─── Private: monthly reports cache (IDB first; Firestore refresh never blocks UI) ───
 
   private refreshMonthlyReportsFromFirestoreInBackground(): void {
-    const accountId = this.accountKey;
-    if (!accountId || !this.network.isOnline()) return;
-    this.fetchAndSeedFromFirestore(accountId).catch(() => {});
+    void (async () => {
+      const accountId = await this.resolveAccountKey();
+      if (!accountId || !this.network.isOnline()) return;
+      this.fetchAndSeedFromFirestore(accountId).catch(() => {});
+    })();
   }
 
   private async fetchAndSeedFromFirestore(accountId: string): Promise<void> {
@@ -335,7 +334,7 @@ export class ReportsService {
    * iii. If a row exists → update (preserve createdAt / recurrings / isFinalized); else create.
    */
   private async createOrUpdateMonthlyReport(monthKey: string): Promise<void> {
-    const accountId = this.accountKey;
+    const accountId = await this.resolveAccountKey();
     if (!accountId) return;
     const existing = await this.findReportForMonth(accountId, monthKey);
 
@@ -1054,7 +1053,9 @@ export class ReportsService {
       async () => {
         const reportRef = doc(this.firestore, `${COLLECTION}/${reportId}`);
         const existing = await getDoc(reportRef);
-        if (!existing.exists() || existing.data()['accountId'] !== this.currentAccount?.uid) {
+        const selected = await this.accountsService.getSelectedAccount();
+        const expectedKey = selected?.uid ?? selected?.id;
+        if (!existing.exists() || existing.data()['accountId'] !== expectedKey) {
           throw new Error('Report not found or access denied.');
         }
         const updates: Record<string, unknown> = {

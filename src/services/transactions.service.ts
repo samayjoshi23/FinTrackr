@@ -24,9 +24,9 @@ import {
   TransactionListFilter,
   TransactionPagedResult,
 } from '../shared/models/transaction-query.model';
-import { Account } from '../shared/models/account.model';
 import { OfflineCrudService } from '../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../core/offline/indexed-db-cache.service';
+import { AccountsService } from './accounts.service';
 import { date, docCalendarDate } from '../core/date';
 
 const TRANSACTIONS_COLLECTION = 'transactions';
@@ -38,28 +38,25 @@ export class TransactionsService {
   private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
-
-  get currentAccount(): Account | null {
-    return JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
-  }
+  private readonly accountsService = inject(AccountsService);
 
   /** Firestore `accountId` on child docs — matches selected account (`uid`, then `id`). */
-  private selectedAccountKey(): string | null {
-    const a = this.currentAccount;
+  private async selectedAccountKey(): Promise<string | null> {
+    const a = await this.accountsService.getSelectedAccount();
     return a?.uid ?? a?.id ?? null;
   }
 
-  private requireSelectedAccountKey(): string {
-    const id = this.selectedAccountKey();
+  private async requireSelectedAccountKey(): Promise<string> {
+    const id = await this.selectedAccountKey();
     if (!id) throw new Error('No account selected.');
     return id;
   }
 
   async createTransaction(
     data: TransactionCreateInput,
-    _userId?: string,
+    options?: { syncRemoteInBackground?: boolean },
   ): Promise<TransactionRecord> {
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<TransactionRecord>(
       'transactions',
@@ -96,11 +93,11 @@ export class TransactionsService {
         ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
         date: day,
       },
+      options?.syncRemoteInBackground ? { syncRemoteInBackground: true } : undefined,
     );
   }
 
   async updateTransaction(transactionId: string, patch: TransactionCreateInput): Promise<void> {
-    const uid = this.requireUid();
     const cached = await this.offlineCrud.fetchOne<TransactionRecord>(
       'transactions',
       transactionId,
@@ -131,7 +128,7 @@ export class TransactionsService {
       async () => {
         const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
         const existing = await getDoc(transactionRef);
-        if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+        if (!existing.exists() || existing.id !== transactionId) {
           throw new Error('Transaction not found or access denied.');
         }
         const updates: Record<string, unknown> = {
@@ -147,10 +144,9 @@ export class TransactionsService {
 
   async deleteTransaction(transactionId: string): Promise<void> {
     await this.offlineCrud.remove('transactions', transactionId, async () => {
-      const uid = this.requireUid();
       const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
       const existing = await getDoc(transactionRef);
-      if (!existing.exists() || existing.data()['ownerId'] !== uid) {
+      if (!existing.exists() || existing.id !== transactionId) {
         throw new Error('Transaction not found or access denied.');
       }
       await deleteDoc(transactionRef);
@@ -159,7 +155,7 @@ export class TransactionsService {
 
   /** Push a queued local-first create to Firestore (sync worker). Does not call {@link createTransaction}. */
   async applyPendingTransactionCreate(docId: string, data: TransactionCreateInput): Promise<void> {
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     const ref = doc(this.firestore, TRANSACTIONS_COLLECTION, docId);
     await setDoc(ref, {
@@ -181,29 +177,33 @@ export class TransactionsService {
   }
 
   async getTransaction(transactionId: string): Promise<TransactionRecord | null> {
-    if (!this.currentAccount) return null;
+    if (!(await this.accountsService.getSelectedAccount())) return null;
     return this.offlineCrud.fetchOne<TransactionRecord>('transactions', transactionId, async () =>
       this.getTransactionDirect(transactionId),
     );
   }
 
   async getTransactions(): Promise<TransactionRecord[]> {
-    const accountKey = this.selectedAccountKey();
+    const accountKey = await this.selectedAccountKey();
     if (!accountKey) return [];
+    return this.getTransactionsForAccount(accountKey);
+  }
+
+  /** Transactions for a specific account (`account.uid` / `account.id` key used on stored docs). */
+  async getTransactionsForAccount(accountKey: string): Promise<TransactionRecord[]> {
+    const key = accountKey?.trim();
+    if (!key) return [];
     const results = await this.offlineCrud.fetchAll<TransactionRecord>(
       'transactions',
       async () => {
         const snap = await getDocs(
-          query(
-            collection(this.firestore, TRANSACTIONS_COLLECTION),
-            where('accountId', '==', accountKey),
-          ),
+          query(collection(this.firestore, TRANSACTIONS_COLLECTION), where('accountId', '==', key)),
         );
         return sortTransactionsByCreatedAtDesc(
           snap.docs.map((d) => this.mapTransaction(d.id, d.data())),
         );
       },
-      { indexName: 'accountId', value: accountKey },
+      { indexName: 'accountId', value: key },
     );
     return sortTransactionsByCreatedAtDesc(results);
   }
@@ -217,25 +217,19 @@ export class TransactionsService {
     offset: number,
     limit: number,
   ): Promise<TransactionPagedResult> {
-    const accountKey = this.selectedAccountKey();
+    const accountKey = await this.selectedAccountKey();
     if (!accountKey) {
       return { items: [], total: 0, hasMore: false };
     }
-    return this.offlineCrud.fetchTransactionsPage(
-      accountKey,
-      filter,
-      offset,
-      limit,
-      async () => {
-        const snap = await getDocs(
-          query(
-            collection(this.firestore, TRANSACTIONS_COLLECTION),
-            where('accountId', '==', accountKey),
-          ),
-        );
-        return snap.docs.map((d) => this.mapTransaction(d.id, d.data()));
-      },
-    );
+    return this.offlineCrud.fetchTransactionsPage(accountKey, filter, offset, limit, async () => {
+      const snap = await getDocs(
+        query(
+          collection(this.firestore, TRANSACTIONS_COLLECTION),
+          where('accountId', '==', accountKey),
+        ),
+      );
+      return snap.docs.map((d) => this.mapTransaction(d.id, d.data()));
+    });
   }
 
   async getRecentTransactions(limitHint = 50): Promise<TransactionRecord[]> {
@@ -245,17 +239,16 @@ export class TransactionsService {
 
   async createRecurringTransaction(
     data: RecurringTransactionCreateInput,
+    options?: { syncRemoteInBackground?: boolean },
   ): Promise<RecurringTransactionRecord> {
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     return this.offlineCrud.create<RecurringTransactionRecord>(
       'recurring-transactions',
       'uid',
       async (assignedId: string) => {
-        const uid = this.requireUid();
         const ref = doc(this.firestore, RECURRING_TRANSACTIONS_COLLECTION, assignedId);
         await setDoc(ref, {
-          ownerId: uid,
           accountId,
           transactionId: data.transactionId,
           lastPaymentDate: data.lastPaymentDate,
@@ -271,13 +264,13 @@ export class TransactionsService {
         return row;
       },
       {
-        ownerId: this.requireUid(),
         accountId,
         transactionId: data.transactionId,
         lastPaymentDate: data.lastPaymentDate,
         nextPaymentDate: data.nextPaymentDate,
         date: day,
       },
+      options?.syncRemoteInBackground ? { syncRemoteInBackground: true } : undefined,
     );
   }
 
@@ -285,12 +278,10 @@ export class TransactionsService {
     docId: string,
     data: RecurringTransactionCreateInput,
   ): Promise<void> {
-    const uid = this.requireUid();
-    const accountId = data.accountId ?? this.requireSelectedAccountKey();
+    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
     const ref = doc(this.firestore, RECURRING_TRANSACTIONS_COLLECTION, docId);
     await setDoc(ref, {
-      ownerId: uid,
       accountId,
       transactionId: data.transactionId,
       lastPaymentDate: data.lastPaymentDate,
@@ -317,7 +308,7 @@ export class TransactionsService {
   // ─── Direct Firestore reads (bypass offline layer, used after creates) ───
 
   private async getTransactionDirect(transactionId: string): Promise<TransactionRecord | null> {
-    const expected = this.selectedAccountKey();
+    const expected = await this.selectedAccountKey();
     if (!expected) return null;
     const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
     const snap = await getDoc(transactionRef);

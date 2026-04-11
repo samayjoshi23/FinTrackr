@@ -59,7 +59,14 @@
 
     <!-- Forgot password -->
     <div class="text-end">
-      <a type="button" class="text-xs text-gray-400 cursor-pointer" (click)="onForgotPassword()">
+      <a
+        type="button"
+        class="text-xs text-gray-400"
+        [class.cursor-pointer]="!isSubmitting()"
+        [class.pointer-events-none]="isSubmitting()"
+        [class.opacity-50]="isSubmitting()"
+        (click)="onForgotPassword()"
+      >
         Forgot password?
       </a>
     </div>
@@ -68,12 +75,17 @@
     <button
       type="button"
       severity="primary"
-      class="rounded-xl py-3 flex items-center justify-center gap-2"
+      class="rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
       [disabled]="isSubmitting()"
       (click)="onSubmit()"
     >
-      Login
-      <ico name="right-arrow" size="sm"></ico>
+      @if (isSubmitting()) {
+        <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+        <span>Signing in…</span>
+      } @else {
+        <span>Login</span>
+        <ico name="right-arrow" size="sm"></ico>
+      }
     </button>
 
     <!-- Additional options -->

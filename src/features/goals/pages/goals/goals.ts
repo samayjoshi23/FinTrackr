@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
+import { AccountsService } from '../../../../services/accounts.service';
 import { GoalsService } from '../../../../services/goals.service';
 import { Goal } from '../../../../shared/models/goal.model';
 import { Account } from '../../../../shared/models/account.model';
@@ -14,13 +15,14 @@ import { GoalCardModel } from '../../types';
 })
 export class Goals {
   private readonly router = inject(Router);
+  private readonly accountsService = inject(AccountsService);
   private readonly goalsService = inject(GoalsService);
 
   currency = signal<string>('INR');
   goals = signal<Goal[]>([]);
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     if (!account) return;
     this.currency.set(account.currency ?? 'INR');
 

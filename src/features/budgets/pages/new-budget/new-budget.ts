@@ -1,8 +1,9 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
+import { AccountsService } from '../../../../services/accounts.service';
 import { BudgetsService } from '../../../../services/budgets.service';
 import { CategoriesService } from '../../../../services/categories.service';
 import { Budget, BudgetCreateInput } from '../../../../shared/models/budget.model';
@@ -19,6 +20,8 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 })
 export class NewBudget {
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
+  private readonly accountsService = inject(AccountsService);
   private readonly budgetsService = inject(BudgetsService);
   private readonly categoriesService = inject(CategoriesService);
   private readonly notifier = inject(NotifierService);
@@ -27,14 +30,14 @@ export class NewBudget {
   categories = signal<Category[]>([]);
   existingBudgets = signal<Budget[]>([]);
 
-  budgetName = '';
+  saving = signal(false);
   selectedCategory = '';
   monthlyLimit: number | string = '';
   monthLabel = new Date().toLocaleString('en-US', { month: 'long' });
   readonly limits = FORM_LIMITS;
 
   async ngOnInit() {
-    const account = JSON.parse(localStorage.getItem('currentAccount') ?? 'null') as Account | null;
+    const account = await this.accountsService.getSelectedAccount();
     this.selectedAccount.set(account);
 
     const [cats, budgets] = await Promise.all([
@@ -80,14 +83,12 @@ export class NewBudget {
     this.selectedCategory = cat.name;
   }
 
-  isBudgetNameDuplicate(name: string): boolean {
-    const key = name.trim().toLowerCase();
-    if (!key) return false;
-    return this.existingBudgets().some((b) => (b.name ?? '').trim().toLowerCase() === key);
+  onCreateNewCategory(): void {
+    void this.router.navigateByUrl('/user/categories/new');
   }
 
   onBack() {
-    this.router.navigateByUrl('/user/budgets');
+    this.location.back();
   }
 
   async onCreate(form: NgForm) {
@@ -100,16 +101,6 @@ export class NewBudget {
     const account = this.selectedAccount();
     if (!account) {
       this.notifier.error('No account selected.');
-      return;
-    }
-
-    const name = this.budgetName?.trim() ?? '';
-    if (!name) {
-      this.notifier.error('Enter a budget name.');
-      return;
-    }
-    if (this.isBudgetNameDuplicate(name)) {
-      this.notifier.error('A budget with this name already exists.');
       return;
     }
 
@@ -147,17 +138,20 @@ export class NewBudget {
       accountId: account.id ?? account.uid ?? '',
       month: this.monthLabel,
       limit,
-      name,
+      name: catName,
       category: catName,
       categoryId: categoryRow.uid,
     };
 
+    this.saving.set(true);
     try {
       await this.budgetsService.createBudget(payload);
-      this.router.navigateByUrl('/user/budgets');
+      this.router.navigateByUrl('/user/budgets', { replaceUrl: true });
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not create budget.');
+    } finally {
+      this.saving.set(false);
     }
   }
 }

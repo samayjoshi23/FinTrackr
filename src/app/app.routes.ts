@@ -61,6 +61,11 @@ export const routes: Routes = [
           import('./../features/budgets/pages/new-budget/new-budget').then((m) => m.NewBudget),
       },
       {
+        path: 'budgets/edit/:id',
+        loadComponent: () =>
+          import('./../features/budgets/pages/edit-budget/edit-budget').then((m) => m.EditBudget),
+      },
+      {
         path: 'goals',
         loadComponent: () => import('./../features/goals/pages/goals/goals').then((m) => m.Goals),
       },
@@ -143,13 +148,23 @@ export const routes: Routes = [
                 (m) => m.PrivacySecurity,
               ),
           },
+          {
+            path: '**',
+            loadComponent: () =>
+              import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
+          },
         ],
+      },
+      {
+        path: '**',
+        loadComponent: () =>
+          import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
       },
     ],
   },
   {
     path: '**',
-    redirectTo: 'login',
-    pathMatch: 'full',
+    loadComponent: () =>
+      import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
   },
 ];

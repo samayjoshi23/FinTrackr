@@ -135,7 +135,6 @@ export class AuthService {
     // Clear IndexedDB cached data and sync queue
     await this.syncService.clearAllData();
     localStorage.removeItem('userProfile');
-    localStorage.removeItem('currentAccount');
     localStorage.removeItem('userId');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');

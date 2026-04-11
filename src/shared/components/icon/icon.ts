@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { booleanAttribute, Component, Input } from '@angular/core';
 
 @Component({
   selector: 'ico',
@@ -13,4 +13,6 @@ export class Icon {
 
   @Input() name!: string;
   @Input() size: string = 'md';
+  /** Continuous rotation (e.g. loading indicator). */
+  @Input({ transform: booleanAttribute }) spin = false;
 }

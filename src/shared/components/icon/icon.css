@@ -5,6 +5,12 @@
     stroke: currentColor;
     fill: none;
   }
+
+  /* Filled symbols (e.g. circle-notch-loader) override stroke-only default */
+  .icon.fill-current {
+    fill: currentColor;
+    stroke: none;
+  }
   
   .sm { width: 16px; height: 16px; }
   .md { width: 20px; height: 20px; }

@@ -1,0 +1,27 @@
+<div class="not-found">
+  <div class="not-found-card card rounded-3xl border border-[var(--color-border)] p-8 text-center max-w-md mx-auto mt-[15vh]">
+    <div
+      class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-light text-primary"
+    >
+      <ico name="search" size="lg"></ico>
+    </div>
+    <h1 class="title-font text-2xl font-semibold text-[var(--color-title-font)]">Page not found</h1>
+    <p class="mt-2 text-sm text-secondary leading-relaxed">
+      This URL does not match any screen in the app. Check the address or go back to your dashboard.
+    </p>
+    <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+      <a
+        routerLink="/user/dashboard"
+        class="button-primary rounded-xl py-3 px-5 font-semibold text-center no-underline"
+      >
+        Dashboard
+      </a>
+      <a
+        routerLink="/login"
+        class="button-secondary rounded-xl py-3 px-5 font-semibold text-center no-underline"
+      >
+        Sign in
+      </a>
+    </div>
+  </div>
+</div>

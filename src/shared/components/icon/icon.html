@@ -1,3 +1,10 @@
-<svg class="icon" [ngClass]="size" aria-hidden="true" focusable="false">
+<svg
+  class="icon"
+  [ngClass]="size"
+  [class.animate-spin]="spin"
+  [class.fill-current]="name === 'circle-notch-loader'"
+  aria-hidden="true"
+  focusable="false"
+>
   <use [attr.href]="spriteUrl + '#' + name" />
 </svg>

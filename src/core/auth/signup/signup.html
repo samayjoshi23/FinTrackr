@@ -111,12 +111,17 @@
     <button
       type="button"
       severity="primary"
-      class="rounded-xl py-3 flex items-center justify-center gap-2"
+      class="rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
       [disabled]="isSubmitting()"
       (click)="onSubmit()"
     >
-      Create account
-      <ico name="right-arrow" size="sm"></ico>
+      @if (isSubmitting()) {
+        <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+        <span>Creating account…</span>
+      } @else {
+        <span>Create account</span>
+        <ico name="right-arrow" size="sm"></ico>
+      }
     </button>
 
     <!-- Additional options -->
