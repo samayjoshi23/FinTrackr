@@ -51,19 +51,19 @@
             <p class="text-xs text-red-600 title-font font-medium">
               {{
                 card.amount - card.budget
-                  | currency: currency : 'symbol-narrow' : '1.0-0'
+                  | signedAmount: null : currency : '1.0-0'
               }}
               over this category's budget
               <span class="text-secondary font-light font-sans">
                 (
-                {{ card.amount | currency: currency : 'symbol-narrow' : '1.0-0' }} spent ·
-                {{ card.budget | currency: currency : 'symbol-narrow' : '1.0-0' }} limit)
+                {{ card.amount | signedAmount: null : currency : '1.0-0' }} spent ·
+                {{ card.budget | signedAmount: null : currency : '1.0-0' }} limit)
               </span>
             </p>
           } @else {
             <div class="flex justify-between text-xs text-secondary">
-              <span> {{ card.amount | currency: currency : 'symbol-narrow' : '1.0-0' }} spent </span>
-              <span> {{ card.budget | currency: currency : 'symbol-narrow' : '1.0-0' }} limit </span>
+              <span> {{ card.amount | signedAmount: null : currency : '1.0-0' }} spent </span>
+              <span> {{ card.budget | signedAmount: null : currency : '1.0-0' }} limit </span>
             </div>
           }
         </div>

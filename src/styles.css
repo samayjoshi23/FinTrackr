@@ -1,6 +1,18 @@
 @import 'tailwindcss';
+@import '@angular/cdk/overlay-prebuilt.css';
 @import './shared/themes/theme.css';
 @import './shared/themes/inputs.css';
+
+/* CDK overlay above notifier toasts (notifier.css uses z-index: 3000) */
+.cdk-overlay-container {
+  z-index: 5000;
+}
+
+.fintrackr-modal-cdk-pane {
+  display: flex;
+  max-width: 100vw;
+  max-height: 100vh;
+}
 
 /* Budget usage fills: map semantic tokens to Tailwind-style bg-budget-fill-* utilities */
 @theme inline {

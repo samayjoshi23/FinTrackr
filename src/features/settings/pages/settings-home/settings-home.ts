@@ -11,6 +11,7 @@ import { AuthService } from '../../../../services/auth.service';
 import { TransactionsService } from '../../../../services/transactions.service';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import { Account } from '../../../../shared/models/account.model';
+import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -18,7 +19,7 @@ const THEME_KEY = 'fintrackr-theme';
 
 @Component({
   selector: 'app-settings-home',
-  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule],
+  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule, SignedAmountPipe],
   templateUrl: './settings-home.html',
   styleUrl: './settings-home.css',
 })

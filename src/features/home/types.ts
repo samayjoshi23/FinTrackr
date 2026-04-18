@@ -23,4 +23,10 @@ export const quickActions = [
     link: 'user/reports',
     themeClass: 'button-blue',
   },
+  {
+    label: 'Recurring',
+    icon: 'arrow-refresh',
+    link: 'user/recurring',
+    themeClass: 'button-orange',
+  },
 ];

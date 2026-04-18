@@ -1,4 +1,6 @@
-<app-modal [(open)]="open" [closable]="true" [closeOnBackdrop]="true">
+<app-modal [(open)]="open" [closable]="true" [closeOnBackdrop]="true" [bodyTemplate]="promptTpl" />
+
+<ng-template #promptTpl>
   <div class="flex flex-col items-center gap-5 py-2">
     <!-- Icon -->
     <div
@@ -33,4 +35,4 @@
       </button>
     </div>
   </div>
-</app-modal>
+</ng-template>

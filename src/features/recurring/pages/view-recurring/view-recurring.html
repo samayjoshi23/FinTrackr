@@ -1,0 +1,230 @@
+<div class="w-full h-full flex flex-col overflow-y-auto pb-15">
+  <!-- Header -->
+  <header class="flex items-center justify-between p-4 md:p-5 gap-2">
+    <div class="flex items-center gap-2">
+      <div
+        class="h-9 w-9 rounded-full card cursor-pointer flex items-center justify-center"
+        (click)="onBack()"
+        aria-label="Back"
+      >
+        <ico name="left-arrow" size="sm"></ico>
+      </div>
+      <h1 class="text-xl font-semibold title-font">Recurring detail</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        title="Edit schedule"
+        class="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 button-yellow disabled:opacity-50"
+        [disabled]="acting()"
+        (click)="onEdit()"
+      >
+        <ico name="pencil" size="sm"></ico>
+        <span class="hidden xs:inline">Edit</span>
+      </button>
+      <button
+        type="button"
+        title="Delete schedule"
+        class="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 button-red disabled:opacity-50"
+        [disabled]="acting()"
+        (click)="onDeleteRequest()"
+      >
+        <ico name="trash" size="sm"></ico>
+        <span class="hidden xs:inline">Delete</span>
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="flex items-center justify-center p-8 text-secondary text-sm">Loading…</div>
+  } @else if (recurring(); as rec) {
+    <div class="flex flex-col gap-4 px-4 md:px-5">
+      <!-- Status badge -->
+      @if (!rec.isActive) {
+        <div
+          class="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-medium"
+        >
+          <ico name="pause" size="sm"></ico>
+          <span>This schedule has been stopped and will not generate new payments.</span>
+        </div>
+      }
+
+      <!-- Main info card -->
+      <div class="card-light rounded-2xl p-4 flex flex-col gap-4">
+        <!-- Icon + description + amount -->
+        <div class="flex items-start gap-3">
+          <div
+            class="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 bg-primary-light"
+          >
+            <ico [name]="rec.icon || 'arrow-refresh'" size="md" class="text-primary"></ico>
+          </div>
+          <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+            <p class="text-base font-semibold title-font truncate">
+              {{ rec.description || 'Recurring payment' }}
+            </p>
+            <p class="text-xs text-secondary truncate">{{ rec.category || '—' }}</p>
+          </div>
+          <div class="shrink-0 text-right">
+            <p
+              class="text-2xl font-bold tabular-nums"
+              [class.text-income]="rec.type === 'income'"
+              [class.text-expense]="rec.type !== 'income'"
+            >
+              {{ rec.amount | signedAmount: rec.type : currencyCode() }}
+            </p>
+            <p class="text-xs text-secondary capitalize">{{ rec.type }}</p>
+          </div>
+        </div>
+
+        <hr class="text-[var(--color-border)]" />
+
+        <!-- Detail rows -->
+        <dl class="flex flex-col gap-2.5">
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary text-sm shrink-0">Frequency</dt>
+            <dd class="text-sm font-medium text-right">
+              {{ frequencyLabel(rec.recurringFrequency) }}
+            </dd>
+          </div>
+
+          @if (rec.source) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary text-sm shrink-0">Source</dt>
+              <dd class="text-sm font-medium text-right">{{ rec.source }}</dd>
+            </div>
+          }
+
+          @if (rec.isAutoPay != null) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary text-sm shrink-0">Auto pay</dt>
+              <dd class="text-sm font-medium text-right">{{ rec.isAutoPay ? 'Yes' : 'No' }}</dd>
+            </div>
+          }
+
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary text-sm shrink-0">Last paid</dt>
+            <dd class="text-sm font-medium text-right">
+              {{ rec.lastPaymentDate ? (rec.lastPaymentDate | date: 'mediumDate') : '—' }}
+            </dd>
+          </div>
+
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary text-sm shrink-0">Next payment</dt>
+            <dd
+              class="text-sm font-medium text-right"
+              [class.text-expense]="
+                rec.isActive && rec.nextPaymentDate && rec.nextPaymentDate < today
+              "
+            >
+              {{ rec.nextPaymentDate ? (rec.nextPaymentDate | date: 'mediumDate') : '—' }}
+            </dd>
+          </div>
+
+          <div class="flex justify-between gap-4">
+            <dt class="text-secondary text-sm shrink-0">Status</dt>
+            <dd class="text-sm font-medium text-right">
+              <span
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                [class.bg-green-100]="rec.isActive"
+                [class.text-green-700]="rec.isActive"
+                [class.bg-gray-100]="!rec.isActive"
+                [class.text-secondary]="!rec.isActive"
+              >
+                <span
+                  class="h-1.5 w-1.5 rounded-full inline-block"
+                  [class.bg-green-500]="rec.isActive"
+                  [class.bg-gray-400]="!rec.isActive"
+                ></span>
+                {{ rec.isActive ? 'Active' : 'Stopped' }}
+              </span>
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <!-- Action buttons -->
+      @if (!loading() && recurring(); as rec) {
+        <div class="flex items-center justify-between gap-2">
+          @if (rec.isActive) {
+            <button
+              type="button"
+              title="Stop schedule"
+              class="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 button-orange disabled:opacity-50"
+              [disabled]="acting()"
+              (click)="onStopRequest()"
+            >
+              <ico name="stop" size="sm"></ico>
+              <span>Stop recurring</span>
+            </button>
+          }
+        </div>
+      }
+
+      <!-- Recent transactions -->
+      <div class="flex flex-col gap-3">
+        <h2 class="text-sm font-semibold title-font">Recent transactions</h2>
+
+        @if (recentTransactions().length === 0) {
+          <div class="card rounded-xl p-4 text-sm text-secondary">
+            No transactions linked to this schedule yet.
+          </div>
+        } @else {
+          @for (tx of recentTransactions(); track tx.uid) {
+            <div class="card rounded-2xl p-3.5 flex items-center gap-3">
+              <div
+                class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-secondary-light"
+              >
+                <ico [name]="tx.icon || 'arrow-refresh'" size="sm"></ico>
+              </div>
+              <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                <p class="text-sm font-medium truncate">{{ tx.description || 'Transaction' }}</p>
+                <p class="text-xs text-secondary">
+                  {{ tx.date || (tx.createdAt | date: 'mediumDate') }}
+                </p>
+              </div>
+              <p
+                class="text-sm font-semibold tabular-nums shrink-0"
+                [class.text-income]="tx.type === 'income'"
+                [class.text-expense]="tx.type !== 'income'"
+              >
+                {{ tx.amount | signedAmount: tx.type : currencyCode() }}
+              </p>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Stop confirmation -->
+<app-confirm-prompt
+  [(open)]="stopPromptOpen"
+  title="Stop this schedule?"
+  [message]="
+    'Payments for \'' +
+    (recurring()?.description || 'this schedule') +
+    '\' will no longer be tracked. You can restart it from the edit page.'
+  "
+  icon="pause"
+  confirmText="Stop"
+  cancelText="Cancel"
+  severity="warn"
+  (confirmed)="onStopConfirmed($event)"
+/>
+
+<!-- Delete confirmation -->
+<app-confirm-prompt
+  [(open)]="deletePromptOpen"
+  title="Delete schedule?"
+  [message]="
+    'This will permanently remove the recurring schedule for \'' +
+    (recurring()?.description || 'this schedule') +
+    '\'. Past transactions are not deleted.'
+  "
+  icon="trash"
+  confirmText="Delete"
+  cancelText="Cancel"
+  severity="danger"
+  (confirmed)="onDeleteConfirmed($event)"
+/>

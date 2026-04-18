@@ -7,9 +7,10 @@ import { GoalsService } from '../../../../services/goals.service';
 import { Goal } from '../../../../shared/models/goal.model';
 import { Account } from '../../../../shared/models/account.model';
 import { GoalCardModel } from '../../types';
+import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 @Component({
   selector: 'app-goals',
-  imports: [CommonModule, Icon],
+  imports: [CommonModule, Icon, SignedAmountPipe],
   templateUrl: './goals.html',
   styleUrl: './goals.css',
 })

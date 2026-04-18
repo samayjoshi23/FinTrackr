@@ -20,7 +20,7 @@
     ></div>
   </div>
   <p class="text-xs text-secondary">
-    {{ summary.savings | currency: currency : 'symbol-narrow' : '1.0-0' }} saved of
-    {{ summary.totalIncome | currency: currency : 'symbol-narrow' : '1.0-0' }} total income
+    {{ summary.savings | signedAmount: null : currency : '1.0-0' }} saved of
+    {{ summary.totalIncome | signedAmount: null : currency : '1.0-0' }} total income
   </p>
 </div>

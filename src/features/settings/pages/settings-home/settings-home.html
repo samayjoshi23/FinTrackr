@@ -35,7 +35,7 @@
       <span class="text-xs text-secondary font-light">Balance</span>
       <span class="text-sm font-semibold text-primary">
         {{
-          totalBalance() | currency: currentAccount()?.currency ?? 'USD' : 'symbol-narrow' : '1.0-0'
+          totalBalance() | signedAmount: null : currentAccount()?.currency ?? 'USD' : '1.0-0'
         }}
       </span>
     </div>
@@ -144,7 +144,7 @@
           </div>
           <div class="flex flex-col items-end gap-0.5 shrink-0">
             <span class="text-sm font-semibold" [ngClass]="balanceClass(a)">
-              {{ a.balance | currency: a.currency : 'symbol-narrow' : '1.0-0' }}
+              {{ a.balance | signedAmount: null : a.currency : '1.0-0' }}
             </span>
           </div>
           <ico name="chevron-right" size="sm" class="text-secondary shrink-0"></ico>
@@ -195,7 +195,13 @@
     <span>Log out</span>
   </button>
 
-  <app-modal [(open)]="personalInfoModalOpen" title="Edit personal information">
+  <app-modal
+    [(open)]="personalInfoModalOpen"
+    title="Edit personal information"
+    [bodyTemplate]="personalInfoTpl"
+  />
+
+  <ng-template #personalInfoTpl>
     <form
       class="flex flex-col gap-4"
       #profileForm="ngForm"
@@ -250,5 +256,5 @@
         </button>
       </div>
     </form>
-  </app-modal>
+  </ng-template>
 </div>

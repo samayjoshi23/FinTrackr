@@ -233,7 +233,7 @@
   width: 2.25rem;
   height: 1.25rem;
   border-radius: 999px;
-  background-color: var(--color-bg-elevated);
+  background-color: var(--color-tertiary);
   border: 1px solid var(--color-border);
   transition:
     background-color 0.2s ease,
@@ -247,7 +247,7 @@
   height: 0.85rem;
   border-radius: 999px;
   /* Light: dark knob on pale track; dark: light knob on deep track */
-  background-color: var(--color-tertiary-inverse);
+  background-color: var(--color-secondary);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 20%, transparent);
   position: absolute;
   top: 50%;

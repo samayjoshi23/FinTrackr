@@ -260,7 +260,7 @@
               id="monthlyBudget"
               name="monthlyBudgetLimit"
               [placeholder]="
-                'e.g. ' + (10000 | currency: formModel.account.currency : 'symbol' : '1.0-0')
+                'e.g. ' + (10000 | signedAmount: null : formModel.account.currency : '1.0-0')
               "
               [(ngModel)]="formModel.budget.limit"
               [min]="limits.amountMin"
@@ -279,7 +279,7 @@
                 class="text-center text-xs font-light text-secondary"
                 [class.font-semibold]="suggestion.isSelected"
               >
-                {{ suggestion.amount | currency: formModel.account.currency : 'symbol' : '1.0-0' }}
+                {{ suggestion.amount | signedAmount: null : formModel.account.currency : '1.0-0' }}
               </p>
             </div>
           }

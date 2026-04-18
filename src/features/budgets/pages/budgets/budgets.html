@@ -30,11 +30,11 @@
 
       <div class="flex items-center gap-3">
         <p class="text-3xl font-medium title-font">
-          {{ summary().totalLimit | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+          {{ summary().totalLimit | signedAmount: null : currency() : '1.0-0' }}
         </p>
         <div class="text-xs font-light flex items-center gap-2 text-secondary">
           <span>
-            / {{ summary().totalSpent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
+            / {{ summary().totalSpent | signedAmount: null : currency() : '1.0-0' }} spent
           </span>
         </div>
       </div>
@@ -53,16 +53,16 @@
         <p class="flex items-center gap-1 flex-wrap">
           @if (summary().overBudgetAmount > 0) {
             <span class="text-red-600 title-font font-medium">
-              {{ summary().overBudgetAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+              {{ summary().overBudgetAmount | signedAmount: null : currency() : '1.0-0' }}
               over budget
             </span>
             <span class="text-secondary">·</span>
             <span class="text-secondary">
-              {{ summary().totalLimit | currency: currency() : 'symbol-narrow' : '1.0-0' }} planned
+              {{ summary().totalLimit | signedAmount: null : currency() : '1.0-0' }} planned
             </span>
           } @else {
             <span class="text-secondary">
-              {{ summary().remainingDisplay | currency: currency() : 'symbol-narrow' : '1.0-0' }}
+              {{ summary().remainingDisplay | signedAmount: null : currency() : '1.0-0' }}
               remaining
             </span>
           }
@@ -123,20 +123,20 @@
 
             @if (card.status === 'over' && card.overAmount > 0) {
               <p class="text-xs text-red-600 title-font font-medium">
-                {{ card.overAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }} over this
+                {{ card.overAmount | signedAmount: null : currency() : '1.0-0' }} over this
                 category's budget
                 <span class="text-secondary font-light font-sans">
-                  ({{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent ·
-                  {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit)
+                  ({{ card.spent | signedAmount: null : currency() : '1.0-0' }} spent ·
+                  {{ card.limit | signedAmount: null : currency() : '1.0-0' }} limit)
                 </span>
               </p>
             } @else {
               <div class="flex justify-between text-xs text-secondary font-light">
                 <span>
-                  {{ card.spent | currency: currency() : 'symbol-narrow' : '1.0-0' }} spent
+                  {{ card.spent | signedAmount: null : currency() : '1.0-0' }} spent
                 </span>
                 <span>
-                  {{ card.limit | currency: currency() : 'symbol-narrow' : '1.0-0' }} limit
+                  {{ card.limit | signedAmount: null : currency() : '1.0-0' }} limit
                 </span>
               </div>
             }

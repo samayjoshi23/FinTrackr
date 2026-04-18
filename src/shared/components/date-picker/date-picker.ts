@@ -1,4 +1,6 @@
 import { CommonModule } from '@angular/common';
+import { Overlay, OverlayConfig, OverlayRef } from '@angular/cdk/overlay';
+import { TemplatePortal } from '@angular/cdk/portal';
 import {
   booleanAttribute,
   Component,
@@ -9,10 +11,11 @@ import {
   OnDestroy,
   signal,
   computed,
-  DestroyRef,
+  TemplateRef,
+  viewChild,
+  ViewContainerRef,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { fromEvent } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { Icon } from '../icon/icon';
 
@@ -79,7 +82,13 @@ export interface DatePickerDayCell {
   ],
 })
 export class DatePicker implements ControlValueAccessor, OnDestroy {
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly overlay = inject(Overlay);
+  private readonly vcr = inject(ViewContainerRef);
+
+  private readonly overlayShell = viewChild.required<TemplateRef<unknown>>('overlayShell');
+
+  private overlayRef?: OverlayRef;
+  private escSubscription?: Subscription;
 
   readonly placeholder = input<string>('Select date');
   /** Modal header (matches picker purpose). */
@@ -88,8 +97,6 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
   readonly confirmLabel = input<string>('Done');
   /** For `<label for="...">` association. */
   readonly hostId = input<string>('', { alias: 'id' });
-  /** Hide the trailing calendar icon (e.g. when wrapped in `.field-wrapper` with its own icon). */
-  readonly compactFieldIcon = input(false, { transform: booleanAttribute });
 
   protected readonly panelOpen = signal(false);
   protected readonly panelClosing = signal(false);
@@ -102,7 +109,7 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
   private onTouched: () => void = () => {};
   protected disabled = false;
 
-  /** If `transitionend` never fires, still tear down overlay + body scroll lock. */
+  /** If `transitionend` never fires, still tear down overlay + close state. */
   private closeFallbackTimer?: ReturnType<typeof setTimeout>;
 
   protected readonly monthLabel = computed(() => {
@@ -134,14 +141,14 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
       if (this.panelOpen()) this.panelClosing.set(false);
     });
 
-    fromEvent<KeyboardEvent>(document, 'keydown')
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((ev) => {
-        if (ev.key === 'Escape' && (this.panelOpen() || this.panelClosing())) {
-          ev.preventDefault();
-          this.beginCloseOverlay();
-        }
-      });
+    effect(() => {
+      const visible = this.panelOpen() || this.panelClosing();
+      if (visible) {
+        queueMicrotask(() => this.ensureOverlayAttached());
+      } else {
+        this.ensureOverlayDetached();
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -149,7 +156,7 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
       clearTimeout(this.closeFallbackTimer);
       this.closeFallbackTimer = undefined;
     }
-    this.unlockBodyScroll();
+    this.ensureOverlayDetached();
   }
 
   protected displayLabel(): string {
@@ -198,7 +205,6 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
       this.closeFallbackTimer = undefined;
     }
     this.panelOpen.set(true);
-    this.lockBodyScroll();
     const v = this.valueIso();
     const parsed = v ? parseIsoLocal(v) : null;
     if (parsed) {
@@ -225,7 +231,6 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
     }
     this.panelOpen.set(false);
     this.panelClosing.set(false);
-    this.unlockBodyScroll();
   }
 
   protected onSheetTransitionEnd(event: TransitionEvent): void {
@@ -281,12 +286,39 @@ export class DatePicker implements ControlValueAccessor, OnDestroy {
     return this.valueIso() === iso;
   }
 
-  private lockBodyScroll(): void {
-    document.body.style.overflow = 'hidden';
+  private ensureOverlayAttached(): void {
+    const shell = this.overlayShell();
+    if (this.overlayRef?.hasAttached()) return;
+
+    const config = new OverlayConfig({
+      hasBackdrop: false,
+      positionStrategy: this.overlay.position().global().top('0').left('0'),
+      scrollStrategy: this.overlay.scrollStrategies.block(),
+      width: '100%',
+      height: '100%',
+      panelClass: 'fintrackr-modal-cdk-pane',
+    });
+
+    this.overlayRef = this.overlay.create(config);
+    this.overlayRef.attach(new TemplatePortal(shell, this.vcr));
+
+    this.escSubscription?.unsubscribe();
+    this.escSubscription = this.overlayRef.keydownEvents().subscribe((e) => {
+      if (e.key === 'Escape' && (this.panelOpen() || this.panelClosing())) {
+        e.preventDefault();
+        this.beginCloseOverlay();
+      }
+    });
   }
 
-  private unlockBodyScroll(): void {
-    document.body.style.overflow = '';
+  private ensureOverlayDetached(): void {
+    this.escSubscription?.unsubscribe();
+    this.escSubscription = undefined;
+    if (this.overlayRef) {
+      this.overlayRef.detach();
+      this.overlayRef.dispose();
+      this.overlayRef = undefined;
+    }
   }
 
   private buildMonthGrid(year: number, month: number): DatePickerDayCell[] {

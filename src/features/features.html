@@ -9,9 +9,7 @@
       </svg>
       <span>You are offline. Changes will sync when connected.</span>
       @if (networkService.pendingSyncCount() > 0) {
-        <span
-          class="bg-amber-700 rounded-full px-2 py-0.5 text-[10px] font-bold ml-1"
-        >
+        <span class="bg-amber-700 rounded-full px-2 py-0.5 text-[10px] font-bold ml-1">
           {{ networkService.pendingSyncCount() }} pending
         </span>
       }
@@ -20,6 +18,6 @@
 
   <router-outlet></router-outlet>
   <app-snackbar
-    class="absolute bottom-0 right-0 w-full border-t border-[var(--color-border)] h-12 py-2 z-100 bg-[var(--color-bg)]"
+    class="absolute bottom-0 right-0 w-full border-t border-[var(--color-border)] h-13 py-2 z-100 bg-[var(--color-bg)]"
   ></app-snackbar>
 </div>

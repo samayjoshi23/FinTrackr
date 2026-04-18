@@ -12,11 +12,12 @@ import { CategoriesService } from '../../../../services/categories.service';
 import { Account } from '../../../../shared/models/account.model';
 import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
+import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 import { RecordAction, RecordActionType } from '../../../../shared/enums/recordActions.enum';
 
 @Component({
   selector: 'app-transaction-list',
-  imports: [CommonModule, Icon, FormsModule, TransactionDetailModal],
+  imports: [CommonModule, Icon, FormsModule, TransactionDetailModal, SignedAmountPipe],
   templateUrl: './transaction-list.html',
   styleUrl: './transaction-list.css',
 })

@@ -1,0 +1,135 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 rounded-full card cursor-pointer flex items-center justify-center"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">Edit recurring</h1>
+  </header>
+
+  @if (loading()) {
+    <p class="text-sm text-secondary font-light">Loading…</p>
+  } @else if (recurring(); as rec) {
+    <!-- Read-only summary -->
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
+      <div class="flex justify-between items-start">
+        <div>
+          <p class="font-semibold text-base title-font">
+            {{ (rec.description || '').trim() || 'Transaction' }}
+          </p>
+          <p class="text-xs text-secondary">{{ rec.category || '—' }}</p>
+        </div>
+        <span class="text-xs card selected-card rounded-xl px-2 py-1 capitalize">{{
+          rec.type
+        }}</span>
+      </div>
+    </div>
+
+    <form class="flex flex-col gap-4" #editForm="ngForm" (ngSubmit)="onSave(editForm)">
+      <!-- Amount -->
+      <div class="flex flex-col gap-2">
+        <label for="recAmount" class="text-xs text-gray-400">Amount</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            id="recAmount"
+            name="recAmount"
+            class="w-full"
+            placeholder="0.00"
+            [(ngModel)]="amount"
+            required
+            [min]="limits.amountMin"
+            [max]="limits.amountMax"
+            step="0.01"
+            #amountCtrl="ngModel"
+          />
+        </div>
+        @if (amountCtrl.invalid && amountCtrl.touched) {
+          <p class="text-xs text-red-600">
+            Enter an amount between {{ limits.amountMin }} and {{ limits.amountMax }}.
+          </p>
+        }
+      </div>
+
+      <!-- Frequency -->
+      <div class="flex flex-col gap-2">
+        <label class="text-xs text-gray-400">Frequency</label>
+        <div class="flex flex-wrap gap-2">
+          @for (opt of frequencyOptions; track opt.value) {
+            <div
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer"
+              [class.button-primary]="recurringFrequency === opt.value"
+              [class.button-secondary]="recurringFrequency !== opt.value"
+              (click)="recurringFrequency = opt.value"
+            >
+              {{ opt.name }}
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Auto pay toggle -->
+      <div class="flex items-center justify-between card rounded-xl px-4 py-3">
+        <div class="flex flex-col gap-0.5">
+          <p class="text-sm font-medium">Auto pay</p>
+          <p class="text-xs text-secondary">Automatically mark as paid on the due date</p>
+        </div>
+
+        <div class="flex items-center justify-center">
+          <label class="theme-switch" for="auto-pay-switch-edit-input">
+            <input
+              type="checkbox"
+              class="theme-switch__checkbox"
+              id="auto-pay-switch-edit-input"
+              name="isAutoPay"
+              [(ngModel)]="isAutoPay"
+            />
+            <span class="theme-switch__track">
+              <span class="theme-switch__thumb"></span>
+            </span>
+            <span class="theme-switch__label"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Next payment date -->
+      <div class="flex flex-col gap-2">
+        <label for="nextPayment" class="text-xs text-gray-400">Next payment date</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="calendar" size="sm"></ico>
+          </span>
+          <app-date-picker
+            id="nextPayment"
+            name="nextPayment"
+            [(ngModel)]="nextPaymentIso"
+            modalTitle="Next payment"
+            placeholder="Select date"
+          />
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="flex flex-col gap-2 mt-2">
+        <button
+          type="submit"
+          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+          [disabled]="saving()"
+        >
+          @if (saving()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Saving…</span>
+          } @else {
+            <span>Save changes</span>
+            <ico name="right-arrow" size="sm"></ico>
+          }
+        </button>
+      </div>
+    </form>
+  }
+</div>

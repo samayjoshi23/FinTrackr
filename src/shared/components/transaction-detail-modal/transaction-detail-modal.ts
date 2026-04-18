@@ -5,15 +5,17 @@ import { TransactionRecord } from '../../models/transaction.model';
 import { Icon } from '../icon/icon';
 import { Modal } from '../modal/modal';
 import { ConfirmPrompt } from '../confirm-prompt/confirm-prompt';
+import { SignedAmountPipe } from '../../pipes/signed-amount.pipe';
 import { TransactionsService } from '../../../services/transactions.service';
 import { AccountsService } from '../../../services/accounts.service';
 import { ReportsService } from '../../../services/reports.service';
 import { NotifierService } from '../notifier/notifier.service';
 import { RecordAction, RecordActionType } from '../../enums/recordActions.enum';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-transaction-detail-modal',
-  imports: [CommonModule, Modal, Icon, FormsModule, ConfirmPrompt],
+  imports: [CommonModule, Modal, Icon, FormsModule, ConfirmPrompt, SignedAmountPipe],
   templateUrl: './transaction-detail-modal.html',
   styleUrl: './transaction-detail-modal.css',
 })
@@ -22,7 +24,7 @@ export class TransactionDetailModal {
   private readonly accountsService = inject(AccountsService);
   private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
-
+  private readonly router = inject(Router);
   open = model(false);
   transaction = input<TransactionRecord | null>(null);
   currency = input<string>('INR');
@@ -147,5 +149,9 @@ export class TransactionDetailModal {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  goToRecurring(recurringTransactionId: string): void {
+    void this.router.navigateByUrl(`/user/recurring/view/${recurringTransactionId}`);
   }
 }

@@ -154,8 +154,7 @@
             [class.text-income]="t.type === 'income'"
             [class.text-expense]="t.type !== 'income'"
           >
-            {{ t.type === 'income' ? '+' : '-' }}
-            {{ t.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+            {{ t.amount | signedAmount: t.type : currency() }}
           </p>
         </div>
       }

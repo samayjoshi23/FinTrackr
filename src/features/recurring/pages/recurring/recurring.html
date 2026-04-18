@@ -1,0 +1,112 @@
+<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold title-font">Recurring</h1>
+    <div
+      class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
+      (click)="onAdd()"
+      aria-label="Add recurring transaction"
+    >
+      <ico name="plus" size="md"></ico>
+    </div>
+  </div>
+
+  @if (items().length === 0) {
+    <div class="card rounded-2xl p-4 flex flex-col gap-2">
+      <p class="text-sm text-secondary">No recurring schedules yet</p>
+      <p class="text-xs text-secondary font-light">
+        Create one from the add transaction flow by enabling recurring and choosing a frequency.
+      </p>
+      <button type="button" class="button-primary rounded-xl py-2" (click)="onAdd()">
+        Add transaction
+      </button>
+    </div>
+  } @else {
+    <div class="flex flex-col gap-3">
+      @for (rec of items(); track rec.uid) {
+        <div
+          class="card rounded-xl p-4 flex items-center gap-3 w-full text-left border-0 cursor-pointer active:scale-[0.99] transition-transform"
+          (click)="onView(rec)"
+          role="button"
+          tabindex="0"
+          (keydown.enter)="onView(rec)"
+        >
+          <div
+            class="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 bg-secondary-light"
+          >
+            <ico [name]="rec.icon || 'arrow-refresh'" size="sm"></ico>
+          </div>
+
+          <div class="flex justify-between items-center gap-0.5 min-w-0 flex-1">
+            <div class="flex justify-between flex-col">
+              <div class="flex flex-col">
+                <p class="text-sm font-semibold title-font truncate">
+                  {{ rec.description || 'Recurring payment' }}
+                </p>
+                @if (!rec.isActive) {
+                  <span
+                    class="shrink-0 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 text-secondary"
+                    >Stopped</span
+                  >
+                }
+              </div>
+              <p class="text-xs text-secondary font-light">
+                {{ frequencyLabel(rec.recurringFrequency) }}
+                @if (rec.nextPaymentDate) {
+                  <span class="text-secondary">
+                    · {{ rec.lastPaymentDate | date: 'mediumDate' }}
+                  </span>
+                }
+              </p>
+            </div>
+            <p
+              class="text-md font-bold"
+              [class]="rec.type === 'income' ? 'text-income' : 'text-expense'"
+            >
+              {{ rec.amount | signedAmount: rec.type : currencyCode() }}
+            </p>
+          </div>
+          @if (rec.isActive) {
+            <button
+              type="button"
+              class="button-secondary rounded-lg px-2 py-1 text-xs"
+              [disabled]="stopping()"
+              (click)="onStopRequest($event, rec)"
+            >
+              Stop
+            </button>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<app-confirm-prompt
+  [(open)]="stopPromptOpen"
+  title="Stop recurring schedule?"
+  [message]="
+    'Stop \'' +
+    (stoppingItem()?.description?.trim() || 'this schedule') +
+    '\'? You can still view history, but no future recurring processing will continue.'
+  "
+  icon="minus-circle"
+  confirmText="Stop recurring"
+  cancelText="Cancel"
+  severity="warn"
+  (confirmed)="onStopConfirmed($event)"
+/>
+
+<app-confirm-prompt
+  [(open)]="deletePromptOpen"
+  title="Remove recurring schedule?"
+  [message]="
+    'Stop tracking \'' +
+    (deletingItem()?.description?.trim() || 'this schedule') +
+    '\'? Past transactions are not deleted.'
+  "
+  icon="trash"
+  confirmText="Remove"
+  cancelText="Cancel"
+  severity="danger"
+  (confirmed)="onDeleteConfirmed($event)"
+/>

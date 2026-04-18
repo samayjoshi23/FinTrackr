@@ -11,11 +11,7 @@
   </header>
 
   <!-- Form (template-driven with ngModel) -->
-  <form
-    #txForm="ngForm"
-    class="w-full flex flex-col gap-4"
-    (ngSubmit)="onSubmit(txForm)"
-  >
+  <form #txForm="ngForm" class="w-full flex flex-col gap-4" (ngSubmit)="onSubmit(txForm)">
     <input type="hidden" name="src" [ngModel]="transaction().source" required />
     <input type="hidden" name="cat" [ngModel]="transaction().category" required />
 
@@ -84,7 +80,9 @@
         #descCtrl="ngModel"
       />
       @if (descCtrl.invalid && descCtrl.touched) {
-        <p class="text-xs text-red-600">Description is required (max {{ limits.transactionDescriptionMax }} characters).</p>
+        <p class="text-xs text-red-600">
+          Description is required (max {{ limits.transactionDescriptionMax }} characters).
+        </p>
       }
     </div>
 
@@ -150,15 +148,18 @@
 
     <!-- Recurring -->
     <div
-      class="rounded-xl py-3 px-4 flex items-center flex-col gap-2 {{
+      class="rounded-xl flex items-center flex-col {{
         transaction().isRecurring ? 'purple-card-selected' : 'card'
       }}"
     >
       <!-- Recurring toggle -->
-      <div class="flex items-center justify-between w-full">
-        <div class="flex items-center gap-2">
-          <ico name="arrow-refresh" size="sm" class="text-secondary"></ico>
-          <p class="text-xs text-secondary">Recurring Transaction</p>
+      <div class="flex items-center justify-between w-full p-3 gap-3">
+        <div class="flex items-start gap-2">
+          <ico name="arrow-refresh" class="mt-0.5" size="sm"></ico>
+          <div class="flex flex-col">
+            <p class="text-sm font-semibold">Recurring Transaction</p>
+            <span class="text-xs font-light"> A reminder will be sent if the payment is done </span>
+          </div>
         </div>
         <div class="flex items-center justify-center">
           <label class="theme-switch" id="recurring-switch">
@@ -177,11 +178,16 @@
         </div>
       </div>
       @if (transaction().isRecurring) {
-        <hr class="w-full border-gray-300" />
-        <div class="flex items-center justify-between w-full">
-          <div class="flex items-center gap-2">
-            <ico name="clock-rotate-left" size="sm" class="text-secondary"></ico>
-            <p class="text-xs text-secondary">Auto Pay</p>
+        <hr class="w-full text-purple-500" />
+        <div class="flex items-center justify-between w-full p-3 gap-3">
+          <div class="flex items-start gap-2">
+            <ico name="clock-rotate-left" class="mt-0.5" size="sm"></ico>
+            <div class="flex flex-col">
+              <p class="text-sm font-semibold">Auto Pay</p>
+              <span class="text-xs font-light">
+                Amount will be deducted from your account on the due date
+              </span>
+            </div>
           </div>
           <div class="flex items-center justify-center">
             <label class="theme-switch" id="auto-pay-switch">
@@ -189,7 +195,7 @@
                 type="checkbox"
                 class="theme-switch__checkbox"
                 id="auto-pay-switch"
-                [checked]="transaction().isAutoPay"
+                [checked]="isAutoPay()"
                 (change)="onAutoPayToggle($any($event.target).checked)"
               />
               <span class="theme-switch__track">
@@ -213,7 +219,7 @@
       <!-- Frequency -->
       <div class="flex flex-col gap-2">
         <label for="recurring-frequency" class="text-xs text-gray-400">Frequency</label>
-        <div class="flex gap-1 justify-between">
+        <div class="flex gap-2 items-center">
           @for (option of recurringFrequencies(); track option.value) {
             <div
               class="card flex items-center justify-center rounded-2xl text-xs cursor-pointer px-3 py-2 {{
@@ -225,7 +231,9 @@
             </div>
           }
         </div>
-        @if (txForm.submitted && transaction().isRecurring && !transaction().recurringFrequency?.trim()) {
+        @if (
+          txForm.submitted && transaction().isRecurring && !transaction().recurringFrequency?.trim()
+        ) {
           <p class="text-xs text-red-600">Select how often this repeats.</p>
         }
       </div>

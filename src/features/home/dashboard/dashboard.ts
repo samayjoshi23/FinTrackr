@@ -13,11 +13,12 @@ import { NotifierService } from '../../../shared/components/notifier/notifier.se
 import { TransactionRecord } from '../../../shared/models/transaction.model';
 import { budgetUsageBarClass } from '../../../shared/utils/budget-usage-color';
 import { TransactionDetailModal } from '../../../shared/components/transaction-detail-modal/transaction-detail-modal';
+import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
 import { RecordAction, RecordActionType } from '../../../shared/enums/recordActions.enum';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, Icon, TransactionDetailModal],
+  imports: [CommonModule, Icon, TransactionDetailModal, SignedAmountPipe],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })

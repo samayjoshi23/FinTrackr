@@ -1,6 +1,6 @@
-/* Layout lives in template (Tailwind); host is non-intrusive */
-:host {
-  display: contents;
+/* Host does not participate in layout; overlay is portaled to body. */
+:host.modal-host {
+  display: none;
 }
 
 .modal-backdrop {

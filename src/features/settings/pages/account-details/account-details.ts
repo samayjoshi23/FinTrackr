@@ -9,10 +9,11 @@ import { Account } from '../../../../shared/models/account.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { SETTINGS_CURRENCIES } from '../../settings-currencies';
+import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 
 @Component({
   selector: 'app-account-details',
-  imports: [CommonModule, Icon, TransactionDetailModal],
+  imports: [CommonModule, Icon, TransactionDetailModal, SignedAmountPipe],
   templateUrl: './account-details.html',
   styleUrl: './account-details.css',
 })
@@ -108,11 +109,6 @@ export class AccountDetails {
 
   amountClass(t: TransactionRecord): string {
     return (t.type ?? '').toLowerCase() === 'income' ? 'text-primary' : 'text-rose-500';
-  }
-
-  signedAmount(t: TransactionRecord): number {
-    const raw = Math.abs(Number(t.amount ?? 0));
-    return (t.type ?? '').toLowerCase() === 'income' ? raw : -raw;
   }
 
   isCurrencyActive(code: string): boolean {

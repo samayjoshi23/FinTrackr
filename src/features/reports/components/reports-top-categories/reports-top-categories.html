@@ -18,7 +18,7 @@
             <p class="text-sm font-medium title-font">{{ cat.category }}</p>
           </div>
           <p class="text-sm font-semibold title-font">
-            {{ cat.amount | currency: currency : 'symbol-narrow' : '1.0-0' }}
+            {{ cat.amount | signedAmount: null : currency : '1.0-0' }}
           </p>
         </div>
       }

@@ -4,16 +4,6 @@
   height: 100%;
 }
 
-/*
- * The overlay is rendered inside the host. Following siblings (e.g. another
- * .field-wrapper) use .field-icon at z-index 101, which can paint above a host
- * at z-index 100. While the modal is open, lift the whole host above the form.
- */
-:host:has(.date-picker-overlay) {
-  z-index: 50000;
-  isolation: isolate;
-}
-
 .date-picker-trigger {
   display: flex;
   align-items: center;

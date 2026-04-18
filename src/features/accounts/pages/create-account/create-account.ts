@@ -26,6 +26,7 @@ import {
   DEFAULT_CATEGORIES,
 } from '../../../categories/types';
 import { currencies, budgetSuggestionCards } from '../../../../core/auth/onboarding/types';
+import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 
 const CREATE_ACCOUNT_PAGES: {
   sequence: number;
@@ -67,7 +68,7 @@ const CREATE_ACCOUNT_PAGES: {
 
 @Component({
   selector: 'app-create-account',
-  imports: [CommonModule, FormsModule, Icon, DatePicker],
+  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe],
   templateUrl: './create-account.html',
   styleUrl: './create-account.css',
 })

@@ -243,6 +243,12 @@ export class SyncService {
           entry.payload as unknown as AccountUpdateInput,
         );
         break;
+      case 'recurring-transactions':
+        await this.transactionsService.applyPendingRecurringUpdate(
+          entry.docId,
+          entry.payload as Record<string, unknown>,
+        );
+        break;
       default:
         return false;
     }
@@ -260,6 +266,9 @@ export class SyncService {
           break;
         case 'accounts':
           await this.accountsService.deleteAccount(entry.docId);
+          break;
+        case 'recurring-transactions':
+          await this.transactionsService.applyPendingRecurringDelete(entry.docId);
           break;
         default:
           return false;

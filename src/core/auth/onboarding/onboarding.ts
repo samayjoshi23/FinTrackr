@@ -22,10 +22,11 @@ import {
 } from '../../../features/categories/types';
 import { CategoriesService } from '../../../services/categories.service';
 import { ReportsService } from '../../../services/reports.service';
+import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
 
 @Component({
   selector: 'app-onboarding',
-  imports: [CommonModule, FormsModule, Icon, DatePicker],
+  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe],
   templateUrl: './onboarding.html',
   styleUrl: './onboarding.css',
 })

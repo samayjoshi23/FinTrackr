@@ -44,6 +44,9 @@ export class AddTransaction {
 
   readonly limits = FORM_LIMITS;
 
+  /** Auto-pay is now part of RecurringTransaction, not TransactionRecord. */
+  isAutoPay = signal(false);
+
   /** True while IndexedDB write runs; buttons stay disabled until navigation. */
   saving = signal(false);
 
@@ -109,7 +112,7 @@ export class AddTransaction {
   }
 
   onAutoPayToggle(checked: boolean): void {
-    this.transaction.set({ ...this.transaction(), isAutoPay: checked });
+    this.isAutoPay.set(checked);
   }
 
   async onSubmit(form: NgForm) {
@@ -153,26 +156,76 @@ export class AddTransaction {
       }
     }
 
-    const transactionPayload: TransactionCreateInput = {
-      accountId: account.uid ?? '',
-      amount: rawAmount,
-      description: this.transaction().description.trim(),
-      category: this.transaction().category,
-      icon: this.transaction().icon ?? null,
-      type: this.transaction().type,
-      source: this.transaction().source ?? null,
-      isRecurring: this.transaction().isRecurring ?? false,
-    };
+    const nextPay =
+      this.transaction().nextPaymentDate instanceof Date
+        ? (this.transaction().nextPaymentDate as Date)
+        : this.transaction().nextPaymentDate
+          ? new Date(String(this.transaction().nextPaymentDate))
+          : null;
 
     this.saving.set(true);
     try {
+      let recurringTransactionId: string | null = null;
+
+      // ── Step 1: Create recurring schedule first (if recurring) ──────────
+      if (this.transaction().isRecurring) {
+        const recurringPayload: RecurringTransactionCreateInput = {
+          accountId: account.uid ?? '',
+          transactionId: '', // will be updated after transaction is created
+          description: this.transaction().description.trim(),
+          category: this.transaction().category ?? '',
+          amount: rawAmount,
+          type: this.transaction().type,
+          icon: this.transaction().icon ?? null,
+          source: this.transaction().source ?? null,
+          recurringFrequency: this.transaction().recurringFrequency?.trim() ?? null,
+          isAutoPay: this.isAutoPay(),
+          isActive: true,
+          lastPaymentDate: new Date(),
+          nextPaymentDate: nextPay && !Number.isNaN(nextPay.getTime()) ? nextPay : new Date(),
+        };
+        const recurringResponse = await this.transactionsService.createRecurringTransaction(
+          recurringPayload,
+          { syncRemoteInBackground: true },
+        );
+        recurringTransactionId = recurringResponse.uid;
+      }
+
+      // ── Step 2: Create the transaction linked to the recurring schedule ──
+      const transactionPayload: TransactionCreateInput = {
+        accountId: account.uid ?? '',
+        amount: rawAmount,
+        description: this.transaction().description.trim(),
+        category: this.transaction().category,
+        icon: this.transaction().icon ?? null,
+        type: this.transaction().type,
+        source: this.transaction().source ?? null,
+        isRecurring: this.transaction().isRecurring ?? false,
+        ...(this.transaction().isRecurring
+          ? {
+              recurringFrequency: this.transaction().recurringFrequency?.trim() ?? null,
+              recurringTransactionId,
+              nextPaymentDate: nextPay && !Number.isNaN(nextPay.getTime()) ? nextPay : null,
+            }
+          : {}),
+      };
+
       const transactionResponse = await this.transactionsService.createTransaction(
         transactionPayload,
         { syncRemoteInBackground: true },
       );
 
-      const delta =
-        transactionPayload.type === 'income' ? rawAmount : -rawAmount;
+      // ── Step 3: Link the transaction back to the recurring schedule ──────
+      if (recurringTransactionId) {
+        void this.transactionsService
+          .updateRecurringTransaction(recurringTransactionId, {
+            transactionId: transactionResponse.uid,
+          })
+          .catch((e) => console.error(e));
+      }
+
+      // ── Step 4: Optimistic balance update + remote adjustments ───────────
+      const delta = transactionPayload.type === 'income' ? rawAmount : -rawAmount;
       const optimisticBalance = (Number(account.balance) || 0) + delta;
       const updatedAccount: Account = { ...account, balance: optimisticBalance };
       this.selectedAccount.set(updatedAccount);
@@ -185,7 +238,7 @@ export class AddTransaction {
       void this.accountsService
         .adjustBalanceForTransaction(
           accountDocId,
-          Number(transactionPayload.amount),
+          rawAmount,
           transactionPayload.type === 'income' ? 'income' : 'expense',
         )
         .catch((e) => {
@@ -194,25 +247,6 @@ export class AddTransaction {
             'Balance will sync when online. Check your connection if this persists.',
           );
         });
-
-      if (this.transaction().isRecurring) {
-        const nextDate =
-          this.transaction().nextPaymentDate instanceof Date
-            ? this.transaction().nextPaymentDate
-            : new Date(String(this.transaction().nextPaymentDate));
-        const recurringTransactionPayload: RecurringTransactionCreateInput = {
-          uid: transactionResponse.uid,
-          accountId: account.uid ?? '',
-          transactionId: transactionResponse.uid,
-          lastPaymentDate: new Date(),
-          nextPaymentDate: nextDate ?? new Date(),
-        };
-        void this.transactionsService
-          .createRecurringTransaction(recurringTransactionPayload, {
-            syncRemoteInBackground: true,
-          })
-          .catch((e) => console.error(e));
-      }
 
       await this.router.navigateByUrl('/user/dashboard', { replaceUrl: true });
     } catch (e) {

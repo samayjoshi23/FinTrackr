@@ -37,8 +37,8 @@
           </div>
 
           <div class="flex justify-between text-xs text-secondary font-light">
-            <span>{{ g.currentAmount | currency: currency() : 'symbol-narrow' : '1.0-0' }}</span>
-            <span>{{ g.target | currency: currency() : 'symbol-narrow' : '1.0-0' }}</span>
+            <span>{{ g.currentAmount | signedAmount: null : currency() : '1.0-0' }}</span>
+            <span>{{ g.target | signedAmount: null : currency() : '1.0-0' }}</span>
           </div>
         </div>
       }

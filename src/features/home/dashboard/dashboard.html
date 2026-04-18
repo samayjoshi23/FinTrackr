@@ -30,7 +30,7 @@
       <p class="text-xs">Total Balance</p>
       <p class="text-2xl title-font font-medium">
         @if (selectedAccount()) {
-          {{ selectedAccount()?.balance | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+          {{ selectedAccount()?.balance | signedAmount: null : currency() : '1.0-2' }}
         } @else {
           -
         }
@@ -50,7 +50,7 @@
           <p class="text-xs font-light">Income | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
             <p class="text-md title-font font-medium">
-              {{ monthlyIncome() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+              {{ monthlyIncome() | signedAmount: null : currency() : '1.0-2' }}
             </p>
           } @else {
             -
@@ -70,7 +70,7 @@
           <p class="text-xs font-light">Expenses | {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
             <p class="text-md title-font font-medium">
-              {{ monthlyExpense() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+              {{ monthlyExpense() | signedAmount: null : currency() : '1.0-2' }}
             </p>
           } @else {
             -
@@ -102,18 +102,18 @@
           <p class="text-xs">
             @if (isBudgetOver()) {
               <span class="title-font font-medium">
-                {{ budgetOverAmount() | currency: currency() : 'symbol-narrow' : '1.0-2' }} over
+                {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' }} over
                 budget
               </span>
               <span class="text-secondary font-light">
                 ·
-                {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+                {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
                 planned
               </span>
             } @else {
-              {{ budgetRemaining() | currency: currency() : 'symbol-narrow' : '1.0-2' }} remaining
+              {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' }} remaining
               of
-              {{ monthlyBudgetTotal() | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+              {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
             }
           </p>
         </div>
@@ -191,8 +191,7 @@
                 transaction.type === 'income' ? 'text-green-500' : 'text-red-400'
               }}"
             >
-              {{ transaction.type === 'income' ? '+' : '-' }}
-              {{ transaction.amount | currency: currency() : 'symbol-narrow' : '1.0-2' }}
+              {{ transaction.amount | signedAmount: transaction.type : currency() }}
             </p>
           </div>
         }

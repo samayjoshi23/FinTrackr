@@ -5,124 +5,121 @@
     [attr.id]="hostId() || null"
     [disabled]="disabled"
     [class.opacity-50]="disabled"
-    [class.justify-between]="!compactFieldIcon()"
-    [class.justify-start]="compactFieldIcon()"
     (click)="openOverlay($event)"
   >
     <span [ngClass]="valueIso() ? 'text-[var(--color-text)]' : 'text-secondary'">
       {{ displayLabel() }}
     </span>
-    @if (!compactFieldIcon()) {
-      <ico name="calendar" size="sm" class="shrink-0 text-[var(--color-placeholder)]"></ico>
-    }
   </button>
 </div>
 
-@if (panelOpen() || panelClosing()) {
-  <div
-    class="date-picker-overlay fixed inset-0 z-[1] flex flex-col justify-end bg-black/40 sm:items-center sm:justify-center sm:p-4"
-    [class.date-picker-overlay--closing]="panelClosing()"
-    (click)="onBackdropClick($event)"
-    role="presentation"
-  >
+<ng-template #overlayShell>
+  @if (panelOpen() || panelClosing()) {
     <div
-      class="date-picker-sheet flex max-h-[min(90vh,40rem)] w-full max-w-lg flex-col rounded-t-2xl border border-[var(--color-border)] shadow-xl sm:max-h-[85vh] sm:rounded-3xl"
-      [class.date-picker-sheet--closing]="panelClosing()"
-      (click)="$event.stopPropagation()"
-      (transitionend)="onSheetTransitionEnd($event)"
-      role="dialog"
-      aria-modal="true"
-      [attr.aria-label]="modalTitle()"
+      class="date-picker-overlay fixed inset-0 z-[1] flex w-full min-w-0 flex-col justify-end bg-black/40 sm:items-center sm:justify-center sm:p-4"
+      [class.date-picker-overlay--closing]="panelClosing()"
+      (click)="onBackdropClick($event)"
+      role="presentation"
     >
       <div
-        class="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3"
+        class="date-picker-sheet flex max-h-[min(90vh,40rem)] w-full max-w-none flex-col rounded-t-2xl border border-[var(--color-border)] shadow-xl sm:max-h-[85vh] sm:max-w-lg sm:rounded-3xl"
+        [class.date-picker-sheet--closing]="panelClosing()"
+        (click)="$event.stopPropagation()"
+        (transitionend)="onSheetTransitionEnd($event)"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="modalTitle()"
       >
-        <h2 class="title-font text-lg font-semibold text-[var(--color-title-font)]">
-          {{ modalTitle() }}
-        </h2>
-        <button
-          type="button"
-          class="date-picker-icon-btn text-[var(--color-secondary)]"
-          (click)="beginCloseOverlay()"
-          aria-label="Close"
-        >
-          <ico name="times" size="sm"></ico>
-        </button>
-      </div>
-
-      <div class="flex-1 overflow-y-auto overscroll-contain px-4 pb-2 pt-3">
-        <div class="mb-3 flex flex-wrap gap-2">
-          @for (s of shortcuts(); track s.key) {
-            <button type="button" class="date-picker-chip" (click)="pickShortcut(s.date)">
-              {{ s.label }}
-            </button>
-          }
-        </div>
-
-        <div class="mb-3 flex items-center gap-2">
-          <button
-            type="button"
-            class="date-picker-chevron shrink-0 text-primary"
-            (click)="prevMonth()"
-            aria-label="Previous month"
-          >
-            <ico name="left-arrow" size="sm"></ico>
-          </button>
-          <p
-            class="min-w-0 flex-1 text-center title-font text-base font-semibold text-[var(--color-title-font)]"
-          >
-            {{ monthLabel() }}
-          </p>
-          <button
-            type="button"
-            class="date-picker-chevron shrink-0 text-primary"
-            (click)="nextMonth()"
-            aria-label="Next month"
-          >
-            <ico name="right-arrow" size="sm"></ico>
-          </button>
-        </div>
-
         <div
-          class="mb-2 grid grid-cols-7 gap-y-1 text-center text-[0.65rem] font-medium uppercase tracking-wide text-[var(--color-text-muted)]"
+          class="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3"
         >
-          @for (w of weekdayLabels; track w) {
-            <span>{{ w }}</span>
-          }
+          <h2 class="title-font text-lg font-semibold text-[var(--color-title-font)]">
+            {{ modalTitle() }}
+          </h2>
+          <button
+            type="button"
+            class="date-picker-icon-btn text-[var(--color-secondary)]"
+            (click)="beginCloseOverlay()"
+            aria-label="Close"
+          >
+            <ico name="times" size="sm"></ico>
+          </button>
         </div>
 
-        <div class="grid grid-cols-7 gap-1 pb-2">
-          @for (c of grid(); track c.iso) {
+        <div class="flex-1 overflow-y-auto overscroll-contain px-4 pb-2 pt-3">
+          <div class="mb-3 flex flex-wrap gap-2">
+            @for (s of shortcuts(); track s.key) {
+              <button type="button" class="date-picker-chip" (click)="pickShortcut(s.date)">
+                {{ s.label }}
+              </button>
+            }
+          </div>
+
+          <div class="mb-3 flex items-center gap-2">
             <button
               type="button"
-              class="date-picker-cell"
-              [class.date-picker-cell--muted]="!c.inMonth"
-              [class.date-picker-cell--today]="c.isToday && !isSelected(c.iso)"
-              [class.date-picker-cell--selected]="isSelected(c.iso)"
-              (click)="pickIso(c.iso)"
+              class="date-picker-chevron shrink-0 text-primary"
+              (click)="prevMonth()"
+              aria-label="Previous month"
             >
-              {{ c.day }}
-              @if (c.isToday) {
-                <span
-                  class="date-picker-today-dot"
-                  [class.date-picker-today-dot--on-selected]="isSelected(c.iso)"
-                ></span>
-              }
+              <ico name="left-arrow" size="sm"></ico>
             </button>
-          }
+            <p
+              class="min-w-0 flex-1 text-center title-font text-base font-semibold text-[var(--color-title-font)]"
+            >
+              {{ monthLabel() }}
+            </p>
+            <button
+              type="button"
+              class="date-picker-chevron shrink-0 text-primary"
+              (click)="nextMonth()"
+              aria-label="Next month"
+            >
+              <ico name="right-arrow" size="sm"></ico>
+            </button>
+          </div>
+
+          <div
+            class="mb-2 grid grid-cols-7 gap-y-1 text-center text-[0.65rem] font-medium uppercase tracking-wide text-[var(--color-text-muted)]"
+          >
+            @for (w of weekdayLabels; track w) {
+              <span>{{ w }}</span>
+            }
+          </div>
+
+          <div class="grid grid-cols-7 gap-1 pb-2">
+            @for (c of grid(); track c.iso) {
+              <button
+                type="button"
+                class="date-picker-cell"
+                [class.date-picker-cell--muted]="!c.inMonth"
+                [class.date-picker-cell--today]="c.isToday && !isSelected(c.iso)"
+                [class.date-picker-cell--selected]="isSelected(c.iso)"
+                (click)="pickIso(c.iso)"
+              >
+                {{ c.day }}
+                @if (c.isToday) {
+                  <span
+                    class="date-picker-today-dot"
+                    [class.date-picker-today-dot--on-selected]="isSelected(c.iso)"
+                  ></span>
+                }
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="border-t border-[var(--color-border)] p-4 pt-3">
+          <button
+            type="button"
+            severity="primary"
+            class="rounded-xl py-3 w-full flex items-center justify-center gap-2 font-medium"
+            (click)="confirmClose()"
+          >
+            {{ confirmLabel() }}
+          </button>
         </div>
       </div>
-
-      <div class="border-t border-[var(--color-border)] p-4 pt-3">
-        <button
-          type="button"
-          severity="primary"
-          class="rounded-xl py-3 w-full flex items-center justify-center gap-2 font-medium"
-          (click)="confirmClose()"
-        >
-          {{ confirmLabel() }}
-        </button>
-      </div>
     </div>
-  </div>
-}
+  }
+</ng-template>

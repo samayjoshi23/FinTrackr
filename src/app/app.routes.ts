@@ -94,6 +94,25 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'recurring',
+        loadComponent: () =>
+          import('./../features/recurring/pages/recurring/recurring').then((m) => m.Recurring),
+      },
+      {
+        path: 'recurring/view/:id',
+        loadComponent: () =>
+          import('./../features/recurring/pages/view-recurring/view-recurring').then(
+            (m) => m.ViewRecurring,
+          ),
+      },
+      {
+        path: 'recurring/edit/:id',
+        loadComponent: () =>
+          import('./../features/recurring/pages/edit-recurring/edit-recurring').then(
+            (m) => m.EditRecurring,
+          ),
+      },
+      {
         path: 'reports',
         loadComponent: () =>
           import('./../features/reports/pages/reports/reports').then((m) => m.Reports),

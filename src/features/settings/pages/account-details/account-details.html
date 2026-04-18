@@ -26,7 +26,7 @@
       <div class="rounded-xl flex flex-col gap-1 px-4 py-3 card">
         <span class="text-xs text-secondary">Current Balance</span>
         <span class="text-xl font-bold text-primary title-font">
-          {{ acc.balance | currency: acc.currency : 'symbol-narrow' : '1.0-0' }}
+          {{ acc.balance | signedAmount: null : acc.currency : '1.0-0' }}
         </span>
       </div>
     </div>
@@ -68,7 +68,7 @@
               </span>
             </div>
             <span class="text-sm font-semibold shrink-0" [ngClass]="amountClass(t)">
-              {{ signedAmount(t) | currency: acc.currency : 'symbol-narrow' : '1.0-2' }}
+              {{ t.amount | signedAmount: t.type : acc.currency : '1.0-2' }}
             </span>
           </div>
         }

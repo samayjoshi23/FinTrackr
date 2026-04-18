@@ -18,10 +18,11 @@ import {
   budgetUsageBarClass,
   categoryBudgetBarClass,
 } from '../../../../shared/utils/budget-usage-color';
+import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 
 @Component({
   selector: 'app-budgets',
-  imports: [CommonModule, Icon, ConfirmPrompt],
+  imports: [CommonModule, Icon, ConfirmPrompt, SignedAmountPipe],
   templateUrl: './budgets.html',
   styleUrl: './budgets.css',
 })
