@@ -1,25 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
+import {
+  NotificationInboxService,
+  NotificationPreviewType,
+} from '../../notification-inbox.service';
 
-export type NotificationPreviewType =
-  | 'income'
-  | 'expense'
-  | 'budget'
-  | 'bill'
-  | 'group'
-  | 'transaction';
-
-export interface NotificationPreviewItem {
-  id: string;
-  type: NotificationPreviewType;
-  title: string;
-  message: string;
-  /** ISO timestamp */
-  at: string;
-  read: boolean;
-}
+export type { NotificationPreviewItem, NotificationPreviewType } from '../../notification-inbox.service';
 
 @Component({
   selector: 'app-notification-list',
@@ -29,63 +17,21 @@ export interface NotificationPreviewItem {
 })
 export class NotificationList {
   private readonly router = inject(Router);
+  private readonly inbox = inject(NotificationInboxService);
 
-  /** Demo inbox; replace with Firestore/API later. */
-  readonly items = signal<NotificationPreviewItem[]>([
-    {
-      id: '1',
-      type: 'income',
-      title: 'Salary received',
-      message: 'Your employer deposited ₹85,000 to Primary.',
-      at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      read: false,
-    },
-    {
-      id: '2',
-      type: 'budget',
-      title: 'Budget alert',
-      message: 'Food spending is at 82% of this month’s budget.',
-      at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      read: false,
-    },
-    {
-      id: '3',
-      type: 'bill',
-      title: 'Electric bill due',
-      message: '₹2,400 due in 3 days.',
-      at: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(),
-      read: false,
-    },
-    {
-      id: '4',
-      type: 'group',
-      title: 'New group expense',
-      message: 'Alex added “Dinner split” in Weekend trip.',
-      at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
-      read: true,
-    },
-    {
-      id: '5',
-      type: 'expense',
-      title: 'Large expense',
-      message: 'A ₹18,500 charge was posted on Shopping.',
-      at: new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString(),
-      read: true,
-    },
-  ]);
-
-  readonly unreadCount = computed(() => this.items().filter((n) => !n.read).length);
+  readonly items = this.inbox.inbox;
+  readonly unreadCount = this.inbox.unreadCount;
 
   onBack() {
     void this.router.navigateByUrl('/user/dashboard');
   }
 
   markAllRead() {
-    this.items.update((list) => list.map((n) => ({ ...n, read: true })));
+    this.inbox.markAllRead();
   }
 
   markRead(id: string) {
-    this.items.update((list) => list.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    this.inbox.markRead(id);
   }
 
   iconFor(t: NotificationPreviewType): string {

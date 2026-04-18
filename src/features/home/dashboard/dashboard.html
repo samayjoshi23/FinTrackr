@@ -9,11 +9,19 @@
     <!-- Profile Picture -->
     <div class="flex items-center gap-2">
       <div
-        class="h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center cursor-pointer border-0 p-0 shrink-0 hover:opacity-90 transition-opacity"
+        class="relative h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center cursor-pointer border-0 p-0 shrink-0 hover:opacity-90 transition-opacity"
         (click)="goToNotifications()"
-        aria-label="Notifications"
+        [attr.aria-label]="
+          notificationInbox.hasUnread() ? 'Notifications, unread' : 'Notifications'
+        "
       >
         <ico name="bell" size="sm"></ico>
+        @if (notificationInbox.hasUnread()) {
+          <span
+            class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-bg)] pointer-events-none"
+            aria-hidden="true"
+          ></span>
+        }
       </div>
       <div
         class="h-9 w-9 rounded-full bg-primary-light flex items-center justify-center text-xs font-medium uppercase title-font text-primary"
@@ -38,18 +46,18 @@
     </div>
     <div class="flex gap-3 justify-between items-center">
       <div
-        class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 gap-3 items-center cursor-pointer hover:opacity-90 transition-opacity"
+        class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 cursor-pointer hover:opacity-90 transition-opacity"
         role="button"
         tabindex="0"
         (click)="goToIncomeTransactions()"
         (keydown.enter)="goToIncomeTransactions()"
         (keydown.space)="$event.preventDefault(); goToIncomeTransactions()"
       >
-        <ico name="stock-up" size="sm"></ico>
         <div class="flex flex-col">
-          <p class="text-xs font-light">Income | {{ summaryMonthLabel() || '—' }}</p>
+          <p class="text-xs font-light">Income · {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
-            <p class="text-md title-font font-medium">
+            <p class="text-md title-font font-medium flex gap-2 items-center">
+              <ico name="stock-up" size="sm"></ico>
               {{ monthlyIncome() | signedAmount: null : currency() : '1.0-2' }}
             </p>
           } @else {
@@ -58,18 +66,18 @@
         </div>
       </div>
       <div
-        class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 gap-3 items-center cursor-pointer hover:opacity-90 transition-opacity"
+        class="w-100 bg-primary-soft rounded-xl py-2 px-3 cursor-pointer hover:opacity-90 transition-opacity"
         role="button"
         tabindex="0"
         (click)="goToExpenseTransactions()"
         (keydown.enter)="goToExpenseTransactions()"
         (keydown.space)="$event.preventDefault(); goToExpenseTransactions()"
       >
-        <ico name="stock-down" size="sm"></ico>
         <div class="flex flex-col">
-          <p class="text-xs font-light">Expenses | {{ summaryMonthLabel() || '—' }}</p>
+          <p class="text-xs font-light">Expense · {{ summaryMonthLabel() || '—' }}</p>
           @if (selectedAccount()) {
-            <p class="text-md title-font font-medium">
+            <p class="text-md title-font font-medium flex gap-2 items-center">
+              <ico name="stock-down" size="sm"></ico>
               {{ monthlyExpense() | signedAmount: null : currency() : '1.0-2' }}
             </p>
           } @else {
@@ -102,8 +110,7 @@
           <p class="text-xs">
             @if (isBudgetOver()) {
               <span class="title-font font-medium">
-                {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' }} over
-                budget
+                {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' }} over budget
               </span>
               <span class="text-secondary font-light">
                 ·
@@ -111,8 +118,7 @@
                 planned
               </span>
             } @else {
-              {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' }} remaining
-              of
+              {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' }} remaining of
               {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
             }
           </p>

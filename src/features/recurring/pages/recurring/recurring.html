@@ -39,15 +39,11 @@
           <div class="flex justify-between items-center gap-0.5 min-w-0 flex-1">
             <div class="flex justify-between flex-col">
               <div class="flex flex-col">
-                <p class="text-sm font-semibold title-font truncate">
-                  {{ rec.description || 'Recurring payment' }}
-                </p>
-                @if (!rec.isActive) {
-                  <span
-                    class="shrink-0 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 text-secondary"
-                    >Stopped</span
-                  >
-                }
+                <div class="flex gap-2 items-center">
+                  <p class="text-sm font-semibold title-font truncate">
+                    {{ rec.description || 'Recurring payment' }}
+                  </p>
+                </div>
               </div>
               <p class="text-xs text-secondary font-light">
                 {{ frequencyLabel(rec.recurringFrequency) }}
@@ -58,55 +54,30 @@
                 }
               </p>
             </div>
-            <p
-              class="text-md font-bold"
-              [class]="rec.type === 'income' ? 'text-income' : 'text-expense'"
-            >
-              {{ rec.amount | signedAmount: rec.type : currencyCode() }}
-            </p>
+            <div class="flex flex-col gap-1 items-end">
+              <p
+                class="text-md font-bold"
+                [class]="rec.type === 'income' ? 'text-income' : 'text-expense'"
+              >
+                {{ rec.amount | signedAmount: rec.type : currencyCode() }}
+              </p>
+              @if (!rec.isActive) {
+                <div
+                  class="button-yellow rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1"
+                >
+                  Stopped
+                </div>
+              } @else {
+                <div
+                  class="button-primary rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1"
+                >
+                  Active
+                </div>
+              }
+            </div>
           </div>
-          @if (rec.isActive) {
-            <button
-              type="button"
-              class="button-secondary rounded-lg px-2 py-1 text-xs"
-              [disabled]="stopping()"
-              (click)="onStopRequest($event, rec)"
-            >
-              Stop
-            </button>
-          }
         </div>
       }
     </div>
   }
 </div>
-
-<app-confirm-prompt
-  [(open)]="stopPromptOpen"
-  title="Stop recurring schedule?"
-  [message]="
-    'Stop \'' +
-    (stoppingItem()?.description?.trim() || 'this schedule') +
-    '\'? You can still view history, but no future recurring processing will continue.'
-  "
-  icon="minus-circle"
-  confirmText="Stop recurring"
-  cancelText="Cancel"
-  severity="warn"
-  (confirmed)="onStopConfirmed($event)"
-/>
-
-<app-confirm-prompt
-  [(open)]="deletePromptOpen"
-  title="Remove recurring schedule?"
-  [message]="
-    'Stop tracking \'' +
-    (deletingItem()?.description?.trim() || 'this schedule') +
-    '\'? Past transactions are not deleted.'
-  "
-  icon="trash"
-  confirmText="Remove"
-  cancelText="Cancel"
-  severity="danger"
-  (confirmed)="onDeleteConfirmed($event)"
-/>
