@@ -1,11 +1,3 @@
-.notif-list-page {
-  background-color: var(--color-bg);
-}
-
-.mark-all-read:hover {
-  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
-}
-
 .notif-card {
   transition: background-color 0.15s ease;
 }

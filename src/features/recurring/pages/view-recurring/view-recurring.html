@@ -1,6 +1,6 @@
-<div class="w-full h-full flex flex-col overflow-y-auto pb-15">
+<div class="container-layout p-4 md:p-5">
   <!-- Header -->
-  <header class="flex items-center justify-between p-4 md:p-5 gap-2">
+  <header class="flex items-center justify-between gap-2">
     <div class="flex items-center gap-2">
       <div
         class="h-9 w-9 rounded-full card cursor-pointer flex items-center justify-center"
@@ -38,7 +38,7 @@
   @if (loading()) {
     <div class="flex items-center justify-center p-8 text-secondary text-sm">Loading…</div>
   } @else if (recurring(); as rec) {
-    <div class="flex flex-col gap-4 px-4 md:px-5">
+    <div class="flex flex-col gap-4">
       <!-- Status badge -->
       @if (!rec.isActive) {
         <div

@@ -1,4 +1,4 @@
-<div class="w-full h-dvh flex flex-col p-4 md:p-5 gap-5 overflow-y-auto pb-15">
+<div class="container-layout p-4 md:p-5">
   <h1 class="text-2xl font-semibold title-font text-center">Settings</h1>
 
   <!-- Profile -->
@@ -34,9 +34,7 @@
       </div>
       <span class="text-xs text-secondary font-light">Balance</span>
       <span class="text-sm font-semibold text-primary">
-        {{
-          totalBalance() | signedAmount: null : currentAccount()?.currency ?? 'USD' : '1.0-0'
-        }}
+        {{ totalBalance() | signedAmount: null : currentAccount()?.currency ?? 'USD' : '1.0-0' }}
       </span>
     </div>
   </div>

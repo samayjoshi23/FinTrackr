@@ -1,137 +1,138 @@
-<div class="gap-3 w-full flex flex-col h-full p-4 md:p-5 overflow-y-auto">
+<div class="container-layout p-4 md:p-5">
   <!-- Header -->
-  <header class="flex items-center justify-between">
-    <!-- Greeting -->
-    <div class="flex flex-col gap-1">
-      <p class="text-xs text-secondary capitalize">{{ greetingMessage() }}</p>
-      <p class="text-xl title-font font-medium">FinTrackr</p>
+  <header class="flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <!-- Greeting -->
+      <div class="flex flex-col gap-1">
+        <p class="text-xs text-secondary capitalize">{{ greetingMessage() }}</p>
+        <p class="text-xl title-font font-medium">FinTrackr</p>
+      </div>
+      <!-- Profile Picture -->
+      <div class="flex items-center gap-2">
+        <div
+          class="relative h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center cursor-pointer border-0 p-0 shrink-0 hover:opacity-90 transition-opacity"
+          (click)="goToNotifications()"
+          [attr.aria-label]="
+            notificationInbox.hasUnread() ? 'Notifications, unread' : 'Notifications'
+          "
+        >
+          <ico name="bell" size="sm"></ico>
+          @if (notificationInbox.hasUnread()) {
+            <span
+              class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-bg)] pointer-events-none"
+              aria-hidden="true"
+            ></span>
+          }
+        </div>
+        <div
+          class="h-9 w-9 rounded-full bg-primary-light flex items-center justify-center text-xs font-medium uppercase title-font text-primary"
+          (click)="goToProfile()"
+        >
+          {{ userInitials() }}
+        </div>
+      </div>
     </div>
-    <!-- Profile Picture -->
-    <div class="flex items-center gap-2">
-      <div
-        class="relative h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center cursor-pointer border-0 p-0 shrink-0 hover:opacity-90 transition-opacity"
-        (click)="goToNotifications()"
-        [attr.aria-label]="
-          notificationInbox.hasUnread() ? 'Notifications, unread' : 'Notifications'
-        "
-      >
-        <ico name="bell" size="sm"></ico>
-        @if (notificationInbox.hasUnread()) {
-          <span
-            class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-bg)] pointer-events-none"
-            aria-hidden="true"
-          ></span>
-        }
+    <!-- Summary Card -->
+    <div class="flex flex-col gap-3 p-3 bg-primary-light rounded-2xl">
+      <div class="flex flex-col">
+        <p class="text-xs">Total Balance</p>
+        <p class="text-2xl title-font font-medium">
+          @if (selectedAccount()) {
+            {{ selectedAccount()?.balance | signedAmount: null : currency() : '1.0-2' }}
+          } @else {
+            -
+          }
+        </p>
+      </div>
+      <div class="flex gap-3 justify-between items-center">
+        <div
+          class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 cursor-pointer hover:opacity-90 transition-opacity"
+          role="button"
+          tabindex="0"
+          (click)="goToIncomeTransactions()"
+          (keydown.enter)="goToIncomeTransactions()"
+          (keydown.space)="$event.preventDefault(); goToIncomeTransactions()"
+        >
+          <div class="flex flex-col">
+            <p class="text-xs font-light">Income · {{ summaryMonthLabel() || '—' }}</p>
+            @if (selectedAccount()) {
+              <p class="text-md title-font font-medium flex gap-2 items-center">
+                <ico name="stock-up" size="sm"></ico>
+                {{ monthlyIncome() | signedAmount: null : currency() : '1.0-2' }}
+              </p>
+            } @else {
+              -
+            }
+          </div>
+        </div>
+        <div
+          class="w-100 bg-primary-soft rounded-xl py-2 px-3 cursor-pointer hover:opacity-90 transition-opacity"
+          role="button"
+          tabindex="0"
+          (click)="goToExpenseTransactions()"
+          (keydown.enter)="goToExpenseTransactions()"
+          (keydown.space)="$event.preventDefault(); goToExpenseTransactions()"
+        >
+          <div class="flex flex-col">
+            <p class="text-xs font-light">Expense · {{ summaryMonthLabel() || '—' }}</p>
+            @if (selectedAccount()) {
+              <p class="text-md title-font font-medium flex gap-2 items-center">
+                <ico name="stock-down" size="sm"></ico>
+                {{ monthlyExpense() | signedAmount: null : currency() : '1.0-2' }}
+              </p>
+            } @else {
+              -
+            }
+          </div>
+        </div>
       </div>
       <div
-        class="h-9 w-9 rounded-full bg-primary-light flex items-center justify-center text-xs font-medium uppercase title-font text-primary"
-        (click)="goToProfile()"
+        class="flex flex-col p-3 bg-primary-soft rounded-xl gap-1 cursor-pointer hover:opacity-90 transition-opacity"
+        role="button"
+        tabindex="0"
+        (click)="goToBudgets()"
+        (keydown.enter)="goToBudgets()"
+        (keydown.space)="$event.preventDefault(); goToBudgets()"
       >
-        {{ userInitials() }}
+        @if (hasMonthlyBudget()) {
+          <div class="flex justify-between items-center">
+            <p class="text-xs font-light">Monthly budget used</p>
+            <p class="text-xs">{{ budgetUsedPercent() }}%</p>
+          </div>
+          <div class="h-1.5 w-full bg-primary-light rounded-full overflow-hidden">
+            <div
+              class="h-full rounded-full min-w-0 budget-progress-fill"
+              [style.width]="budgetProgressShown() ? budgetBarWidth() : '0%'"
+              [ngClass]="budgetBarFillClass()"
+            ></div>
+          </div>
+          <div class="flex justify-between items-center">
+            <p class="text-xs">
+              @if (isBudgetOver()) {
+                <span class="title-font font-medium">
+                  {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' }} over budget
+                </span>
+                <span class="text-secondary font-light">
+                  ·
+                  {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
+                  planned
+                </span>
+              } @else {
+                {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' }} remaining of
+                {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
+              }
+            </p>
+          </div>
+        } @else if (selectedAccount()) {
+          <p class="text-xs text-secondary">
+            No monthly budgets for {{ summaryMonthLabel() || 'this month' }}.
+          </p>
+        } @else {
+          <p class="text-xs text-secondary">—</p>
+        }
       </div>
     </div>
   </header>
-
-  <!-- Summary Card -->
-  <div class="flex flex-col gap-3 p-3 bg-primary-light rounded-2xl">
-    <div class="flex flex-col">
-      <p class="text-xs">Total Balance</p>
-      <p class="text-2xl title-font font-medium">
-        @if (selectedAccount()) {
-          {{ selectedAccount()?.balance | signedAmount: null : currency() : '1.0-2' }}
-        } @else {
-          -
-        }
-      </p>
-    </div>
-    <div class="flex gap-3 justify-between items-center">
-      <div
-        class="flex w-100 bg-primary-soft rounded-xl py-2 px-3 cursor-pointer hover:opacity-90 transition-opacity"
-        role="button"
-        tabindex="0"
-        (click)="goToIncomeTransactions()"
-        (keydown.enter)="goToIncomeTransactions()"
-        (keydown.space)="$event.preventDefault(); goToIncomeTransactions()"
-      >
-        <div class="flex flex-col">
-          <p class="text-xs font-light">Income · {{ summaryMonthLabel() || '—' }}</p>
-          @if (selectedAccount()) {
-            <p class="text-md title-font font-medium flex gap-2 items-center">
-              <ico name="stock-up" size="sm"></ico>
-              {{ monthlyIncome() | signedAmount: null : currency() : '1.0-2' }}
-            </p>
-          } @else {
-            -
-          }
-        </div>
-      </div>
-      <div
-        class="w-100 bg-primary-soft rounded-xl py-2 px-3 cursor-pointer hover:opacity-90 transition-opacity"
-        role="button"
-        tabindex="0"
-        (click)="goToExpenseTransactions()"
-        (keydown.enter)="goToExpenseTransactions()"
-        (keydown.space)="$event.preventDefault(); goToExpenseTransactions()"
-      >
-        <div class="flex flex-col">
-          <p class="text-xs font-light">Expense · {{ summaryMonthLabel() || '—' }}</p>
-          @if (selectedAccount()) {
-            <p class="text-md title-font font-medium flex gap-2 items-center">
-              <ico name="stock-down" size="sm"></ico>
-              {{ monthlyExpense() | signedAmount: null : currency() : '1.0-2' }}
-            </p>
-          } @else {
-            -
-          }
-        </div>
-      </div>
-    </div>
-    <div
-      class="flex flex-col p-3 bg-primary-soft rounded-xl gap-1 cursor-pointer hover:opacity-90 transition-opacity"
-      role="button"
-      tabindex="0"
-      (click)="goToBudgets()"
-      (keydown.enter)="goToBudgets()"
-      (keydown.space)="$event.preventDefault(); goToBudgets()"
-    >
-      @if (hasMonthlyBudget()) {
-        <div class="flex justify-between items-center">
-          <p class="text-xs font-light">Monthly budget used</p>
-          <p class="text-xs">{{ budgetUsedPercent() }}%</p>
-        </div>
-        <div class="h-1.5 w-full bg-primary-light rounded-full overflow-hidden">
-          <div
-            class="h-full rounded-full min-w-0 budget-progress-fill"
-            [style.width]="budgetProgressShown() ? budgetBarWidth() : '0%'"
-            [ngClass]="budgetBarFillClass()"
-          ></div>
-        </div>
-        <div class="flex justify-between items-center">
-          <p class="text-xs">
-            @if (isBudgetOver()) {
-              <span class="title-font font-medium">
-                {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' }} over budget
-              </span>
-              <span class="text-secondary font-light">
-                ·
-                {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
-                planned
-              </span>
-            } @else {
-              {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' }} remaining of
-              {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
-            }
-          </p>
-        </div>
-      } @else if (selectedAccount()) {
-        <p class="text-xs text-secondary">
-          No monthly budgets for {{ summaryMonthLabel() || 'this month' }}.
-        </p>
-      } @else {
-        <p class="text-xs text-secondary">—</p>
-      }
-    </div>
-  </div>
 
   <!-- Quick Actions -->
   <div class="flex flex-col gap-3 mb-3">
