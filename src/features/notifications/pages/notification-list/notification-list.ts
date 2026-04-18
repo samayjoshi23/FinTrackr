@@ -1,13 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
-import {
-  NotificationInboxService,
-  NotificationPreviewType,
-} from '../../notification-inbox.service';
-
-export type { NotificationPreviewItem, NotificationPreviewType } from '../../notification-inbox.service';
+import { NotificationService } from '../../notification.service';
+import { AccountsService } from '../../../../services/accounts.service';
+import { Account } from '../../../../shared/models/account.model';
+import { AppNotification, NotificationAction, NotificationType } from '../../../../shared/models/notification.model';
 
 @Component({
   selector: 'app-notification-list',
@@ -15,67 +14,156 @@ export type { NotificationPreviewItem, NotificationPreviewType } from '../../not
   templateUrl: './notification-list.html',
   styleUrl: './notification-list.css',
 })
-export class NotificationList {
+export class NotificationList implements OnInit {
   private readonly router = inject(Router);
-  private readonly inbox = inject(NotificationInboxService);
+  private readonly auth = inject(Auth);
+  readonly notifService = inject(NotificationService);
+  private readonly accountsService = inject(AccountsService);
 
-  readonly items = this.inbox.inbox;
-  readonly unreadCount = this.inbox.unreadCount;
+  readonly accounts = signal<Account[]>([]);
+  readonly userId = signal<string>('');
 
-  onBack() {
+  async ngOnInit(): Promise<void> {
+    const uid = this.auth.currentUser?.uid ?? '';
+    this.userId.set(uid);
+
+    await this.notifService.init(uid);
+
+    const accs = await this.accountsService.getAccounts();
+    this.accounts.set(accs);
+  }
+
+  // ─── Computed helpers (delegate to service signals) ───────────────────────
+
+  get items() { return this.notifService.filteredNotifications; }
+  get unreadCount() { return this.notifService.unreadCount; }
+  get loading() { return this.notifService.loading; }
+  get hasMore() { return this.notifService.hasMore; }
+  get activeFilter() { return this.notifService.activeFilter; }
+
+  // ─── Actions ──────────────────────────────────────────────────────────────
+
+  onBack(): void {
     void this.router.navigateByUrl('/user/dashboard');
   }
 
-  markAllRead() {
-    this.inbox.markAllRead();
+  markAllRead(): void {
+    void this.notifService.markAllAsRead();
   }
 
-  markRead(id: string) {
-    this.inbox.markRead(id);
+  setFilter(filter: 'all' | string): void {
+    this.notifService.setFilter(filter);
   }
 
-  iconFor(t: NotificationPreviewType): string {
-    switch (t) {
-      case 'income':
-        return 'stock-up';
-      case 'expense':
-        return 'stock-down';
-      case 'budget':
-        return 'bullseye';
-      case 'bill':
-        return 'bell';
-      case 'group':
-        return 'user-group';
-      default:
-        return 'credit-card';
+  loadMore(): void {
+    this.notifService.loadMore();
+  }
+
+  onNotificationClick(n: AppNotification): void {
+    if (n.status === 'UNREAD') {
+      void this.notifService.markAsRead(n.id);
+    }
+    const deepLink = n.actionData?.deepLink;
+    if (deepLink) {
+      void this.router.navigateByUrl(deepLink);
     }
   }
 
-  toneClass(t: NotificationPreviewType): string {
-    switch (t) {
-      case 'income':
+  onAction(event: Event, n: AppNotification, action: NotificationAction): void {
+    event.stopPropagation();
+    void this.notifService.markAsActionTaken(n.id);
+
+    switch (action) {
+      case 'PAY': {
+        const link = n.actionData?.deepLink;
+        if (link) void this.router.navigateByUrl(link);
+        break;
+      }
+      case 'ACCEPT':
+      case 'REJECT':
+      case 'REMIND':
+        // Concrete behaviour is feature-specific; status update is the baseline.
+        break;
+    }
+  }
+
+  // ─── UI helpers ───────────────────────────────────────────────────────────
+
+  iconFor(type: NotificationType): string {
+    switch (type) {
+      case 'PAYMENT_SENT':
+      case 'PAYMENT_REQUEST':
+      case 'PAYMENT_REMINDER':
+      case 'SETTLEMENT_DONE':
+        return 'credit-card';
+      case 'GROUP_INVITE':
+      case 'ACCOUNT_INVITE':
+        return 'user-group';
+      case 'RECURRING_DUE':
+      case 'RECURRING_AUTOPAID':
+        return 'arrow-refresh';
+      case 'BUDGET_EXCEEDED':
+      case 'BUDGET_WARNING':
+        return 'bullseye';
+      case 'GOAL_ACHIEVED':
+        return 'stock-up';
+      default:
+        return 'bell';
+    }
+  }
+
+  toneClass(type: NotificationType): string {
+    switch (type) {
+      case 'PAYMENT_SENT':
+      case 'GOAL_ACHIEVED':
+      case 'SETTLEMENT_DONE':
         return 'notif-tonic--income';
-      case 'expense':
+      case 'BUDGET_EXCEEDED':
+      case 'PAYMENT_REQUEST':
+      case 'PAYMENT_REMINDER':
         return 'notif-tonic--expense';
-      case 'budget':
-      case 'bill':
+      case 'BUDGET_WARNING':
+      case 'RECURRING_DUE':
         return 'notif-tonic--warn';
-      case 'group':
+      case 'GROUP_INVITE':
+      case 'ACCOUNT_INVITE':
         return 'notif-tonic--group';
       default:
         return 'notif-tonic--neutral';
     }
   }
 
-  relativeTime(iso: string): string {
-    const d = new Date(iso).getTime();
-    const s = Math.floor((Date.now() - d) / 1000);
+  actionLabel(action: NotificationAction): string {
+    switch (action) {
+      case 'ACCEPT': return 'Accept';
+      case 'REJECT': return 'Decline';
+      case 'PAY':    return 'Pay';
+      case 'REMIND': return 'Remind';
+    }
+  }
+
+  actionTone(action: NotificationAction): string {
+    switch (action) {
+      case 'ACCEPT': return 'action-btn--accept';
+      case 'PAY':    return 'action-btn--accept';
+      case 'REJECT': return 'action-btn--reject';
+      case 'REMIND': return 'action-btn--neutral';
+    }
+  }
+
+  accountName(accountId: string | null): string {
+    if (!accountId) return '';
+    return this.accounts().find((a) => a.id === accountId)?.name ?? '';
+  }
+
+  relativeTime(date: Date | null): string {
+    if (!date) return '';
+    const s = Math.floor((Date.now() - date.getTime()) / 1000);
     if (s < 60) return 'Just now';
     const m = Math.floor(s / 60);
     if (m < 60) return `${m}m ago`;
     const h = Math.floor(m / 60);
     if (h < 48) return `${h}h ago`;
-    const days = Math.floor(h / 24);
-    return `${days}d ago`;
+    return `${Math.floor(h / 24)}d ago`;
   }
 }

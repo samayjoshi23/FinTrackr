@@ -1,4 +1,5 @@
 <div class="container-layout p-4 md:p-5">
+  <!-- Header -->
   <header class="flex items-center gap-2 shrink-0">
     <div class="flex items-center gap-2 justify-between w-full">
       <div class="flex items-center gap-2">
@@ -22,7 +23,7 @@
       <div class="flex items-center gap-1 shrink-0">
         @if (unreadCount() > 0) {
           <a
-            class="mark-all-read flex items-center gap-1.5 text-xs font-medium text-primary px-2 py-1.5 rounded-lg"
+            class="mark-all-read flex items-center gap-1.5 text-xs font-medium text-primary px-2 py-1.5 rounded-lg cursor-pointer"
             (click)="markAllRead()"
           >
             <ico name="tick" size="xs"></ico>
@@ -33,32 +34,128 @@
     </div>
   </header>
 
-  <div class="flex-1 overflow-y-auto pb-20 space-y-3">
-    @for (n of items(); track n.id) {
-      <div
-        class="notif-card w-full text-left card rounded-2xl p-3 flex gap-3 relative"
-        (click)="markRead(n.id)"
+  <!-- Account Filter Tabs -->
+  @if (accounts().length > 0) {
+    <div class="filter-tabs flex gap-2 overflow-x-auto pb-1 shrink-0">
+      <button
+        class="filter-tab shrink-0"
+        [class.filter-tab--active]="activeFilter() === 'all'"
+        (click)="setFilter('all')"
       >
-        <div
-          class="notif-card__icon h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
-          [ngClass]="toneClass(n.type)"
+        All
+      </button>
+      @for (acc of accounts(); track acc.id) {
+        <button
+          class="filter-tab shrink-0"
+          [class.filter-tab--active]="activeFilter() === acc.id"
+          (click)="setFilter(acc.id)"
         >
-          <ico [name]="iconFor(n.type)" size="md"></ico>
+          {{ acc.name }}
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="flex flex-col gap-3 flex-1">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="card rounded-2xl p-3 flex gap-3 animate-pulse">
+          <div class="h-10 w-10 rounded-lg bg-secondary-light shrink-0"></div>
+          <div class="flex flex-col gap-2 flex-1">
+            <div class="h-3 rounded bg-secondary-light w-2/3"></div>
+            <div class="h-2.5 rounded bg-secondary-light w-full"></div>
+            <div class="h-2 rounded bg-secondary-light w-1/4"></div>
+          </div>
         </div>
-        <div class="min-w-0 flex-1 flex flex-col gap-1">
-          <p class="text-sm font-semibold title-font">{{ n.title }}</p>
-          <p class="text-xs text-secondary font-light">{{ n.message }}</p>
-          <p class="text-[0.6rem] text-secondary font-light pt-0.5">
-            {{ relativeTime(n.at) }}
-          </p>
+      }
+    </div>
+  }
+
+  <!-- Notifications List -->
+  @if (!loading()) {
+    <div class="flex-1 overflow-y-auto pb-20 space-y-3">
+      @if (items().length === 0) {
+        <div class="flex flex-col items-center justify-center gap-2 py-16 text-secondary">
+          <ico name="bell" size="xl"></ico>
+          <p class="text-sm">No notifications yet</p>
         </div>
-        @if (!n.read) {
-          <span
-            class="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary shrink-0"
-            aria-hidden="true"
-          ></span>
-        }
-      </div>
-    }
-  </div>
+      }
+
+      @for (n of items(); track n.id) {
+        <div
+          class="notif-card w-full text-left card rounded-2xl p-3 flex gap-3 relative cursor-pointer"
+          [class.notif-card--unread]="n.status === 'UNREAD'"
+          (click)="onNotificationClick(n)"
+        >
+          <!-- Icon -->
+          <div
+            class="notif-card__icon h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
+            [ngClass]="toneClass(n.type)"
+          >
+            <ico [name]="iconFor(n.type)" size="md"></ico>
+          </div>
+
+          <!-- Content -->
+          <div class="min-w-0 flex-1 flex flex-col gap-1">
+            <p class="text-sm font-semibold title-font">{{ n.title }}</p>
+            <p class="text-xs text-secondary font-light">{{ n.body }}</p>
+
+            <!-- Account label -->
+            @if (n.accountId) {
+              <span
+                class="account-label text-[0.6rem] font-medium px-1.5 py-0.5 rounded-full w-fit"
+              >
+                {{ accountName(n.accountId) }}
+              </span>
+            }
+
+            <p class="text-[0.6rem] text-secondary font-light pt-0.5">
+              {{ relativeTime(n.createdAt) }}
+            </p>
+
+            <!-- Action buttons -->
+            @if (n.status !== 'ACTION_TAKEN' && n.actionData?.actions?.length) {
+              <div class="flex gap-2 pt-1" (click)="$event.stopPropagation()">
+                @for (action of n.actionData?.actions!; track action) {
+                  <button
+                    class="action-btn text-xs font-medium px-3 py-1 rounded-lg"
+                    [ngClass]="actionTone(action)"
+                    (click)="onAction($event, n, action)"
+                  >
+                    {{ actionLabel(action) }}
+                  </button>
+                }
+              </div>
+            }
+
+            <!-- ACTION_TAKEN badge -->
+            @if (n.status === 'ACTION_TAKEN') {
+              <span class="text-[0.6rem] text-secondary italic pt-0.5">Action taken</span>
+            }
+          </div>
+
+          <!-- Unread dot -->
+          @if (n.status === 'UNREAD') {
+            <span
+              class="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary shrink-0"
+              aria-hidden="true"
+            ></span>
+          }
+        </div>
+      }
+
+      <!-- Load More -->
+      @if (items().length > 0 && hasMore()) {
+        <div class="flex justify-center pt-2 pb-4">
+          <button
+            class="text-xs text-primary font-medium px-4 py-2 rounded-lg button-secondary"
+            (click)="loadMore()"
+          >
+            Load more
+          </button>
+        </div>
+      }
+    </div>
+  }
 </div>

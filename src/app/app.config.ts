@@ -4,6 +4,7 @@ import { provideFirebaseApp, initializeApp } from '@angular/fire/app';
 import { provideAuth, getAuth } from '@angular/fire/auth';
 import { provideFirestore, getFirestore } from '@angular/fire/firestore';
 import { provideStorage, getStorage } from '@angular/fire/storage';
+import { provideMessaging, getMessaging } from '@angular/fire/messaging';
 import { getApp } from 'firebase/app';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
@@ -28,6 +29,7 @@ export const appConfig: ApplicationConfig = {
       const gsUrl = bucket.startsWith('gs://') ? bucket : `gs://${bucket}`;
       return getStorage(app, gsUrl);
     }),
+    provideMessaging(() => getMessaging()),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),

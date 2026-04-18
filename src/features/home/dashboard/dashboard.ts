@@ -15,7 +15,7 @@ import { budgetUsageBarClass } from '../../../shared/utils/budget-usage-color';
 import { TransactionDetailModal } from '../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
 import { RecordAction, RecordActionType } from '../../../shared/enums/recordActions.enum';
-import { NotificationInboxService } from '../../../features/notifications/notification-inbox.service';
+import { NotificationService } from '../../../features/notifications/notification.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -29,7 +29,7 @@ export class Dashboard {
   private readonly reportsService = inject(ReportsService);
   private readonly router = inject(Router);
   private readonly notifier = inject(NotifierService);
-  readonly notificationInbox = inject(NotificationInboxService);
+  readonly notificationService = inject(NotificationService);
 
   constructor() {
     effect(() => {

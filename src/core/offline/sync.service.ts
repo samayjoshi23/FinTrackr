@@ -294,8 +294,7 @@ export class SyncService {
     await this.cache.clear('goals');
     await this.cache.clear('categories');
     await this.cache.clear('sync-metadata');
-    await this.cache.clear('monthly-reports').catch(() => {
-      /* store missing until IndexedDB schema upgrade (version bump) */
-    });
+    await this.cache.clear('monthly-reports').catch(() => {});
+    await this.cache.clear('notifications').catch(() => {});
   }
 }

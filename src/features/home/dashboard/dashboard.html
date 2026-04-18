@@ -13,11 +13,11 @@
           class="relative h-9 w-9 rounded-full bg-secondary-light flex items-center justify-center cursor-pointer border-0 p-0 shrink-0 hover:opacity-90 transition-opacity"
           (click)="goToNotifications()"
           [attr.aria-label]="
-            notificationInbox.hasUnread() ? 'Notifications, unread' : 'Notifications'
+            notificationService.hasUnread() ? 'Notifications, unread' : 'Notifications'
           "
         >
           <ico name="bell" size="sm"></ico>
-          @if (notificationInbox.hasUnread()) {
+          @if (notificationService.hasUnread()) {
             <span
               class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-bg)] pointer-events-none"
               aria-hidden="true"

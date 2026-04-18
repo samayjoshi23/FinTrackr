@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { NgxIndexedDBService } from 'ngx-indexed-db';
 import { firstValueFrom } from 'rxjs';
 
-const DATE_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'lastPaymentDate', 'nextPaymentDate'];
+const DATE_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'lastPaymentDate', 'nextPaymentDate', 'readAt'];
 
 @Injectable({ providedIn: 'root' })
 export class IndexedDbCacheService {

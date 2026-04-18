@@ -22,6 +22,8 @@ import {
 import { Firestore, doc, getDoc, serverTimestamp, setDoc } from '@angular/fire/firestore';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SyncService } from '../offline/sync.service';
+import { FcmService } from '../../features/notifications/fcm.service';
+import { NotificationService } from '../../features/notifications/notification.service';
 import { date } from '../date';
 
 @Injectable({ providedIn: 'root' })
@@ -33,6 +35,8 @@ export class AuthService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
   private readonly syncService = inject(SyncService);
+  private readonly fcmService = inject(FcmService);
+  private readonly notificationService = inject(NotificationService);
 
   readonly user$ = user(this.auth);
   userProfile = signal<UserProfile | null>(null);
@@ -58,6 +62,7 @@ export class AuthService {
     });
 
     this.setUserProfile();
+    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -71,6 +76,7 @@ export class AuthService {
       provider: 'password',
     });
     this.setUserProfile();
+    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -85,6 +91,7 @@ export class AuthService {
       provider: 'google',
     });
     this.setUserProfile();
+    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -98,6 +105,7 @@ export class AuthService {
       provider: 'google',
     });
     this.setUserProfile();
+    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -132,13 +140,19 @@ export class AuthService {
 
   async logout() {
     await signOut(this.auth);
-    // Clear IndexedDB cached data and sync queue
     await this.syncService.clearAllData();
+    await this.notificationService.clearAll();
     localStorage.removeItem('userProfile');
     localStorage.removeItem('userId');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     await this.router.navigateByUrl('/login');
+  }
+
+  /** Fire-and-forget: initialise notifications + FCM token after login. */
+  private initNotifications(userId: string): void {
+    void this.notificationService.init(userId);
+    void this.fcmService.initForUser(userId);
   }
 
   async getUserProfile(uid: string) {
