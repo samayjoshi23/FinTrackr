@@ -1,14 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
-import { Storage, ref, uploadBytes, getDownloadURL } from '@angular/fire/storage';
 
 /**
- * Uploads profile images to Firebase Storage (same project as `environment.firebase`).
- * Returns the public download URL to store in your form / Firestore `photoURL`.
+ * Uploads profile images to Firebase Storage.
+ * The firebase/storage module is loaded lazily on first upload so it
+ * never contributes to the initial bundle.
  */
 @Injectable({ providedIn: 'root' })
 export class ProfileUploadService {
-  private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
 
   async uploadProfilePicture(file: File): Promise<string> {
@@ -20,7 +19,11 @@ export class ProfileUploadService {
 
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = `profile-pictures/${user.uid}/${Date.now()}_${safeName}`;
-    const storageRef = ref(this.storage, path);
+
+    // Lazy-load the Storage SDK — keeps it out of the initial chunk
+    const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+    const storage = getStorage();
+    const storageRef = ref(storage, path);
 
     await uploadBytes(storageRef, file, {
       contentType: file.type || 'application/octet-stream',
