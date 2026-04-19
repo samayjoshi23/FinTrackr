@@ -65,12 +65,8 @@ export class Login {
   }
 
   private async navigateAfterAuth(uid: string) {
-    const isOnboarded = await this.authService.checkOnboardingStatus(uid);
-    if (isOnboarded) {
-      await this.router.navigateByUrl('/user/dashboard');
-    } else {
-      await this.router.navigateByUrl('/onboarding');
-    }
+    const path = await this.authService.getPostAuthHomePath(uid);
+    await this.router.navigateByUrl(path, { replaceUrl: true });
   }
 
   async onForgotPassword() {

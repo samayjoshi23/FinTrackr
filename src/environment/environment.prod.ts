@@ -11,7 +11,7 @@ export const environment = {
     appId: '1:300103064560:web:f0112747f57677f5d99b35',
     measurementId: 'G-LRNSETP3XK',
     /** Replace with your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging */
-    vapidKey: '',
+    vapidKey: 'UXwxIdVOOIigkTlbtfKQzzUTJhiqy-mXpYc5jBpeyD8',
   },
   notifier: {
     durationMs: NotifierDuration.SHORT,

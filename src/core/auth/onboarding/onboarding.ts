@@ -394,7 +394,7 @@ export class Onboarding {
           .catch(() => {});
       }
 
-      await this.router.navigateByUrl('/user/dashboard');
+      await this.router.navigateByUrl('/user/dashboard', { replaceUrl: true });
     } finally {
       this.isStepBusy.set(false);
     }
@@ -414,7 +414,7 @@ export class Onboarding {
 
   private async updateUserProfile() {
     const profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
-    if (!profile?.['uid']) this.router.navigateByUrl('/login');
+    if (!profile?.['uid']) void this.router.navigateByUrl('/login', { replaceUrl: true });
     this.userProfile.set({
       ...this.userProfile(),
       photoURL: this.rawForm.user.profilePicture,

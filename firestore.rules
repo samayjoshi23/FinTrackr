@@ -1,64 +1,116 @@
 rules_version = '2';
-// Deploy: Firebase Console → Firestore → Rules, or `firebase deploy --only firestore`
+// Deploy: `firebase deploy --only firestore`
+//
+// Collections covered:
+//   users (+ notifications, devices), accounts, transactions, recurring-transactions,
+//   budgets, goals, categories, monthlyReports
+// Cloud Functions use the Admin SDK and bypass these rules.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── User profile ────────────────────────────────────────────────────────
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-      // Notifications are user-scoped; only the owner can read/write them.
-      // Cloud Functions use the Admin SDK (bypasses these rules).
+    // Primary account uses doc id == owner uid; additional accounts use auto ids with ownerId.
+    function ownsAccount(accountId) {
+      return isSignedIn() && (
+        accountId == request.auth.uid ||
+        get(/databases/$(database)/documents/accounts/$(accountId)).data.ownerId == request.auth.uid
+      );
+    }
+
+    function ownerIdMatchesExisting() {
+      return isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    function ownerIdMatchesOnCreate() {
+      return isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    function ownerIdUnchangedOnUpdate() {
+      return request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    // ─── User profile & subcollections ───────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+
+      // Notifications: created by Cloud Functions only; client may read / update status / delete.
       match /notifications/{notificationId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        // Only the receiver can mark notifications as read / action-taken.
-        // Creation is done exclusively by Cloud Functions (Admin SDK).
-        allow update: if request.auth != null
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow update: if isSignedIn()
           && request.auth.uid == userId
           && onlyUpdatingAllowedFields(['status', 'readAt']);
-        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow delete: if isSignedIn() && request.auth.uid == userId;
       }
 
-      // Device tokens — read/write by owner only.
       match /devices/{deviceId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Written only by scheduled functions (idempotency markers). No client access.
+      match /cron-markers/{markerId} {
+        allow read, write: if false;
       }
     }
 
     // ─── Accounts ────────────────────────────────────────────────────────────
     match /accounts/{accountId} {
-      allow read: if request.auth != null && (
+      allow read: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid || accountId == request.auth.uid
       );
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null && (
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid || accountId == request.auth.uid
       );
     }
 
-    // ─── Budgets ─────────────────────────────────────────────────────────────
-    match /budgets/{budgetId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.ownerId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
-    }
-
-    // ─── Goals ───────────────────────────────────────────────────────────────
-    match /goals/{goalId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.ownerId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
-    }
-
-    // ─── Transactions ────────────────────────────────────────────────────────
+    // ─── Transactions (scoped by accountId; no ownerId field on document) ────
     match /transactions/{transactionId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.ownerId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
+      allow read: if ownsAccount(resource.data.accountId);
+      allow create: if ownsAccount(request.resource.data.accountId);
+      allow update, delete: if ownsAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
     }
 
-    // ─── Categories ──────────────────────────────────────────────────────────
+    // ─── Recurring transactions (same account scoping as transactions) ───────
+    match /recurring-transactions/{recurringId} {
+      allow read: if ownsAccount(resource.data.accountId);
+      allow create: if ownsAccount(request.resource.data.accountId);
+      allow update, delete: if ownsAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
+    }
+
+    // ─── Monthly reports (monthlyReports — keyed by accountId in app queries) ─
+    match /monthlyReports/{reportId} {
+      allow read: if ownsAccount(resource.data.accountId);
+      allow create: if ownsAccount(request.resource.data.accountId);
+      allow update, delete: if ownsAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
+    }
+
+    // ─── Budgets / goals / categories (ownerId on document) ─────────────────
+    match /budgets/{budgetId} {
+      allow read: if ownerIdMatchesExisting();
+      allow create: if ownerIdMatchesOnCreate();
+      allow update: if ownerIdMatchesExisting() && ownerIdUnchangedOnUpdate();
+      allow delete: if ownerIdMatchesExisting();
+    }
+
+    match /goals/{goalId} {
+      allow read: if ownerIdMatchesExisting();
+      allow create: if ownerIdMatchesOnCreate();
+      allow update: if ownerIdMatchesExisting() && ownerIdUnchangedOnUpdate();
+      allow delete: if ownerIdMatchesExisting();
+    }
+
     match /categories/{categoryId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.ownerId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
+      allow read: if ownerIdMatchesExisting();
+      allow create: if ownerIdMatchesOnCreate();
+      allow update: if ownerIdMatchesExisting() && ownerIdUnchangedOnUpdate();
+      allow delete: if ownerIdMatchesExisting();
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

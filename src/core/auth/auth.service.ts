@@ -146,7 +146,7 @@ export class AuthService {
     localStorage.removeItem('userId');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    await this.router.navigateByUrl('/login');
+    await this.router.navigateByUrl('/login', { replaceUrl: true });
   }
 
   /** Fire-and-forget: initialise notifications + FCM token after login. */
@@ -159,6 +159,14 @@ export class AuthService {
     const userRef = doc(this.firestore, `users/${uid}`);
     const userDoc = await getDoc(userRef);
     return userDoc.data();
+  }
+
+  /**
+   * Where a signed-in user should land: main app vs onboarding flow.
+   * Use after login and in route guards.
+   */
+  async getPostAuthHomePath(uid: string): Promise<'/user/dashboard' | '/onboarding'> {
+    return (await this.checkOnboardingStatus(uid)) ? '/user/dashboard' : '/onboarding';
   }
 
   /**
@@ -246,11 +254,8 @@ export class AuthService {
           this.getUserProfile(user.uid),
         );
         localStorage.setItem('userProfile', JSON.stringify(userProfile));
-        const idToken = await runInInjectionContext(this.injector, () => user.getIdToken());
-        localStorage.setItem('accessToken', idToken ?? '');
-
-        const refreshToken = await runInInjectionContext(this.injector, () => user.refreshToken);
-        localStorage.setItem('refreshToken', refreshToken ?? '');
+        // Do not persist ID tokens or refresh tokens in localStorage (XSS surface).
+        // Use Firebase Auth (currentUser.getIdToken()) and the auth interceptor instead.
       }
     });
   }

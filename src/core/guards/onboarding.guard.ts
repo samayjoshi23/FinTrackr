@@ -20,7 +20,8 @@ export const onboardingGuard: CanActivateFn = () => {
     if (raw) {
       const profile = JSON.parse(raw) as Record<string, unknown>;
       if (profile['uid'] === user.uid && profile['isOnboarded'] === true) {
-        return router.createUrlTree(['/user/dashboard']);
+        void router.navigateByUrl('/user/dashboard', { replaceUrl: true });
+        return false;
       }
     }
   } catch {

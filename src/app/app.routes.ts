@@ -1,19 +1,26 @@
 import { Routes } from '@angular/router';
 import { authGuard } from '../core/guards/auth.guard';
 import { onboardingGuard } from '../core/guards/onboarding.guard';
+import { guestGuard } from '../core/guards/guest.guard';
+import { appEntryGuard } from '../core/guards/app-entry.guard';
+import { requireOnboardedGuard } from '../core/guards/require-onboarded.guard';
 
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'login',
     pathMatch: 'full',
+    canActivate: [appEntryGuard],
+    loadComponent: () =>
+      import('./../core/pages/app-root-shell/app-root-shell').then((m) => m.AppRootShell),
   },
   {
     path: 'login',
+    canActivate: [guestGuard],
     loadComponent: () => import('./../core/auth/login/login').then((m) => m.Login),
   },
   {
     path: 'register',
+    canActivate: [guestGuard],
     loadComponent: () => import('./../core/auth/signup/signup').then((m) => m.Signup),
   },
   {
@@ -24,7 +31,7 @@ export const routes: Routes = [
   {
     path: 'user',
     loadComponent: () => import('./../features/features').then((m) => m.Features),
-    canActivate: [authGuard],
+    canActivate: [authGuard, requireOnboardedGuard],
     children: [
       {
         path: '',
