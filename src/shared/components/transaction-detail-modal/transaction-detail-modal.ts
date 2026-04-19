@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, input, model, output, signal } from '@angular/core';
+import { Component, effect, inject, input, model, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TransactionRecord } from '../../models/transaction.model';
 import { Icon } from '../icon/icon';
@@ -39,6 +39,24 @@ export class TransactionDetailModal {
   editAmountValue = signal<number | null>(null);
   deletePromptOpen = signal(false);
   saving = signal(false);
+  /** When the selected account is multi-user and the transaction has `paidBy`. */
+  showPaidByRow = signal(false);
+
+  constructor() {
+    effect(() => {
+      const open = this.open();
+      const tx = this.transaction();
+      if (!open || !tx) {
+        this.showPaidByRow.set(false);
+        return;
+      }
+      void this.accountsService.getSelectedAccount().then((acc) => {
+        const multi = acc?.accountType === 'multi-user';
+        const has = Boolean((tx.paidBy ?? '').trim());
+        this.showPaidByRow.set(Boolean(multi && has));
+      });
+    });
+  }
 
   protected iconFor(t: TransactionRecord): string {
     if (t.icon) return t.icon;

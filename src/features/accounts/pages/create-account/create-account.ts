@@ -10,6 +10,7 @@ import { AccountsService } from '../../../../services/accounts.service';
 import { BudgetsService } from '../../../../services/budgets.service';
 import { CategoriesService } from '../../../../services/categories.service';
 import { GoalsService } from '../../../../services/goals.service';
+import { ReportsService } from '../../../../services/reports.service';
 import { UsersLookupService, UserLookupHit } from '../../../../services/users-lookup.service';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import {
@@ -77,6 +78,7 @@ export class CreateAccount {
   private readonly categoriesService = inject(CategoriesService);
   private readonly budgetsService = inject(BudgetsService);
   private readonly goalsService = inject(GoalsService);
+  private readonly reportsService = inject(ReportsService);
   private readonly usersLookup = inject(UsersLookupService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
@@ -440,6 +442,21 @@ export class CreateAccount {
     }
     try {
       await this.accountsService.selectAccount(acc.id);
+      const ordered = this.accountCategories();
+      if (ordered.length > 0) {
+        const b = this.formModel.budget;
+        const budgetMeta =
+          b.limit?.toString().trim() && b.categoryUid?.trim()
+            ? { categoryUid: b.categoryUid.trim(), limit: Number(b.limit) }
+            : null;
+        await this.reportsService
+          .createOnboardingStarterMonthlyReport(
+            acc.id,
+            ordered.map((c) => ({ uid: c.uid, name: c.name })),
+            budgetMeta,
+          )
+          .catch(() => {});
+      }
       this.notifier.success('Account created.');
       await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
     } catch (e) {

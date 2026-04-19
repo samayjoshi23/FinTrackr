@@ -67,6 +67,9 @@ export class TransactionsService {
           amount: Number(data.amount),
           description: data.description?.trim() ?? '',
           category: data.category?.trim() ?? '',
+          ...(data.paidBy != null && String(data.paidBy).trim()
+            ? { paidBy: String(data.paidBy).trim() }
+            : {}),
           icon: data.icon ?? null,
           type: data.type,
           ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
@@ -93,6 +96,9 @@ export class TransactionsService {
         amount: Number(data.amount),
         description: data.description?.trim() ?? '',
         category: data.category?.trim() ?? '',
+        ...(data.paidBy != null && String(data.paidBy).trim()
+          ? { paidBy: String(data.paidBy).trim() }
+          : {}),
         icon: data.icon ?? null,
         type: data.type,
         ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
@@ -176,6 +182,9 @@ export class TransactionsService {
       amount: Number(data.amount),
       description: data.description?.trim() ?? '',
       category: data.category?.trim() ?? '',
+      ...(data.paidBy != null && String(data.paidBy).trim()
+        ? { paidBy: String(data.paidBy).trim() }
+        : {}),
       icon: data.icon ?? null,
       type: data.type,
       ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
@@ -537,6 +546,7 @@ export class TransactionsService {
       amount: data['amount'] as number | null,
       description: (data['description'] as string) ?? '',
       category: (data['category'] as string) ?? '',
+      paidBy: (data['paidBy'] as string | null | undefined) ?? null,
       icon: data['icon'] as string | null,
       isRecurring: (data['isRecurring'] as boolean) ?? false,
       recurringFrequency: (data['recurringFrequency'] as string) ?? null,

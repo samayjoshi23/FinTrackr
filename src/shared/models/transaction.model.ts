@@ -7,6 +7,8 @@ export interface TransactionRecord {
   amount: number | null;
   description: string;
   category: string;
+  /** Display name of the user who recorded the transaction (multi-user accounts). */
+  paidBy?: string | null;
   type: string;
   source?: string;
   icon?: string | null;
@@ -26,6 +28,7 @@ export interface TransactionCreateInput {
   amount: number | string | null;
   description: string;
   category: string | null;
+  paidBy?: string | null;
   icon?: string | null;
   type: string;
   status?: string | null;

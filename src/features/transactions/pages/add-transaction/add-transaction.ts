@@ -1,4 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { FormsModule, NgForm } from '@angular/forms';
 import {
@@ -29,6 +31,8 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 export class AddTransaction {
   private readonly accountsService = inject(AccountsService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(Auth);
   private readonly location = inject(Location);
   private readonly categoriesService = inject(CategoriesService);
   private readonly transactionsService = inject(TransactionsService);
@@ -56,6 +60,24 @@ export class AddTransaction {
     this.currency.set(account?.currency ?? 'INR');
     let categories = await this.categoriesService.getCategories();
     this.categories.set(categories);
+
+    const recurringId = this.route.snapshot.queryParamMap.get('recurringId')?.trim();
+    if (recurringId) {
+      const rec = await this.transactionsService.getRecurringTransaction(recurringId);
+      if (rec) {
+        this.transaction.set({
+          ...this.transaction(),
+          description: rec.description,
+          category: rec.category,
+          amount: rec.amount,
+          type: (rec.type === 'income' ? 'income' : 'expense') as 'income' | 'expense',
+          icon: rec.icon ?? undefined,
+          source: rec.source ?? '',
+          isRecurring: false,
+        });
+      }
+    }
+
     let symbolString = new CurrencyPipe('en-IN').transform(
       0,
       account?.currency ?? 'INR',
@@ -192,11 +214,13 @@ export class AddTransaction {
       }
 
       // ── Step 2: Create the transaction linked to the recurring schedule ──
+      const paidBy = this.paidByLabelForAccount(account);
       const transactionPayload: TransactionCreateInput = {
         accountId: account.uid ?? '',
         amount: rawAmount,
         description: this.transaction().description.trim(),
         category: this.transaction().category,
+        ...(paidBy ? { paidBy: paidBy } : {}),
         icon: this.transaction().icon ?? null,
         type: this.transaction().type,
         source: this.transaction().source ?? null,
@@ -259,5 +283,18 @@ export class AddTransaction {
 
   onBack() {
     this.location.back();
+  }
+
+  private paidByLabelForAccount(account: Account): string | undefined {
+    if (account.accountType !== 'multi-user') return undefined;
+    const dn = this.auth.currentUser?.displayName?.trim();
+    if (dn) return dn;
+    try {
+      const raw = localStorage.getItem('userProfile');
+      const p = raw ? (JSON.parse(raw) as { displayName?: string }) : null;
+      return p?.displayName?.trim() || 'Member';
+    } catch {
+      return 'Member';
+    }
   }
 }

@@ -12,7 +12,11 @@ import { CategoriesService } from '../../services/categories.service';
 import { GoalsService } from '../../services/goals.service';
 import { ReportsService } from '../../services/reports.service';
 
-import { TransactionCreateInput, RecurringTransactionCreateInput } from '../../shared/models/transaction.model';
+import {
+  TransactionCreateInput,
+  TransactionRecord,
+  RecurringTransactionCreateInput,
+} from '../../shared/models/transaction.model';
 import { BudgetCreateInput, BudgetUpdateInput } from '../../shared/models/budget.model';
 import { GoalCreateInput, GoalUpdateInput } from '../../shared/models/goal.model';
 import { AccountCreateInput, AccountUpdateInput } from '../../shared/models/account.model';
@@ -122,17 +126,25 @@ export class SyncService {
     let created = false;
 
     switch (entry.storeName) {
-      case 'transactions':
+      case 'transactions': {
+        let syncedRow: TransactionRecord | null = null;
         if (pre) {
           await this.transactionsService.applyPendingTransactionCreate(
             pre.id,
             pre.rest as unknown as TransactionCreateInput,
           );
+          syncedRow = await this.transactionsService.getTransaction(pre.id);
         } else {
-          await this.transactionsService.createTransaction(p as unknown as TransactionCreateInput);
+          syncedRow = await this.transactionsService.createTransaction(
+            p as unknown as TransactionCreateInput,
+          );
+        }
+        if (syncedRow) {
+          await this.reportsService.updateReportForTransaction(syncedRow).catch(() => {});
         }
         created = true;
         break;
+      }
       case 'budgets':
         if (pre) {
           await this.budgetsService.applyPendingBudgetCreate(pre.id, pre.rest as unknown as BudgetCreateInput);
@@ -209,6 +221,10 @@ export class SyncService {
           entry.docId,
           entry.payload as unknown as TransactionCreateInput,
         );
+        {
+          const row = await this.transactionsService.getTransaction(entry.docId);
+          if (row) await this.reportsService.updateReportForTransaction(row).catch(() => {});
+        }
         break;
       case 'budgets':
         await this.budgetsService.updateBudget(
@@ -261,9 +277,14 @@ export class SyncService {
 
     try {
       switch (entry.storeName) {
-        case 'transactions':
+        case 'transactions': {
+          const beforeDelete = await this.transactionsService.getTransaction(entry.docId);
           await this.transactionsService.deleteTransaction(entry.docId);
+          if (beforeDelete) {
+            await this.reportsService.updateReportForTransaction(beforeDelete).catch(() => {});
+          }
           break;
+        }
         case 'accounts':
           await this.accountsService.deleteAccount(entry.docId);
           break;

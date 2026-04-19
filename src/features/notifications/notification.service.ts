@@ -237,6 +237,7 @@ export class NotificationService {
   }
 
   private fromFirestoreDoc(id: string, data: AppNotificationDocument): AppNotification {
+    const expiresRaw = data.expiresAt as Timestamp | null | undefined;
     return {
       id,
       type: data.type,
@@ -262,6 +263,16 @@ export class NotificationService {
             ? new Date(data.readAt as unknown as string)
             : null,
       isPushSent: data.isPushSent ?? false,
+      expiresAt:
+        expiresRaw instanceof Timestamp
+          ? expiresRaw.toDate()
+          : expiresRaw
+            ? new Date(expiresRaw as unknown as string)
+            : null,
+      priority: data.priority ?? 'normal',
+      source: data.source ?? 'system',
+      category: data.category ?? null,
+      subtitle: data.subtitle ?? null,
     };
   }
 
@@ -281,6 +292,16 @@ export class NotificationService {
           : n.readAt
             ? new Date(n.readAt as unknown as string)
             : null,
+      expiresAt:
+        n.expiresAt instanceof Date
+          ? n.expiresAt
+          : n.expiresAt
+            ? new Date(n.expiresAt as unknown as string)
+            : null,
+      priority: n.priority ?? 'normal',
+      source: n.source ?? 'system',
+      category: n.category ?? null,
+      subtitle: n.subtitle ?? null,
     }));
   }
 

@@ -132,6 +132,12 @@
             <dt class="text-secondary shrink-0">Payment source</dt>
             <dd class="min-w-0 text-right font-medium">{{ sourceLabel(tx) }}</dd>
           </div>
+          @if (showPaidByRow()) {
+            <div class="flex justify-between gap-4">
+              <dt class="text-secondary shrink-0">Paid by</dt>
+              <dd class="min-w-0 text-right font-medium">{{ tx.paidBy }}</dd>
+            </div>
+          }
           @if (tx.date?.trim()) {
             <div class="flex justify-between gap-4">
               <dt class="text-secondary shrink-0">Transaction date</dt>

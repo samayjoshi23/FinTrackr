@@ -3,6 +3,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 export type NotificationType =
   | 'GROUP_INVITE'
   | 'ACCOUNT_INVITE'
+  | 'ACCOUNT_INVITE_ACCEPTED'
+  | 'ACCOUNT_INVITE_DECLINED'
   | 'PAYMENT_SENT'
   | 'PAYMENT_REQUEST'
   | 'PAYMENT_REMINDER'
@@ -11,15 +13,27 @@ export type NotificationType =
   | 'RECURRING_AUTOPAID'
   | 'BUDGET_EXCEEDED'
   | 'BUDGET_WARNING'
-  | 'GOAL_ACHIEVED';
+  | 'GOAL_ACHIEVED'
+  | 'MONTH_END_SUMMARY';
 
 export type NotificationStatus = 'UNREAD' | 'READ' | 'ACTION_TAKEN';
-export type NotificationAction = 'ACCEPT' | 'REJECT' | 'PAY' | 'REMIND';
+export type NotificationAction = 'ACCEPT' | 'REJECT' | 'PAY' | 'REMIND' | 'MARK_PAID';
+
+export type NotificationPriority = 'low' | 'normal' | 'high';
+export type NotificationSource = 'scheduled' | 'system' | 'social';
 
 export interface NotificationActionData {
   amount?: number;
   deepLink?: string;
   actions?: NotificationAction[];
+  /** Extra payload for deep links / callables (string values only for FCM data). */
+  recurringId?: string;
+  accountName?: string;
+  inviterName?: string;
+  /** Firestore account document id. */
+  accountId?: string;
+  /** Trend label for month-end summaries (FCM / client UI). */
+  trendLabel?: 'great' | 'good' | 'watch' | 'concerning';
 }
 
 export interface NotificationDocument {
@@ -36,6 +50,14 @@ export interface NotificationDocument {
   createdAt: Timestamp;
   readAt: Timestamp | null;
   isPushSent: boolean;
+  /** When the inbox should stop highlighting this row (max 7 days from creation). */
+  expiresAt: Timestamp | null;
+  priority: NotificationPriority;
+  source: NotificationSource;
+  /** Optional grouping: recurring, budget, account, month_summary */
+  category?: string | null;
+  /** Short secondary line for rich UIs. */
+  subtitle?: string | null;
 }
 
 export interface DeviceDocument {
@@ -45,14 +67,20 @@ export interface DeviceDocument {
 }
 
 export interface RecurringTransactionDocument {
+  /** Document id (not Firebase Auth uid). */
   uid: string;
   accountId: string;
+  transactionId?: string;
   description: string;
+  category: string;
   amount: number;
   type: string;
   isAutoPay: boolean | null;
   isActive: boolean;
   nextPaymentDate: Timestamp;
+  recurringFrequency?: string | null;
+  icon?: string | null;
+  source?: string | null;
 }
 
 export interface BudgetDocument {
@@ -61,7 +89,9 @@ export interface BudgetDocument {
   accountId: string;
   month: string;
   category: string;
-  amount: number;
+  /** Primary field in app; legacy docs may use `amount`. */
+  limit?: number;
+  amount?: number;
 }
 
 export interface GoalDocument {
@@ -69,7 +99,16 @@ export interface GoalDocument {
   ownerId: string;
   accountId: string;
   name: string;
-  targetAmount: number;
+  /** App field name */
+  target?: number;
+  targetAmount?: number;
   currentAmount: number;
   isCompleted?: boolean;
+}
+
+export interface AccountMember {
+  memberId: string;
+  memberDisplayName: string;
+  isJoined: boolean;
+  isActive: boolean;
 }

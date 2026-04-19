@@ -7,6 +7,8 @@ import { NotificationService } from '../../notification.service';
 import { AccountsService } from '../../../../services/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
 import { AppNotification, NotificationAction, NotificationType } from '../../../../shared/models/notification.model';
+import { AccountInviteService } from '../../../accounts/account-invite.service';
+import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 
 @Component({
   selector: 'app-notification-list',
@@ -19,6 +21,8 @@ export class NotificationList implements OnInit {
   private readonly auth = inject(Auth);
   readonly notifService = inject(NotificationService);
   private readonly accountsService = inject(AccountsService);
+  private readonly accountInvite = inject(AccountInviteService);
+  private readonly notifier = inject(NotifierService);
 
   readonly accounts = signal<Account[]>([]);
   readonly userId = signal<string>('');
@@ -79,10 +83,29 @@ export class NotificationList implements OnInit {
         if (link) void this.router.navigateByUrl(link);
         break;
       }
+      case 'MARK_PAID': {
+        const link = n.actionData?.deepLink;
+        if (link) void this.router.navigateByUrl(link);
+        break;
+      }
       case 'ACCEPT':
-      case 'REJECT':
+      case 'REJECT': {
+        if (n.type !== 'ACCOUNT_INVITE') break;
+        const accountId = n.accountId ?? n.actionData?.accountId ?? n.entityId;
+        if (!accountId) {
+          this.notifier.error('Missing account for this invite.');
+          break;
+        }
+        void this.accountInvite
+          .respond(accountId, action === 'ACCEPT')
+          .then(() => this.notifier.success(action === 'ACCEPT' ? 'You joined the account.' : 'Invite declined.'))
+          .catch((e) => {
+            console.error(e);
+            this.notifier.error(e instanceof Error ? e.message : 'Could not update the invite.');
+          });
+        break;
+      }
       case 'REMIND':
-        // Concrete behaviour is feature-specific; status update is the baseline.
         break;
     }
   }
@@ -107,6 +130,11 @@ export class NotificationList implements OnInit {
         return 'bullseye';
       case 'GOAL_ACHIEVED':
         return 'stock-up';
+      case 'MONTH_END_SUMMARY':
+        return 'bar-graph';
+      case 'ACCOUNT_INVITE_ACCEPTED':
+      case 'ACCOUNT_INVITE_DECLINED':
+        return 'user-group';
       default:
         return 'bell';
     }
@@ -127,7 +155,11 @@ export class NotificationList implements OnInit {
         return 'notif-tonic--warn';
       case 'GROUP_INVITE':
       case 'ACCOUNT_INVITE':
+      case 'ACCOUNT_INVITE_ACCEPTED':
+      case 'ACCOUNT_INVITE_DECLINED':
         return 'notif-tonic--group';
+      case 'MONTH_END_SUMMARY':
+        return 'notif-tonic--income';
       default:
         return 'notif-tonic--neutral';
     }
@@ -139,13 +171,15 @@ export class NotificationList implements OnInit {
       case 'REJECT': return 'Decline';
       case 'PAY':    return 'Pay';
       case 'REMIND': return 'Remind';
+      case 'MARK_PAID': return 'Mark paid';
     }
   }
 
   actionTone(action: NotificationAction): string {
     switch (action) {
       case 'ACCEPT': return 'action-btn--accept';
-      case 'PAY':    return 'action-btn--accept';
+      case 'PAY': return 'action-btn--accept';
+      case 'MARK_PAID': return 'action-btn--accept';
       case 'REJECT': return 'action-btn--reject';
       case 'REMIND': return 'action-btn--neutral';
     }

@@ -11,7 +11,6 @@ import {
   setDoc,
   updateDoc,
   where,
-  addDoc,
 } from '@angular/fire/firestore';
 import { TransactionsService } from '../transactions/transactions.service';
 import { BudgetsService } from '../budgets/budgets.service';
@@ -98,8 +97,6 @@ export class ReportsService {
    * Firestore revalidation runs in the background. Monthly report docs are refreshed the same way.
    */
   async getReportViewData(period: ReportTimePeriod): Promise<ReportViewData> {
-    this.refreshMonthlyReportsFromFirestoreInBackground();
-
     const [categories, budgets, transactions] = await Promise.all([
       this.categoriesService.getCategories(),
       this.budgetsService.getBudgets(),
@@ -130,9 +127,10 @@ export class ReportsService {
   }
 
   /**
-   * Returns the current month's report from IndexedDB immediately when cached, updates
-   * {@link dashboardMonthReport}, then recomputes that month in the background (local-first
-   * writes + Firestore) and refreshes the signal when done.
+   * Returns the current month's report from IndexedDB when present, or builds it once from
+   * transactions/budgets/categories when missing and online. Does not recompute on every read:
+   * {@link updateReportForTransaction}, {@link rebuildCurrentMonthReport}, and onboarding
+   * flows keep the doc in sync and avoid redundant Firestore writes on dashboard load.
    */
   async ensureCurrentMonthReport(): Promise<MonthlyReport | null> {
     const accountId = await this.resolveAccountKey();
@@ -145,12 +143,6 @@ export class ReportsService {
     const cached = await this.findReportForMonthInCacheOnly(accountId, month);
     if (cached) {
       this.dashboardMonthReport.set(cached);
-      this.createOrUpdateMonthlyReport(month)
-        .then(async () => {
-          const fresh = await this.findReportForMonthInCacheOnly(accountId, month);
-          if (fresh) this.dashboardMonthReport.set(fresh);
-        })
-        .catch(() => {});
       return cached;
     }
     if (!this.network.isOnline()) {
@@ -280,42 +272,6 @@ export class ReportsService {
       createdAt: now,
       updatedAt: now,
     });
-  }
-
-  // ─── Private: monthly reports cache (IDB first; Firestore refresh never blocks UI) ───
-
-  private refreshMonthlyReportsFromFirestoreInBackground(): void {
-    void (async () => {
-      const accountId = await this.resolveAccountKey();
-      if (!accountId || !this.network.isOnline()) return;
-      this.fetchAndSeedFromFirestore(accountId).catch(() => {});
-    })();
-  }
-
-  private async fetchAndSeedFromFirestore(accountId: string): Promise<void> {
-    try {
-      const snap = await getDocs(
-        query(collection(this.firestore, COLLECTION), where('accountId', '==', accountId)),
-      );
-      const reports = snap.docs.map((d) => this.mapReport(d.id, d.data()));
-      if (reports.length > 0) {
-        await this.cache.putAll<MonthlyReport>(STORE, reports);
-      }
-    } catch {
-      /* offline or permission error — silent */
-    }
-  }
-
-  // ─── Public: push a freshly-computed report to Firestore (called by component after first build) ──
-
-  async pushReportToFirestore(report: MonthlyReportCreateInput): Promise<void> {
-    if (!this.network.isOnline()) return;
-    try {
-      const ref = await addDoc(collection(this.firestore, COLLECTION), report);
-      await setDoc(ref, report, { merge: true });
-    } catch {
-      /* silent */
-    }
   }
 
   /**
