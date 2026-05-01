@@ -13,29 +13,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Primary account uses doc id == owner uid; additional accounts use auto ids with ownerId.
-    function ownsAccount(accountId) {
+    // Account access supports owner and accepted active members.
+    function canAccessAccount(accountId) {
+      let account = get(/databases/$(database)/documents/accounts/$(accountId)).data;
       return isSignedIn() && (
         accountId == request.auth.uid ||
-        get(/databases/$(database)/documents/accounts/$(accountId)).data.ownerId == request.auth.uid
+        account.ownerId == request.auth.uid ||
+        (account.activeMemberIds is list && account.activeMemberIds.hasAny([request.auth.uid]))
       );
     }
 
-    function ownerIdMatchesExisting() {
+    function canAccessExistingAccount() {
+      return isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        (resource.data.activeMemberIds is list && resource.data.activeMemberIds.hasAny([request.auth.uid]))
+      );
+    }
+
+    function isAccountOwner() {
       return isSignedIn() && resource.data.ownerId == request.auth.uid;
-    }
-
-    function ownerIdMatchesOnCreate() {
-      return isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-    }
-
-    function ownerIdUnchangedOnUpdate() {
-      return request.resource.data.ownerId == resource.data.ownerId;
     }
 
     // ─── User profile & subcollections ───────────────────────────────────────
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      // Public read for invite / directory search from local devices.
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId;
 
       // Notifications: created by Cloud Functions only; client may read / update status / delete.
       match /notifications/{notificationId} {
@@ -58,59 +61,104 @@ service cloud.firestore {
 
     // ─── Accounts ────────────────────────────────────────────────────────────
     match /accounts/{accountId} {
-      allow read: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid || accountId == request.auth.uid
-      );
+      allow read: if canAccessExistingAccount() || accountId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid || accountId == request.auth.uid
+      allow update: if isAccountOwner() || (
+        canAccessExistingAccount() &&
+        onlyUpdatingAllowedFields(['isSelected', 'isActive', 'updatedAt'])
       );
+      allow delete: if isAccountOwner() || accountId == request.auth.uid;
     }
 
     // ─── Transactions (scoped by accountId; no ownerId field on document) ────
     match /transactions/{transactionId} {
-      allow read: if ownsAccount(resource.data.accountId);
-      allow create: if ownsAccount(request.resource.data.accountId);
-      allow update, delete: if ownsAccount(resource.data.accountId)
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update, delete: if canAccessAccount(resource.data.accountId)
         && request.resource.data.accountId == resource.data.accountId;
     }
 
     // ─── Recurring transactions (same account scoping as transactions) ───────
     match /recurring-transactions/{recurringId} {
-      allow read: if ownsAccount(resource.data.accountId);
-      allow create: if ownsAccount(request.resource.data.accountId);
-      allow update, delete: if ownsAccount(resource.data.accountId)
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update, delete: if canAccessAccount(resource.data.accountId)
         && request.resource.data.accountId == resource.data.accountId;
     }
 
     // ─── Monthly reports (monthlyReports — keyed by accountId in app queries) ─
     match /monthlyReports/{reportId} {
-      allow read: if ownsAccount(resource.data.accountId);
-      allow create: if ownsAccount(request.resource.data.accountId);
-      allow update, delete: if ownsAccount(resource.data.accountId)
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update, delete: if canAccessAccount(resource.data.accountId)
         && request.resource.data.accountId == resource.data.accountId;
     }
 
-    // ─── Budgets / goals / categories (ownerId on document) ─────────────────
+    // ─── Budgets / goals / categories (account-scoped) ──────────────────────
     match /budgets/{budgetId} {
-      allow read: if ownerIdMatchesExisting();
-      allow create: if ownerIdMatchesOnCreate();
-      allow update: if ownerIdMatchesExisting() && ownerIdUnchangedOnUpdate();
-      allow delete: if ownerIdMatchesExisting();
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update: if canAccessAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
     }
 
     match /goals/{goalId} {
-      allow read: if ownerIdMatchesExisting();
-      allow create: if ownerIdMatchesOnCreate();
-      allow update: if ownerIdMatchesExisting() && ownerIdUnchangedOnUpdate();
-      allow delete: if ownerIdMatchesExisting();
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update: if canAccessAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
     }
 
     match /categories/{categoryId} {
-      allow read: if ownerIdMatchesExisting();
-      allow create: if ownerIdMatchesOnCreate();
-      allow update: if ownerIdMatchesExisting() && ownerIdUnchangedOnUpdate();
-      allow delete: if ownerIdMatchesExisting();
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update: if canAccessAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
+    }
+
+    // ─── Groups ───────────────────────────────────────────────────────────────
+    function canReadGroupData(groupData) {
+      return isSignedIn() && (
+        groupData.creatorId == request.auth.uid ||
+        (groupData.memberIds is list && groupData.memberIds.hasAny([request.auth.uid]))
+      );
+    }
+
+    function isGroupMember(groupId) {
+      let groupData = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      return isSignedIn() && (
+        groupData.creatorId == request.auth.uid ||
+        (groupData.activeMemberIds is list && groupData.activeMemberIds.hasAny([request.auth.uid]))
+      );
+    }
+
+    function isGroupCreator(groupId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/groups/$(groupId)).data.creatorId == request.auth.uid;
+    }
+
+    match /groups/{groupId} {
+      // Temporary compatibility: legacy group docs may not yet have memberIds.
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid ||
+        isGroupMember(groupId)
+      );
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+
+      match /expenses/{expenseId} {
+        allow read: if isSignedIn();
+        allow write: if isGroupCreator(groupId) || isGroupMember(groupId);
+      }
+
+      match /settlements/{settlementId} {
+        allow read: if isSignedIn();
+        allow write: if isGroupCreator(groupId) || isGroupMember(groupId);
+      }
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

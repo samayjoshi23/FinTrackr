@@ -1,0 +1,180 @@
+<app-modal [(open)]="open" [bodyTemplate]="expenseBodyTpl" title="Add Expense" />
+
+<ng-template #expenseBodyTpl>
+  <div class="flex flex-col gap-4">
+
+    <!-- Description -->
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Description</label>
+      <input
+        type="text"
+        class="input"
+        placeholder="What's this expense for?"
+        [(ngModel)]="formModel.description"
+        maxlength="80"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Amount -->
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Amount ({{ group().currency }})</label>
+      <input
+        type="number"
+        class="input"
+        placeholder="0.00"
+        [(ngModel)]="formModel.amount"
+        min="0.01"
+        step="0.01"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Category chips -->
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Category</label>
+      <div class="flex gap-2 flex-wrap">
+        @for (cat of categories; track cat.name) {
+          <button
+            type="button"
+            class="cat-chip flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
+            [class.cat-chip--active]="formModel.category === cat.name"
+            (click)="selectCategory(cat.name, cat.icon)"
+          >
+            <ico [name]="cat.icon" size="xs"></ico>
+            {{ cat.name }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Paid by -->
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Paid by</label>
+      <div class="flex gap-2 overflow-x-auto pb-1">
+        <!-- Creator / current user -->
+        <button
+          type="button"
+          class="payer-chip flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shrink-0 transition-all"
+          [class.payer-chip--active]="formModel.paidById === currentUserId()"
+          (click)="formModel.paidById = currentUserId()"
+        >
+          You
+        </button>
+        @for (m of members(); track m.memberId) {
+          <button
+            type="button"
+            class="payer-chip flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shrink-0 transition-all"
+            [class.payer-chip--active]="formModel.paidById === m.memberId"
+            (click)="formModel.paidById = m.memberId"
+          >
+            {{ m.memberDisplayName.split(' ')[0] }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Date -->
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Date</label>
+      <input
+        type="date"
+        class="input"
+        [(ngModel)]="formModel.date"
+      />
+    </div>
+
+    <!-- Split mode -->
+    <div class="flex flex-col gap-2">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Split</label>
+      <div class="flex rounded-xl overflow-hidden bg-[var(--color-bg-elevated)] p-1 gap-1">
+        <button
+          type="button"
+          class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+          [class.bg-primary]="splitMode() === 'equal'"
+          [class.text-white]="splitMode() === 'equal'"
+          [class.text-secondary]="splitMode() !== 'equal'"
+          (click)="onSplitModeChange('equal')"
+        >
+          Equal
+        </button>
+        <button
+          type="button"
+          class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+          [class.bg-primary]="splitMode() === 'custom'"
+          [class.text-white]="splitMode() === 'custom'"
+          [class.text-secondary]="splitMode() !== 'custom'"
+          (click)="onSplitModeChange('custom')"
+        >
+          Custom
+        </button>
+      </div>
+
+      @if (splitMode() === 'equal') {
+        <p class="text-xs text-secondary font-light text-center">
+          Split equally among {{ allMembersForSplit().length }} members
+          @if (+formModel.amount > 0) {
+            — {{ group().currency }} {{ (+formModel.amount / allMembersForSplit().length).toFixed(2) }} each
+          }
+        </p>
+      }
+
+      @if (splitMode() === 'custom') {
+        <div class="flex flex-col gap-2">
+          @for (split of customSplits(); track split.memberId; let i = $index) {
+            <div class="flex items-center gap-2">
+              <div
+                class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                [ngClass]="avatarClass(split.memberId)"
+              >
+                {{ initials(split.memberName) }}
+              </div>
+              <span class="text-xs font-medium flex-1 truncate">
+                {{ split.memberId === currentUserId() ? 'You' : split.memberName }}
+              </span>
+              <input
+                type="number"
+                class="input w-24 text-right text-sm"
+                placeholder="0.00"
+                [(ngModel)]="customSplits()[i].amount"
+                min="0"
+                step="0.01"
+              />
+            </div>
+          }
+          <div class="flex justify-between text-xs pt-1">
+            <span class="text-secondary">Total assigned</span>
+            <span
+              [class.text-danger]="isSplitMismatch() && +formModel.amount > 0"
+              [class.text-income]="!isSplitMismatch() && +formModel.amount > 0"
+            >
+              {{ totalCustomSplit().toFixed(2) }} / {{ (+formModel.amount || 0).toFixed(2) }}
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3 pt-1">
+      <button
+        type="button"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium button-secondary"
+        (click)="close()"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold button-primary flex items-center justify-center gap-2"
+        [disabled]="saving()"
+        (click)="submit()"
+      >
+        @if (saving()) {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+        }
+        Add Expense
+      </button>
+    </div>
+  </div>
+</ng-template>

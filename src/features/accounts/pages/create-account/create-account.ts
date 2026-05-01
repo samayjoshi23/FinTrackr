@@ -1,5 +1,5 @@
 import { CommonModule, Location } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { UserProfile } from 'firebase/auth';
@@ -28,6 +28,7 @@ import {
 } from '../../../categories/types';
 import { currencies, budgetSuggestionCards } from '../../../../core/auth/onboarding/types';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
+import { UsersSearchFilterPipe } from '../../../../shared/pipes/users-search-filter.pipe';
 
 const CREATE_ACCOUNT_PAGES: {
   sequence: number;
@@ -69,7 +70,7 @@ const CREATE_ACCOUNT_PAGES: {
 
 @Component({
   selector: 'app-create-account',
-  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe],
+  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe, UsersSearchFilterPipe],
   templateUrl: './create-account.html',
   styleUrl: './create-account.css',
 })
@@ -79,7 +80,7 @@ export class CreateAccount {
   private readonly budgetsService = inject(BudgetsService);
   private readonly goalsService = inject(GoalsService);
   private readonly reportsService = inject(ReportsService);
-  private readonly usersLookup = inject(UsersLookupService);
+  readonly usersLookup = inject(UsersLookupService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
@@ -112,11 +113,13 @@ export class CreateAccount {
   budgetSuggestions = signal(budgetSuggestionCards.map((b) => ({ ...b })));
 
   accountType = signal<AccountType>('single-user');
-  searchEmail = '';
-  searchingUser = false;
-  searchHit = signal<UserLookupHit | null>(null);
+  memberSearchQuery = '';
   /** Users invited to a multi-user account (pending join). */
   invitedMembers = signal<UserLookupHit[]>([]);
+  readonly memberSearchExcludeUids = computed(() => [
+    this.ownerUid,
+    ...this.invitedMembers().map((m) => m.uid),
+  ]);
 
   accountCategories = signal<Category[]>([]);
   /** Set after step 3 create + seed. */
@@ -155,67 +158,35 @@ export class CreateAccount {
     this.accountType.set(t);
     if (t === 'single-user') {
       this.invitedMembers.set([]);
-      this.searchHit.set(null);
-      this.searchEmail = '';
-    }
-  }
-
-  async searchUserByEmail() {
-    const email = this.searchEmail.trim();
-    if (!email) {
-      this.notifier.error('Enter an email to search.');
+      this.memberSearchQuery = '';
+      this.usersLookup.resetDirectory();
       return;
     }
-    this.searchingUser = true;
-    this.searchHit.set(null);
-    try {
-      const hit = await this.usersLookup.findByEmail(email);
-      if (!hit) {
-        this.notifier.error('No user found with that email.');
-        return;
-      }
-      if (hit.uid === this.ownerUid) {
-        this.notifier.error("You can't add yourself as a member.");
-        return;
-      }
-      this.searchHit.set(hit);
-      if (this.isInvited(hit.uid)) {
-        this.notifier.show('This person is already on your invite list.');
-      }
-    } catch (e) {
-      console.error(e);
-      this.notifier.error('Could not search users.');
-    } finally {
-      this.searchingUser = false;
-    }
-  }
-
-  /** True if this user is already on the invite list for the new account. */
-  isInvited(uid: string): boolean {
-    return this.invitedMembers().some((m) => m.uid === uid);
-  }
-
-  addInvitedMember() {
-    const hit = this.searchHit();
-    if (!hit) return;
-    if (this.isInvited(hit.uid)) {
-      this.notifier.show('That person is already added.');
-      return;
-    }
-    this.invitedMembers.update((list) => [...list, hit]);
-    this.searchHit.set(null);
-    this.searchEmail = '';
-    this.notifier.success('Member added.');
+    void this.usersLookup.loadUsersDirectory();
   }
 
   removeInvitedMember(uid: string) {
     this.invitedMembers.update((list) => list.filter((m) => m.uid !== uid));
   }
 
-  onInviteEmailKeydown(ev: KeyboardEvent) {
-    if (ev.key !== 'Enter') return;
+  onMemberSearchChange(): void {
+    const q = this.memberSearchQuery.trim();
+    if (q.length >= 2) void this.usersLookup.loadUsersDirectory();
+  }
+
+  pickMember(hit: UserLookupHit, ev: Event): void {
     ev.preventDefault();
-    if (!this.accountCommitted() && !this.searchingUser) void this.searchUserByEmail();
+    ev.stopPropagation();
+    if (hit.uid === this.ownerUid) {
+      this.notifier.error("You can't add yourself as a member.");
+      return;
+    }
+    if (this.invitedMembers().some((m) => m.uid === hit.uid)) {
+      this.notifier.show('That person is already added.');
+      return;
+    }
+    this.invitedMembers.update((list) => [...list, hit]);
+    this.memberSearchQuery = '';
   }
 
   goToPreviousStep() {

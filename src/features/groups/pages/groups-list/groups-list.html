@@ -1,0 +1,295 @@
+<div class="container-layout p-4 md:p-5">
+  <!-- Header -->
+  <div class="flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-2">
+      <div
+        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        (click)="onBack()"
+      >
+        <ico name="left-arrow" size="sm"></ico>
+      </div>
+      <h1 class="text-xl font-semibold title-font">Groups</h1>
+    </div>
+    @if (!createExpanded()) {
+      <div
+        type="button"
+        class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
+        (click)="toggleCreatePanel()"
+        [attr.aria-expanded]="createExpanded()"
+        aria-label="Create group"
+      >
+        <ico name="plus" size="md"></ico>
+      </div>
+    }
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="flex flex-col gap-3">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="card rounded-2xl p-4 flex gap-3 animate-pulse">
+          <div class="h-12 w-12 rounded-xl bg-secondary-light shrink-0"></div>
+          <div class="flex flex-col gap-2 flex-1">
+            <div class="h-3.5 rounded bg-secondary-light w-1/2"></div>
+            <div class="h-2.5 rounded bg-secondary-light w-1/4"></div>
+          </div>
+          <div class="h-5 w-20 rounded-full bg-secondary-light self-center"></div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!loading()) {
+    <!-- Summary banner -->
+    @if (groupItems().length > 0 && (totalOwed() !== 0 || totalOwing() !== 0)) {
+      <div class="summary-banner card rounded-2xl p-4 flex gap-4">
+        @if (totalOwed() > 0) {
+          <div class="flex-1 flex flex-col gap-0.5">
+            <p class="text-xs text-secondary font-light">You are owed</p>
+            <p class="text-base font-semibold" style="color: var(--color-income)">
+              ₹{{ totalOwed().toFixed(2) }}
+            </p>
+          </div>
+        }
+        @if (totalOwing() < 0) {
+          <div class="flex-1 flex flex-col gap-0.5">
+            <p class="text-xs text-secondary font-light">You owe</p>
+            <p class="text-base font-semibold" style="color: var(--color-expense)">
+              ₹{{ (-totalOwing()).toFixed(2) }}
+            </p>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Inline create group -->
+    @if (createExpanded()) {
+      <div class="card-light card rounded-2xl p-4 flex flex-col gap-4 mb-3">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold title-font">Create New Group</h2>
+          <button
+            type="button"
+            class="h-8 w-8 rounded-full button-secondary flex items-center justify-center shrink-0"
+            (click)="toggleCreatePanel()"
+            aria-label="Close"
+          >
+            <ico name="times" size="sm"></ico>
+          </button>
+        </div>
+
+        <!-- Group name -->
+        <div class="flex flex-col gap-2">
+          <label for="groupName" class="text-xs text-gray-400">Group name</label>
+          <div class="field-wrapper before">
+            <span class="field-icon before">
+              <ico name="user-group" size="sm"></ico>
+            </span>
+            <input
+              type="text"
+              id="groupName"
+              name="groupName"
+              class="w-full"
+              placeholder="Group name"
+              [ngModel]="newGroupName"
+              (ngModelChange)="newGroupName = $event"
+              required
+              [minlength]="1"
+              [maxlength]="60"
+              #groupNameCtrl="ngModel"
+            />
+          </div>
+          @if (groupNameCtrl.invalid && groupNameCtrl.touched) {
+            <p class="text-xs text-red-600">Group name is required (max 60 characters).</p>
+          }
+        </div>
+
+        <!-- Members -->
+        <div class="flex flex-col gap-2 relative">
+          <label class="text-xs font-medium">Members</label>
+          <div class="flex gap-2">
+            <div class="flex-1 min-w-0 relative">
+              <input
+                type="text"
+                class="input w-full"
+                placeholder="Search by name or email"
+                [(ngModel)]="memberSearchQuery"
+                (ngModelChange)="onMemberSearchChange()"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              @if (memberSearchQuery.trim().length >= 2) {
+                <div
+                  class="member-search-dropdown card-light rounded-xl border bg-[var(--color-bg-elevated)] shadow-lg"
+                  (mousedown)="$event.preventDefault()"
+                  role="listbox"
+                >
+                  @if (usersLookup.directoryLoading()) {
+                    <div
+                      class="px-3 py-4 flex items-center justify-center gap-2 text-secondary text-sm"
+                    >
+                      <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+                      Searching…
+                    </div>
+                  } @else {
+                    @for (
+                      hit of usersLookup.directoryUsers()
+                        | usersSearchFilter: memberSearchQuery : memberSearchExcludeUids();
+                      track hit.uid
+                    ) {
+                      <button
+                        type="button"
+                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left bg-secondary-light"
+                        (click)="pickMember(hit, $event)"
+                      >
+                        @if (hit.photoURL) {
+                          <img
+                            [src]="hit.photoURL"
+                            alt=""
+                            class="h-9 w-9 rounded-full object-cover shrink-0"
+                            referrerpolicy="no-referrer"
+                          />
+                        } @else {
+                          <div
+                            class="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                            [ngClass]="avatarClass(hit.uid)"
+                          >
+                            {{ initials(hit.displayName || hit.email) }}
+                          </div>
+                        }
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm font-medium truncate text-[var(--color-text)]">
+                            {{ hit.displayName || hit.email }}
+                          </p>
+                          <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
+                        </div>
+                        <ico name="user-group" size="sm" class="text-primary shrink-0"></ico>
+                      </button>
+                    } @empty {
+                      <div class="px-3 py-3 text-sm text-secondary bg-secondary-light">
+                        No users match that search.
+                      </div>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (invitedMembers().length > 0) {
+            <div class="flex flex-col gap-2 mt-1 border-t border-[var(--color-border)]">
+              @for (m of invitedMembers(); track m.uid) {
+                <div class="p-2.5 flex items-center gap-3 border-b border-[var(--color-border)]">
+                  @if (m.photoURL) {
+                    <img
+                      [src]="m.photoURL"
+                      alt=""
+                      class="h-8 w-8 rounded-full object-cover shrink-0"
+                      referrerpolicy="no-referrer"
+                    />
+                  } @else {
+                    <div
+                      class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                      [ngClass]="avatarClass(m.uid)"
+                    >
+                      {{ initials(m.displayName || m.email) }}
+                    </div>
+                  }
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
+                    <p class="text-xs text-secondary truncate">{{ m.email }}</p>
+                  </div>
+                  <div
+                    class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger cursor-pointer"
+                    (click)="removeInvited(m.uid)"
+                    aria-label="Remove"
+                  >
+                    <ico name="times" size="sm"></ico>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="button-primary rounded-xl w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
+          [disabled]="creating()"
+          (click)="submitNewGroup()"
+        >
+          @if (creating()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            Creating…
+          } @else {
+            <ico name="paper-airplane" size="sm"></ico>
+            Create
+          }
+        </button>
+      </div>
+    }
+
+    <!-- Groups list -->
+    @if (groupItems().length === 0) {
+      <div class="flex flex-col items-center justify-center gap-4 py-20">
+        <div
+          class="h-16 w-16 rounded-2xl button-secondary flex items-center justify-center text-primary"
+        >
+          <ico name="users" size="xl"></ico>
+        </div>
+        <div class="flex flex-col items-center gap-1 text-center">
+          <p class="text-base font-semibold title-font">No groups yet</p>
+          <p class="text-sm text-secondary font-light">
+            Create a group to split expenses with friends
+          </p>
+        </div>
+        <button
+          type="button"
+          class="button-primary rounded-xl px-6 py-2.5 text-sm"
+          (click)="openCreatePanel()"
+        >
+          Create your first group
+        </button>
+      </div>
+    } @else {
+      <div class="flex flex-col gap-3 pb-24">
+        @for (item of groupItems(); track item.group.id) {
+          <div
+            class="card rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity"
+            (click)="openGroup(item.group.id)"
+          >
+            <div
+              class="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 button-secondary text-primary"
+            >
+              <ico name="users" size="lg"></ico>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold title-font truncate">{{ item.group.name }}</p>
+              <p class="text-xs text-secondary font-light">
+                {{ item.memberCount }} member{{ item.memberCount !== 1 ? 's' : '' }}
+              </p>
+            </div>
+
+            @if (item.netBalance > 0.005) {
+              <div class="balance-pill balance-pill--positive">
+                <span>+{{ formatCurrency(item.netBalance, item.group.currency) }}</span>
+              </div>
+            } @else if (item.netBalance < -0.005) {
+              <div class="balance-pill balance-pill--negative">
+                <span>{{ formatCurrency(item.netBalance, item.group.currency) }}</span>
+              </div>
+            } @else {
+              <div class="balance-pill balance-pill--settled">
+                <ico name="tick" size="xs"></ico>
+                <span>Settled</span>
+              </div>
+            }
+
+            <ico name="chevron-right" size="sm" class="text-secondary shrink-0"></ico>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

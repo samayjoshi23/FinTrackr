@@ -31,6 +31,22 @@ function memberKey(m: AccountMember): string {
   return m.memberId;
 }
 
+function deriveAccountMemberIndexes(members: AccountMember[]): {
+  memberIds: string[];
+  activeMemberIds: string[];
+} {
+  const memberIds = Array.from(new Set(members.map((m) => m.memberId).filter(Boolean)));
+  const activeMemberIds = Array.from(
+    new Set(
+      members
+        .filter((m) => m.isActive && m.isJoined)
+        .map((m) => m.memberId)
+        .filter(Boolean),
+    ),
+  );
+  return { memberIds, activeMemberIds };
+}
+
 async function notifyNewPendingInvites(
   accountId: string,
   after: Record<string, unknown>,
@@ -122,8 +138,11 @@ export const respondAccountInvite = onCall(async (request) => {
       isJoined: true,
       isActive: true,
     };
+    const memberIndex = deriveAccountMemberIndexes(members);
     await ref.update({
       members,
+      memberIds: memberIndex.memberIds,
+      activeMemberIds: memberIndex.activeMemberIds,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
@@ -152,8 +171,11 @@ export const respondAccountInvite = onCall(async (request) => {
     const inviteeName = String(inviteeProfile.data()?.['displayName'] ?? 'A member');
 
     members.splice(idx, 1);
+    const memberIndex = deriveAccountMemberIndexes(members);
     await ref.update({
       members,
+      memberIds: memberIndex.memberIds,
+      activeMemberIds: memberIndex.activeMemberIds,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

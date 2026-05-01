@@ -139,71 +139,91 @@
 
       @if (accountType() === 'multi-user') {
         <div class="flex flex-col gap-2">
-          <span class="text-xs text-gray-400">Invite by email</span>
+          <span class="text-xs text-gray-400">Invite members</span>
           <p class="text-xs text-secondary font-light">
-            Search each person, tap Add, then repeat. You can invite as many members as you need
+            Search by name or email and tap each person to add them. You can invite as many as you need
             before continuing.
           </p>
-          <div class="flex gap-2">
-            <div class="field-wrapper before flex-1">
+
+          <div class="relative">
+            <div class="field-wrapper before">
               <span class="field-icon before">
-                <ico name="envelope" size="sm"></ico>
+                <ico name="search" size="sm"></ico>
               </span>
               <input
-                type="email"
+                type="text"
                 class="w-full"
-                name="inviteEmail"
-                placeholder="friend@example.com"
-                [(ngModel)]="searchEmail"
+                name="inviteMember"
+                placeholder="Search by name or email"
+                [(ngModel)]="memberSearchQuery"
                 [disabled]="accountCommitted()"
-                (keydown)="onInviteEmailKeydown($event)"
+                (ngModelChange)="onMemberSearchChange()"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
               />
             </div>
-            <button
-              type="button"
-              class="button-secondary rounded-xl px-4 shrink-0"
-              (click)="searchUserByEmail()"
-              [disabled]="searchingUser || accountCommitted()"
-            >
-              Search
-            </button>
-          </div>
-          @if (searchHit(); as hit) {
-            <div class="card rounded-xl p-3 flex items-center justify-between gap-2">
-              <div class="min-w-0">
-                <p class="text-sm font-medium truncate">{{ hit.displayName || 'User' }}</p>
-                <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
+
+            @if (memberSearchQuery.trim().length >= 2 && !accountCommitted()) {
+              <div
+                class="member-search-dropdown card-light rounded-xl border bg-[var(--color-bg-elevated)] shadow-lg"
+                (mousedown)="$event.preventDefault()"
+                role="listbox"
+              >
+                @if (usersLookup.directoryLoading()) {
+                  <div class="px-3 py-4 flex items-center justify-center gap-2 text-secondary text-sm">
+                    <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+                    Searching…
+                  </div>
+                } @else {
+                  @for (
+                    hit of usersLookup.directoryUsers()
+                      | usersSearchFilter: memberSearchQuery : memberSearchExcludeUids();
+                    track hit.uid
+                  ) {
+                    <button
+                      type="button"
+                      class="member-search-row w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-bg-elevated)]"
+                      (click)="pickMember(hit, $event)"
+                    >
+                      <div class="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary">
+                        {{ (hit.displayName || hit.email).slice(0, 1).toUpperCase() }}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium truncate">{{ hit.displayName || hit.email }}</p>
+                        <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
+                      </div>
+                      <ico name="user-group" size="sm" class="text-primary shrink-0"></ico>
+                    </button>
+                  } @empty {
+                    <div class="px-3 py-3 text-sm text-secondary">No users match that search.</div>
+                  }
+                }
               </div>
-              @if (isInvited(hit.uid)) {
-                <span class="text-xs font-medium text-secondary shrink-0">Already added</span>
-              } @else {
-                <button
-                  type="button"
-                  class="button-primary rounded-lg px-3 py-2 text-xs shrink-0"
-                  (click)="addInvitedMember()"
-                >
-                  Add
-                </button>
-              }
-            </div>
-          }
+            }
         </div>
 
         @if (invitedMembers().length > 0) {
           <div class="flex flex-col gap-2">
             <span class="text-xs text-gray-400">Invited ({{ invitedMembers().length }})</span>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-col gap-2">
               @for (m of invitedMembers(); track m.uid) {
-                <div class="card rounded-full py-2 px-3 flex items-center gap-2 text-xs">
-                  <span class="truncate max-w-[12rem]">{{ m.displayName || m.email }}</span>
+                <div class="rounded-xl p-2.5 flex items-center gap-3 bg-[var(--color-bg-elevated)]">
+                  <div class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary">
+                    {{ (m.displayName || m.email).slice(0, 1).toUpperCase() }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
+                    <p class="text-xs text-secondary truncate">{{ m.email }}</p>
+                  </div>
                   @if (!accountCommitted()) {
                     <button
                       type="button"
-                      class="text-red-600 p-0 border-0 bg-transparent cursor-pointer"
+                      class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
                       (click)="removeInvitedMember(m.uid)"
                       aria-label="Remove"
                     >
-                      <ico name="times" size="xs"></ico>
+                      <ico name="times" size="sm"></ico>
                     </button>
                   }
                 </div>
@@ -211,6 +231,7 @@
             </div>
           </div>
         }
+        </div>
       }
     </div>
 

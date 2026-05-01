@@ -1,0 +1,53 @@
+.summary-banner {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary) 10%, var(--color-bg-elevated)),
+    var(--color-bg-elevated)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+}
+
+.balance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.balance-pill--positive {
+  background-color: color-mix(in srgb, var(--color-income) 15%, transparent);
+  color: var(--color-income);
+}
+
+.balance-pill--negative {
+  background-color: color-mix(in srgb, var(--color-expense) 15%, transparent);
+  color: var(--color-expense);
+}
+
+.balance-pill--settled {
+  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+}
+
+.bg-secondary-light {
+  background-color: var(--color-bg-elevated);
+}
+
+.create-group-card {
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+}
+
+.member-search-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--color-bg-card);
+}

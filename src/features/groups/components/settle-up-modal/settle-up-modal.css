@@ -1,0 +1,11 @@
+.member-chip {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  border: 1.5px solid var(--color-border);
+}
+
+.member-chip--active {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--color-border-primary);
+}

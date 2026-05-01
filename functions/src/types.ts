@@ -32,6 +32,9 @@ export interface NotificationActionData {
   inviterName?: string;
   /** Firestore account document id. */
   accountId?: string;
+  /** Firestore group document id — set on GROUP_INVITE and related notifications. */
+  groupId?: string;
+  groupName?: string;
   /** Trend label for month-end summaries (FCM / client UI). */
   trendLabel?: 'great' | 'good' | 'watch' | 'concerning';
 }

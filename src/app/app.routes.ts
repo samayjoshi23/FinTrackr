@@ -120,6 +120,21 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'groups',
+        loadComponent: () =>
+          import('./../features/groups/pages/groups-list/groups-list').then((m) => m.GroupsList),
+      },
+      {
+        path: 'groups/new',
+        redirectTo: 'groups',
+        pathMatch: 'full',
+      },
+      {
+        path: 'groups/:id',
+        loadComponent: () =>
+          import('./../features/groups/pages/group-detail/group-detail').then((m) => m.GroupDetail),
+      },
+      {
         path: 'reports',
         loadComponent: () =>
           import('./../features/reports/pages/reports/reports').then((m) => m.Reports),

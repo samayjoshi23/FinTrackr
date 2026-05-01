@@ -78,6 +78,14 @@
         { "fieldPath": "accountId", "order": "ASCENDING" },
         { "fieldPath": "month", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "expenses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

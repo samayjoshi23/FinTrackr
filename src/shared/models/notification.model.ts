@@ -40,6 +40,9 @@ export interface NotificationActionData {
   accountName?: string;
   inviterName?: string;
   accountId?: string;
+  /** Firestore group document id — set on GROUP_INVITE and related notifications. */
+  groupId?: string;
+  groupName?: string;
   trendLabel?: 'great' | 'good' | 'watch' | 'concerning';
 }
 

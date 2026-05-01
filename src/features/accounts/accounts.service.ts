@@ -31,6 +31,22 @@ import { date, docCalendarDate } from '../../core/date';
 
 const ACCOUNTS_COLLECTION = 'accounts';
 
+function deriveAccountMemberIndexes(members: AccountMember[]): {
+  memberIds: string[];
+  activeMemberIds: string[];
+} {
+  const memberIds = Array.from(new Set(members.map((m) => m.memberId).filter(Boolean)));
+  const activeMemberIds = Array.from(
+    new Set(
+      members
+        .filter((m) => m.isActive && m.isJoined)
+        .map((m) => m.memberId)
+        .filter(Boolean),
+    ),
+  );
+  return { memberIds, activeMemberIds };
+}
+
 @Injectable({ providedIn: 'root' })
 export class AccountsService {
   private readonly firestore = inject(Firestore);
@@ -67,6 +83,7 @@ export class AccountsService {
     const day = date().format('YYYY-MM-DD');
     const accountType: AccountType = data.accountType ?? 'single-user';
     const members = serializeMembersForWrite(data.members);
+    const memberIndex = deriveAccountMemberIndexes(data.members);
 
     return this.offlineCrud.create<Account>(
       'accounts',
@@ -82,6 +99,8 @@ export class AccountsService {
           isSelected: data.isSelected,
           isActive: data.isActive,
           members,
+          memberIds: memberIndex.memberIds,
+          activeMemberIds: memberIndex.activeMemberIds,
           accountType,
           ownerId: data.ownerId,
           updatedAt: serverTimestamp(),
@@ -104,6 +123,8 @@ export class AccountsService {
         isSelected: data.isSelected,
         isActive: data.isActive,
         members,
+        memberIds: memberIndex.memberIds,
+        activeMemberIds: memberIndex.activeMemberIds,
         accountType,
         ownerId: data.ownerId,
         date: day,
@@ -118,6 +139,7 @@ export class AccountsService {
     const existing = await getDoc(ref);
     const accountType: AccountType = data.accountType ?? 'single-user';
     const members = serializeMembersForWrite(data.members);
+    const memberIndex = deriveAccountMemberIndexes(data.members);
     const payload: Record<string, unknown> = {
       uid: docId,
       name: data.name.trim(),
@@ -126,6 +148,8 @@ export class AccountsService {
       isSelected: data.isSelected,
       isActive: data.isActive,
       members,
+      memberIds: memberIndex.memberIds,
+      activeMemberIds: memberIndex.activeMemberIds,
       accountType,
       ownerId: data.ownerId,
       updatedAt: serverTimestamp(),
@@ -204,7 +228,11 @@ export class AccountsService {
     if (patch.isSelected !== undefined) patchRecord['isSelected'] = patch.isSelected;
     if (patch.isActive !== undefined) patchRecord['isActive'] = patch.isActive;
     if (patch.members !== undefined) {
-      patchRecord['members'] = serializeMembersForWrite(patch.members as AccountMember[]);
+      const nextMembers = patch.members as AccountMember[];
+      patchRecord['members'] = serializeMembersForWrite(nextMembers);
+      const memberIndex = deriveAccountMemberIndexes(nextMembers);
+      patchRecord['memberIds'] = memberIndex.memberIds;
+      patchRecord['activeMemberIds'] = memberIndex.activeMemberIds;
     }
     if (patch.accountType !== undefined) patchRecord['accountType'] = patch.accountType;
 

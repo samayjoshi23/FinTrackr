@@ -30,6 +30,14 @@ function normalizeMembers(raw) {
 function memberKey(m) {
     return m.memberId;
 }
+function deriveAccountMemberIndexes(members) {
+    const memberIds = Array.from(new Set(members.map((m) => m.memberId).filter(Boolean)));
+    const activeMemberIds = Array.from(new Set(members
+        .filter((m) => m.isActive && m.isJoined)
+        .map((m) => m.memberId)
+        .filter(Boolean)));
+    return { memberIds, activeMemberIds };
+}
 async function notifyNewPendingInvites(accountId, after, prevMembers) {
     const accountName = String(after['name'] ?? 'an account');
     const ownerId = String(after['ownerId'] ?? '');
@@ -111,8 +119,11 @@ exports.respondAccountInvite = (0, https_1.onCall)(async (request) => {
             isJoined: true,
             isActive: true,
         };
+        const memberIndex = deriveAccountMemberIndexes(members);
         await ref.update({
             members,
+            memberIds: memberIndex.memberIds,
+            activeMemberIds: memberIndex.activeMemberIds,
             updatedAt: firestore_2.FieldValue.serverTimestamp(),
         });
         const inviteeProfile = await db.doc(`users/${uid}`).get();
@@ -139,8 +150,11 @@ exports.respondAccountInvite = (0, https_1.onCall)(async (request) => {
         const inviteeProfile = await db.doc(`users/${uid}`).get();
         const inviteeName = String(inviteeProfile.data()?.['displayName'] ?? 'A member');
         members.splice(idx, 1);
+        const memberIndex = deriveAccountMemberIndexes(members);
         await ref.update({
             members,
+            memberIds: memberIndex.memberIds,
+            activeMemberIds: memberIndex.activeMemberIds,
             updatedAt: firestore_2.FieldValue.serverTimestamp(),
         });
         await (0, notification_trigger_1.createNotification)(ownerId, {

@@ -5,7 +5,6 @@ export const currencies = [
   { value: 'GBP', label: 'GBP (£) - United Kingdom', isSelected: false },
   { value: 'CAD', label: 'CAD ($) - Canada', isSelected: false },
   { value: 'AUD', label: 'AUD ($) - Australia', isSelected: false },
-  { value: 'JPY', label: 'JPY (¥) - Japan', isSelected: false },
 ];
 
 export const budgetSuggestionCards = [

@@ -1,0 +1,31 @@
+.cat-chip {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  border: 1.5px solid var(--color-border);
+}
+
+.cat-chip--active {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--color-border-primary);
+}
+
+.payer-chip {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  border: 1.5px solid var(--color-border);
+}
+
+.payer-chip--active {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--color-border-primary);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+.text-income {
+  color: var(--color-income);
+}

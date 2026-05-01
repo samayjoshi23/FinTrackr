@@ -8,6 +8,7 @@ import { AccountsService } from '../../../../services/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
 import { AppNotification, NotificationAction, NotificationType } from '../../../../shared/models/notification.model';
 import { AccountInviteService } from '../../../accounts/account-invite.service';
+import { GroupInviteService } from '../../../groups/group-invite.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 
 @Component({
@@ -22,6 +23,7 @@ export class NotificationList implements OnInit {
   readonly notifService = inject(NotificationService);
   private readonly accountsService = inject(AccountsService);
   private readonly accountInvite = inject(AccountInviteService);
+  private readonly groupInvite = inject(GroupInviteService);
   private readonly notifier = inject(NotifierService);
 
   readonly accounts = signal<Account[]>([]);
@@ -90,6 +92,24 @@ export class NotificationList implements OnInit {
       }
       case 'ACCEPT':
       case 'REJECT': {
+        if (n.type === 'GROUP_INVITE') {
+          const groupId = n.actionData?.groupId ?? n.entityId;
+          if (!groupId) {
+            this.notifier.error('Missing group for this invite.');
+            break;
+          }
+          void this.groupInvite
+            .respond(groupId, action === 'ACCEPT')
+            .then(() => {
+              this.notifier.success(action === 'ACCEPT' ? 'You joined the group.' : 'Group invite declined.');
+              if (action === 'ACCEPT') void this.router.navigateByUrl(`/user/groups/${groupId}`);
+            })
+            .catch((e) => {
+              console.error(e);
+              this.notifier.error(e instanceof Error ? e.message : 'Could not update the invite.');
+            });
+          break;
+        }
         if (n.type !== 'ACCOUNT_INVITE') break;
         const accountId = n.accountId ?? n.actionData?.accountId ?? n.entityId;
         if (!accountId) {

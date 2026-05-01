@@ -1,0 +1,90 @@
+<app-modal [(open)]="open" [bodyTemplate]="settleBodyTpl" title="Settle Up" />
+
+<ng-template #settleBodyTpl>
+  <div class="flex flex-col gap-4">
+
+    <!-- Pay direction label -->
+    <p class="text-sm text-secondary font-light">
+      Recording a payment from
+      <span class="font-semibold text-[var(--color-text)]">you</span>
+      to:
+    </p>
+
+    <!-- Member selector -->
+    @if (members().length === 0) {
+      <p class="text-sm text-secondary text-center py-4">No other members to settle with.</p>
+    } @else {
+      <div class="flex gap-2 flex-wrap">
+        @for (m of members(); track m.memberId) {
+          <button
+            type="button"
+            class="member-chip flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+            [class.member-chip--active]="selectedMemberId() === m.memberId"
+            (click)="selectMember(m.memberId)"
+          >
+            <div
+              class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold shrink-0"
+              [ngClass]="avatarClass(m.memberId)"
+            >
+              {{ initials(m.memberDisplayName) }}
+            </div>
+            {{ m.memberDisplayName.split(' ')[0] }}
+          </button>
+        }
+      </div>
+    }
+
+    <!-- Amount -->
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">
+        Amount ({{ group().currency }})
+      </label>
+      <input
+        type="number"
+        class="input"
+        placeholder="0.00"
+        [ngModel]="amount()"
+        (ngModelChange)="amount.set($event)"
+        min="0.01"
+        step="0.01"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Note (optional) -->
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Note (optional)</label>
+      <input
+        type="text"
+        class="input"
+        placeholder="e.g. UPI, cash"
+        [ngModel]="note()"
+        (ngModelChange)="note.set($event)"
+        maxlength="80"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3 pt-1">
+      <button
+        type="button"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium button-secondary"
+        (click)="close()"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold button-primary flex items-center justify-center gap-2"
+        [disabled]="saving() || members().length === 0"
+        (click)="submit()"
+      >
+        @if (saving()) {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+        }
+        Record Payment
+      </button>
+    </div>
+  </div>
+</ng-template>
