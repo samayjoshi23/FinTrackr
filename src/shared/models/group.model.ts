@@ -37,7 +37,9 @@ export interface GroupCreateInput {
   members: GroupMember[];
 }
 
-export type GroupUpdateInput = Partial<Pick<GroupDocument, 'name' | 'icon' | 'currency' | 'members'>>;
+export type GroupUpdateInput = Partial<
+  Pick<GroupDocument, 'name' | 'icon' | 'currency' | 'members'>
+>;
 
 // ─── Expense split ────────────────────────────────────────────────────────────
 
@@ -57,8 +59,6 @@ export interface GroupExpenseDocument {
   description: string;
   amount: number;
   currency: string;
-  category: string;
-  icon?: string;
   paidById: string;
   paidByName: string;
   splits: ExpenseSplit[];
@@ -78,8 +78,6 @@ export interface GroupExpenseCreateInput {
   description: string;
   amount: number;
   currency: string;
-  category: string;
-  icon?: string;
   paidById: string;
   paidByName: string;
   splits: ExpenseSplit[];
@@ -87,7 +85,10 @@ export interface GroupExpenseCreateInput {
 }
 
 export type GroupExpenseUpdateInput = Partial<
-  Pick<GroupExpenseDocument, 'description' | 'amount' | 'category' | 'icon' | 'paidById' | 'paidByName' | 'splits' | 'date'>
+  Pick<
+    GroupExpenseDocument,
+    'description' | 'amount' | 'paidById' | 'paidByName' | 'splits' | 'date'
+  >
 >;
 
 // ─── Settlement ───────────────────────────────────────────────────────────────

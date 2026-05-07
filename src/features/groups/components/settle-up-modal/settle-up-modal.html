@@ -2,24 +2,25 @@
 
 <ng-template #settleBodyTpl>
   <div class="flex flex-col gap-4">
-
     <!-- Pay direction label -->
     <p class="text-sm text-secondary font-light">
       Recording a payment from
       <span class="font-semibold text-[var(--color-text)]">you</span>
-      to:
+      to
+      @if (selectedMemberName()) {
+        <span class="font-semibold text-[var(--color-text)]">{{ selectedMemberName() }}</span>
+      }:
     </p>
 
-    <!-- Member selector -->
+    <!-- Member selector: shown only when there are multiple options -->
     @if (members().length === 0) {
       <p class="text-sm text-secondary text-center py-4">No other members to settle with.</p>
-    } @else {
+    } @else if (members().length > 1) {
       <div class="flex gap-2 flex-wrap">
         @for (m of members(); track m.memberId) {
-          <button
-            type="button"
-            class="member-chip flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-            [class.member-chip--active]="selectedMemberId() === m.memberId"
+          <div
+            class="card flex items-center gap-1 px-2 py-1 rounded-xl text-sm cursor-pointer"
+            [class.selected-card]="selectedMemberId() === m.memberId"
             (click)="selectMember(m.memberId)"
           >
             <div
@@ -29,7 +30,7 @@
               {{ initials(m.memberDisplayName) }}
             </div>
             {{ m.memberDisplayName.split(' ')[0] }}
-          </button>
+          </div>
         }
       </div>
     }
@@ -53,7 +54,9 @@
 
     <!-- Note (optional) -->
     <div class="flex flex-col gap-1">
-      <label class="text-xs font-medium text-secondary uppercase tracking-wide">Note (optional)</label>
+      <label class="text-xs font-medium text-secondary uppercase tracking-wide"
+        >Note (optional)</label
+      >
       <input
         type="text"
         class="input"

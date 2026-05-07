@@ -1,0 +1,134 @@
+<app-modal [(open)]="open" [bodyTemplate]="expenseDetailTpl" title="Expense Details" />
+
+<ng-template #expenseDetailTpl>
+  @if (expense(); as e) {
+    <div class="flex flex-col gap-4">
+      <!-- Icon + title + amount -->
+      <div class="flex flex-col items-center gap-1.5 py-2">
+        <div
+          class="h-14 w-14 rounded-2xl bg-[var(--color-bg-elevated)] flex items-center justify-center"
+        >
+          <ico name="money-split" size="lg" class="text-secondary"></ico>
+        </div>
+        <p class="text-base font-semibold title-font text-center">{{ e.description }}</p>
+        <p class="text-2xl font-bold title-font">
+          {{ formatCurrency(e.amount, e.currency) }}
+        </p>
+      </div>
+
+      <!-- Meta: paid by, date -->
+      <div class="flex flex-col gap-3 border border-[var(--color-border)] rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-secondary font-medium">Paid by</span>
+          <div class="flex items-center gap-2">
+            <div
+              class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold"
+              [ngClass]="avatarClass(e.paidById)"
+            >
+              {{ initials(e.paidByName) }}
+            </div>
+            <span class="text-sm font-medium">
+              {{ e.paidById === currentUserId() ? 'You' : e.paidByName }}
+            </span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-secondary font-medium">Date</span>
+          <span class="text-sm font-medium">{{ e.date | date: 'dd MMM yyyy' }}</span>
+        </div>
+      </div>
+
+      <!-- Split breakdown -->
+      <div class="flex flex-col gap-1">
+        <p class="text-sm title-font font-medium">Split Breakdown</p>
+        <div class="flex flex-col border border-[var(--color-border)] rounded-2xl overflow-hidden">
+          <!-- Payer row -->
+          <div class="flex items-center gap-3 p-3 border-b border-[var(--color-border)]">
+            <div
+              class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+              [ngClass]="avatarClass(e.paidById)"
+            >
+              {{ initials(e.paidByName) }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium truncate">
+                {{ e.paidById === currentUserId() ? 'You' : e.paidByName }}
+                <span class="text-xs text-secondary font-light"> (paid)</span>
+              </p>
+            </div>
+            <span class="text-sm font-semibold">
+              {{ formatCurrency(payerSplitAmount(e), e.currency) }}
+            </span>
+          </div>
+
+          <!-- Other members -->
+          @for (status of memberStatuses(); track status.memberId) {
+            <div
+              class="flex items-center gap-3 p-3"
+              [class.border-b]="!$last"
+              [class.border-[var(--color-border)]]="!$last"
+            >
+              <div
+                class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                [ngClass]="avatarClass(status.memberId)"
+              >
+                {{ initials(status.memberName) }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate">
+                  {{ status.memberId === currentUserId() ? 'You' : status.memberName }}
+                </p>
+                <p
+                  class="text-xs font-light"
+                  [style.color]="status.settled ? 'var(--color-income)' : 'var(--color-expense)'"
+                >
+                  {{ status.settled ? 'Settled' : 'Pending' }}
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-sm font-semibold">
+                  {{ formatCurrency(status.splitAmount, e.currency) }}
+                </p>
+                @if (!status.settled) {
+                  <p class="text-xs text-secondary font-light">
+                    {{ formatCurrency(status.remaining, e.currency) }} left
+                  </p>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3">
+        @if (isPayer()) {
+          <button
+            type="button"
+            class="flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-medium button-red"
+            (click)="onDelete()"
+          >
+            <ico name="trash" size="xs"></ico>
+            Delete
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold button-primary"
+            (click)="onEdit()"
+          >
+            Edit Expense
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-secondary"
+            (click)="close()"
+          >
+            Close
+          </button>
+        }
+      </div>
+    </div>
+  }
+</ng-template>

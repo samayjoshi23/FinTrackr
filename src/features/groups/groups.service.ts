@@ -29,7 +29,12 @@ function deriveGroupMemberIndexes(members: GroupMember[]): {
 } {
   const memberIds = Array.from(new Set(members.map((m) => m.memberId).filter(Boolean)));
   const activeMemberIds = Array.from(
-    new Set(members.filter((m) => m.isActive).map((m) => m.memberId).filter(Boolean)),
+    new Set(
+      members
+        .filter((m) => m.isActive)
+        .map((m) => m.memberId)
+        .filter(Boolean),
+    ),
   );
   return { memberIds, activeMemberIds };
 }
@@ -89,7 +94,8 @@ export class GroupsService {
   async getGroup(groupId: string): Promise<Group | null> {
     const snap = await getDoc(doc(this.firestore, COLLECTION, groupId));
     if (!snap.exists()) return null;
-    return toGroup(snap.id, snap.data() as GroupDocument);
+    let groupData = toGroup(snap.id, snap.data() as GroupDocument);
+    return groupData;
   }
 
   /**
@@ -111,9 +117,7 @@ export class GroupsService {
       seen.add(snap.id);
       groups.push(toGroup(snap.id, snap.data() as GroupDocument));
     }
-    return groups.sort(
-      (a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0),
-    );
+    return groups.sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0));
   }
 
   async updateGroup(groupId: string, input: GroupUpdateInput): Promise<void> {
@@ -122,7 +126,9 @@ export class GroupsService {
       updatedAt: serverTimestamp(),
     };
     if (input.members) {
-      const { memberIds, activeMemberIds } = deriveGroupMemberIndexes(input.members as GroupMember[]);
+      const { memberIds, activeMemberIds } = deriveGroupMemberIndexes(
+        input.members as GroupMember[],
+      );
       updates['memberIds'] = memberIds;
       updates['activeMemberIds'] = activeMemberIds;
     }

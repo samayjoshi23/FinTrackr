@@ -30,11 +30,10 @@ export class NotificationList implements OnInit {
   readonly userId = signal<string>('');
 
   async ngOnInit(): Promise<void> {
-    const uid = this.auth.currentUser?.uid ?? '';
-    this.userId.set(uid);
-
-    await this.notifService.init(uid);
-
+    // Notification listener is started globally by AuthService — no need to
+    // bootstrap it here. Just record the current user ID for local UI use
+    // and load account names for the filter chips.
+    this.userId.set(this.auth.currentUser?.uid ?? '');
     const accs = await this.accountsService.getAccounts();
     this.accounts.set(accs);
   }

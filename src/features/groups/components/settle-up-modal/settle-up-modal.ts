@@ -1,5 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, input, model, OnChanges, output, signal, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  inject,
+  input,
+  model,
+  OnChanges,
+  output,
+  signal,
+  SimpleChanges,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { Modal } from '../../../../shared/components/modal/modal';
@@ -23,6 +32,10 @@ export class SettleUpModal implements OnChanges {
   currentUserId = input.required<string>();
   currentUserName = input<string>('Me');
   members = input<GroupMember[]>([]);
+  /** Pre-select this member when the modal opens (passed from a balance-card click). */
+  initialMemberId = input('');
+  /** Pre-fill the amount field when the modal opens. */
+  initialAmount = input('');
 
   settlementAdded = output<GroupSettlement>();
 
@@ -32,12 +45,25 @@ export class SettleUpModal implements OnChanges {
   saving = signal(false);
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['members']) {
+    if (changes['open'] && this.open()) {
+      // Modal just opened — apply pre-selections and reset fields
+      const initId = this.initialMemberId();
+      const hasInitMember = initId && this.members().some((m) => m.memberId === initId);
+      this.selectedMemberId.set(hasInitMember ? initId : (this.members()[0]?.memberId ?? ''));
+      this.amount.set(this.initialAmount() ?? '');
+      this.note.set('');
+    } else if (changes['members']) {
+      // Member list refreshed while modal is closed — reset to first member
       const first = this.members()[0];
       this.selectedMemberId.set(first?.memberId ?? '');
       this.amount.set('');
       this.note.set('');
     }
+  }
+
+  selectedMemberName(): string {
+    const m = this.members().find((m) => m.memberId === this.selectedMemberId());
+    return m ? m.memberDisplayName.split(' ')[0] : '';
   }
 
   selectMember(id: string): void {
@@ -59,8 +85,14 @@ export class SettleUpModal implements OnChanges {
   async submit(): Promise<void> {
     const amt = parseFloat(this.amount());
     const toId = this.selectedMemberId();
-    if (!toId) { this.notifier.error('Select a member.'); return; }
-    if (!amt || amt <= 0) { this.notifier.error('Enter a valid amount.'); return; }
+    if (!toId) {
+      this.notifier.error('Select a member.');
+      return;
+    }
+    if (!amt || amt <= 0) {
+      this.notifier.error('Enter a valid amount.');
+      return;
+    }
     if (this.saving()) return;
 
     const toMember = this.members().find((m) => m.memberId === toId);

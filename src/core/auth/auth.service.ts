@@ -43,6 +43,18 @@ export class AuthService {
 
   constructor() {
     this.googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+    // Global auth-state-driven notification lifecycle.
+    // Runs immediately on startup (restoring an existing session) AND on every
+    // sign-in / sign-out — so no page refresh is needed to get realtime updates.
+    this.user$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((u) => {
+      if (u) {
+        void this.notificationService.init(u.uid);
+        void this.fcmService.initForUser(u.uid);
+      } else {
+        void this.notificationService.clearAll();
+      }
+    });
   }
 
   async signupWithEmail(fullName: string, email: string, password: string) {
@@ -62,7 +74,6 @@ export class AuthService {
     });
 
     this.setUserProfile();
-    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -76,7 +87,6 @@ export class AuthService {
       provider: 'password',
     });
     this.setUserProfile();
-    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -91,7 +101,6 @@ export class AuthService {
       provider: 'google',
     });
     this.setUserProfile();
-    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -105,7 +114,6 @@ export class AuthService {
       provider: 'google',
     });
     this.setUserProfile();
-    this.initNotifications(credential.user.uid);
     return credential.user;
   }
 
@@ -140,19 +148,14 @@ export class AuthService {
 
   async logout() {
     await signOut(this.auth);
+    // notificationService.clearAll() is triggered by the auth-state subscriber
+    // in the constructor when user becomes null after signOut.
     await this.syncService.clearAllData();
-    await this.notificationService.clearAll();
     localStorage.removeItem('userProfile');
     localStorage.removeItem('userId');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     await this.router.navigateByUrl('/login', { replaceUrl: true });
-  }
-
-  /** Fire-and-forget: initialise notifications + FCM token after login. */
-  private initNotifications(userId: string): void {
-    void this.notificationService.init(userId);
-    void this.fcmService.initForUser(userId);
   }
 
   async getUserProfile(uid: string) {

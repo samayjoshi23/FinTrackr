@@ -41,24 +41,26 @@
 
   @if (!loading()) {
     <!-- Summary banner -->
-    @if (groupItems().length > 0 && (totalOwed() !== 0 || totalOwing() !== 0)) {
-      <div class="summary-banner card rounded-2xl p-4 flex gap-4">
-        @if (totalOwed() > 0) {
-          <div class="flex-1 flex flex-col gap-0.5">
-            <p class="text-xs text-secondary font-light">You are owed</p>
-            <p class="text-base font-semibold" style="color: var(--color-income)">
-              ₹{{ totalOwed().toFixed(2) }}
-            </p>
-          </div>
-        }
-        @if (totalOwing() < 0) {
-          <div class="flex-1 flex flex-col gap-0.5">
-            <p class="text-xs text-secondary font-light">You owe</p>
-            <p class="text-base font-semibold" style="color: var(--color-expense)">
-              ₹{{ (-totalOwing()).toFixed(2) }}
-            </p>
-          </div>
-        }
+    @if (groupItems().length > 0) {
+      <div class="flex gap-3">
+        <div class="card rounded-2xl p-3 card-light flex-1 flex flex-col gap-0.5">
+          <p class="text-xs text-secondary font-light">You're owed</p>
+          <p class="text-base font-semibold" style="color: var(--color-income)">
+            {{
+              totalOwed() > 0 ? (totalOwed().toFixed(2) | currency: 'INR') : (0 | currency: 'INR')
+            }}
+          </p>
+        </div>
+        <div class="card rounded-2xl p-3 card-light flex-1 flex flex-col gap-0.5">
+          <p class="text-xs text-secondary font-light">You owe</p>
+          <p class="text-base font-semibold" style="color: var(--color-expense)">
+            {{
+              totalOwing() < 0
+                ? (-totalOwing().toFixed(2) | currency: 'INR')
+                : (0 | currency: 'INR')
+            }}
+          </p>
+        </div>
       </div>
     }
 
@@ -258,10 +260,8 @@
             class="card rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity"
             (click)="openGroup(item.group.id)"
           >
-            <div
-              class="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 button-secondary text-primary"
-            >
-              <ico name="users" size="lg"></ico>
+            <div class="h-10 w-10 rounded-xl flex items-center justify-center bg-secondary-light">
+              <ico name="users" size="md" class="text-secondary"></ico>
             </div>
 
             <div class="flex-1 min-w-0">
@@ -272,17 +272,17 @@
             </div>
 
             @if (item.netBalance > 0.005) {
-              <div class="balance-pill balance-pill--positive">
-                <span>+{{ formatCurrency(item.netBalance, item.group.currency) }}</span>
+              <div class="bg-primary-light text-primary rounded-full px-2 py-1 text-xs font-light">
+                <span>+ {{ item.netBalance | currency: item.group.currency }}</span>
               </div>
             } @else if (item.netBalance < -0.005) {
-              <div class="balance-pill balance-pill--negative">
-                <span>{{ formatCurrency(item.netBalance, item.group.currency) }}</span>
+              <div class="button-red rounded-full px-2 py-1 text-xs font-light">
+                <span>{{ item.netBalance | currency: item.group.currency }}</span>
               </div>
             } @else {
-              <div class="balance-pill balance-pill--settled">
+              <div class="text-primary flex items-center gap-1">
                 <ico name="tick" size="xs"></ico>
-                <span>Settled</span>
+                <span class="text-xs font-light">Settled</span>
               </div>
             }
 

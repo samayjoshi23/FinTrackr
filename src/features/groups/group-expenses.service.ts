@@ -25,8 +25,6 @@ function toExpense(id: string, data: GroupExpenseDocument): GroupExpense {
     description: data.description,
     amount: data.amount,
     currency: data.currency,
-    category: data.category,
-    icon: data.icon,
     paidById: data.paidById,
     paidByName: data.paidByName,
     splits: data.splits ?? [],
@@ -53,8 +51,6 @@ export class GroupExpensesService {
       description: input.description.trim(),
       amount: input.amount,
       currency: input.currency,
-      category: input.category,
-      icon: input.icon,
       paidById: input.paidById,
       paidByName: input.paidByName,
       splits: input.splits,
@@ -75,10 +71,16 @@ export class GroupExpensesService {
     const snap = await getDocs(
       query(this.expensesCol(groupId), orderBy('date', 'desc'), orderBy('createdAt', 'desc')),
     );
-    return snap.docs.map((d) => toExpense(d.id, d.data() as GroupExpenseDocument));
+    debugger;
+    let expenses = snap.docs.map((d) => toExpense(d.id, d.data() as GroupExpenseDocument));
+    return expenses;
   }
 
-  async updateExpense(groupId: string, expenseId: string, input: GroupExpenseUpdateInput): Promise<void> {
+  async updateExpense(
+    groupId: string,
+    expenseId: string,
+    input: GroupExpenseUpdateInput,
+  ): Promise<void> {
     await updateDoc(doc(this.firestore, `groups/${groupId}/expenses/${expenseId}`), {
       ...input,
       updatedAt: serverTimestamp(),

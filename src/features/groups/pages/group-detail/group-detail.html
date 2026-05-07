@@ -59,23 +59,23 @@
     >
       <button
         type="button"
-        class="flex-1 py-1.5 rounded-lg button-red"
-        [class.bg-primary]="activeTab() === 'expenses'"
-        [class.text-white]="activeTab() === 'expenses'"
-        [class.text-secondary]="activeTab() !== 'expenses'"
+        class="flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2"
+        [class.button-red]="activeTab() === 'expenses'"
+        [class.button-secondary]="activeTab() !== 'expenses'"
         (click)="activeTab.set('expenses')"
       >
-        Expenses
+        <ico name="receipt" size="sm"></ico>
+        <span class="text-sm">Expenses</span>
       </button>
       <button
         type="button"
-        class="flex-1 py-1.5 rounded-lg button-primary"
-        [class.bg-primary]="activeTab() === 'balances'"
-        [class.text-white]="activeTab() === 'balances'"
-        [class.text-secondary]="activeTab() !== 'balances'"
+        class="flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2"
+        [class.button-primary]="activeTab() === 'balances'"
+        [class.button-secondary]="activeTab() !== 'balances'"
         (click)="activeTab.set('balances')"
       >
-        Balances
+        <ico name="arrow-right-left" size="sm"></ico>
+        <span class="text-sm">Settle Up</span>
       </button>
     </div>
 
@@ -90,12 +90,12 @@
         }
 
         @for (expense of expenses(); track expense.id) {
-          <div class="card rounded-2xl p-3.5 flex items-start gap-3">
-            <!-- Category icon -->
-            <div
-              class="h-10 w-10 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center shrink-0"
-            >
-              <ico [name]="expense.icon ?? 'wallet'" size="sm" class="text-secondary"></ico>
+          <div
+            class="card rounded-2xl p-3 flex items-center gap-2 cursor-pointer"
+            (click)="openExpenseDetail(expense)"
+          >
+            <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0">
+              <ico name="money-split" size="md" class="text-secondary"></ico>
             </div>
 
             <div class="flex-1 min-w-0">
@@ -103,84 +103,158 @@
               <p class="text-xs text-secondary font-light">
                 Paid by
                 <span class="font-medium text-[var(--color-text)]">
-                  {{ expense.paidById === currentUserId() ? 'you' : expense.paidByName }}
+                  {{ expense.paidById === currentUserId() ? 'You' : getPaidByName(expense) }}
                 </span>
               </p>
-              <p class="text-xs text-secondary font-light mt-0.5">{{ expense.date }}</p>
-              @if (expenseSplitLabel(expense)) {
-                <p
-                  class="text-xs font-medium mt-1"
-                  [style.color]="
-                    expense.paidById === currentUserId()
-                      ? 'var(--color-income)'
-                      : 'var(--color-expense)'
-                  "
-                >
-                  {{ expenseSplitLabel(expense) }}
-                </p>
-              }
+              <p class="text-xs text-secondary font-light mt-0.5">
+                {{ expense.date | date: 'dd MMM yyyy' }}
+              </p>
             </div>
 
-            <div class="flex flex-col items-end gap-1 shrink-0">
-              <p class="text-sm font-semibold title-font">
-                {{ formatCurrency(expense.amount, expense.currency) }}
-              </p>
-              @if (expense.paidById === currentUserId()) {
-                <button
-                  type="button"
-                  class="text-[0.6rem] text-secondary px-1.5 py-0.5 rounded hover:text-danger transition-colors"
-                  (click)="deleteExpense(expense, $event)"
-                  aria-label="Delete"
-                >
-                  <ico name="trash" size="xs"></ico>
-                </button>
-              }
+            <div class="flex items-center gap-2 shrink-0">
+              <div class="flex flex-col items-end">
+                <p class="text-sm font-semibold title-font">
+                  {{ formatCurrency(expense.amount, expense.currency) }}
+                </p>
+                @if (expenseSplitLabel(expense)) {
+                  <p
+                    class="text-xs font-light"
+                    [style.color]="
+                      expense.paidById === currentUserId()
+                        ? 'var(--color-income)'
+                        : 'var(--color-expense)'
+                    "
+                  >
+                    {{ expenseSplitLabel(expense) }}
+                  </p>
+                }
+              </div>
             </div>
           </div>
         }
       </div>
     }
 
-    <!-- Balances tab -->
+    <!-- Settle Up tab -->
     @if (activeTab() === 'balances') {
-      <div class="flex-1 overflow-y-auto px-4 pb-32 space-y-3">
-        @if (balances().length === 0) {
-          <div class="flex flex-col items-center justify-center gap-3 py-16 text-secondary">
+      <div class="flex-1 overflow-y-auto px-4 pb-32 space-y-5">
+        <!-- "You owe" -->
+        @if (owingBalances().length > 0) {
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold title-font font-medium">You owe</p>
+            @for (b of owingBalances(); track b.memberId) {
+              <div class="card rounded-2xl p-3.5 flex items-center gap-3">
+                <div
+                  class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  [ngClass]="avatarClass(b.memberId)"
+                >
+                  {{ initials(b.memberName) }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold title-font truncate">{{ b.memberName }}</p>
+                  <p class="text-xs font-light" style="color: var(--color-expense)">
+                    you owe {{ formatCurrency(-b.netAmount, group()!.currency) }}
+                  </p>
+                </div>
+                <div
+                  class="px-3 py-1 rounded-lg button-primary flex items-center justify-center gap-1 cursor-pointer"
+                  (click)="openSettleUpForMember(b)"
+                >
+                  <span class="text-xs">Pay</span>
+                  <ico name="tick" size="xs"></ico>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- "You are owed" -->
+        @if (owedBalances().length > 0) {
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold title-font font-medium">You are owed</p>
+            @for (b of owedBalances(); track b.memberId) {
+              <div class="card rounded-2xl p-3.5 flex items-center gap-3">
+                <div
+                  class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  [ngClass]="avatarClass(b.memberId)"
+                >
+                  {{ initials(b.memberName) }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold title-font truncate">{{ b.memberName }}</p>
+                  <p class="text-xs font-light" style="color: var(--color-income)">
+                    owes you {{ formatCurrency(b.netAmount, group()!.currency) }}
+                  </p>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- "Settled up" -->
+        @if (settledBalances().length > 0) {
+          <div class="flex flex-col gap-2">
+            <p class="text-sm title-font font-medium">Settled up</p>
+            @for (b of settledBalances(); track b.memberId) {
+              <div class="card rounded-2xl p-3.5 flex items-center gap-3 opacity-60">
+                <div
+                  class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  [ngClass]="avatarClass(b.memberId)"
+                >
+                  {{ initials(b.memberName) }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold title-font truncate">{{ b.memberName }}</p>
+                  <p class="text-xs text-secondary font-light">all settled up</p>
+                </div>
+                <ico name="tick" size="sm" class="text-secondary"></ico>
+              </div>
+            }
+          </div>
+        }
+
+        @if (balances().length === 0 && settlements().length === 0) {
+          <div class="flex flex-col items-center justify-center gap-3 py-10 text-secondary">
             <ico name="tick" size="xl"></ico>
             <p class="text-sm">All settled up!</p>
           </div>
         }
 
-        @for (b of balances(); track b.memberId) {
-          <div class="card rounded-2xl p-3.5 flex items-center gap-3">
-            <div
-              class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-              [ngClass]="avatarClass(b.memberId)"
-            >
-              {{ initials(b.memberName) }}
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold title-font truncate">{{ b.memberName }}</p>
-              @if (b.netAmount > 0.005) {
-                <p class="text-xs font-light" style="color: var(--color-income)">
-                  owes you {{ formatCurrency(b.netAmount, group()!.currency) }}
-                </p>
-              } @else if (b.netAmount < -0.005) {
-                <p class="text-xs font-light" style="color: var(--color-expense)">
-                  you owe {{ formatCurrency(b.netAmount, group()!.currency) }}
-                </p>
-              } @else {
-                <p class="text-xs text-secondary font-light">settled up</p>
-              }
-            </div>
-            @if (b.netAmount > 0.005 || b.netAmount < -0.005) {
-              <button
-                type="button"
-                class="text-xs font-medium px-3 py-1 rounded-lg button-secondary"
-                (click)="settleUpOpen.set(true)"
+        <!-- Payment history -->
+        @if (settlements().length > 0) {
+          <div class="flex flex-col gap-2">
+            <p class="text-sm title-font font-medium">Payment history</p>
+            @for (s of settlements(); track s.id) {
+              <div
+                class="card rounded-2xl p-3.5 flex items-center gap-3 cursor-pointer"
+                (click)="openSettlementDetail(s)"
               >
-                Settle
-              </button>
+                <div
+                  class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  [class.button-primary]="s.fromId === currentUserId()"
+                  [class.button-amber]="s.fromId !== currentUserId()"
+                >
+                  <ico name="arrow-right-left" size="sm"></ico>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold title-font truncate">
+                    {{
+                      s.fromId === currentUserId()
+                        ? 'You paid ' + s.toName
+                        : s.fromName + ' paid you'
+                    }}
+                  </p>
+                  <p class="text-xs text-secondary font-light">
+                    {{ s.settledAt | date: 'dd MMM yyyy' }}
+                    @if (s.note) {
+                      · {{ s.note }}
+                    }
+                  </p>
+                </div>
+                <p class="text-sm font-semibold title-font shrink-0">
+                  {{ formatCurrency(s.amount, s.currency) }}
+                </p>
+              </div>
             }
           </div>
         }
@@ -191,36 +265,50 @@
     <div class="fixed bottom-20 left-1/2 -translate-x-1/2 flex gap-2 z-10">
       <button
         type="button"
-        class="flex items-center gap-2 button-primary rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg"
-        (click)="addExpenseOpen.set(true)"
+        class="flex items-center gap-2 button-primary rounded-full pr-4 pl-3 py-2.5 text-sm font-semibold shadow-lg"
+        (click)="addExpenseOpen.set(true); editingExpense.set(null)"
       >
-        <ico name="plus-circle" size="sm"></ico>
+        <ico name="plus-circle" size="md"></ico>
         Add Expense
       </button>
-      @if (activeMembersExcludingMe().length > 0) {
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg button-secondary"
-          (click)="settleUpOpen.set(true)"
-        >
-          <ico name="arrow-right-left" size="sm"></ico>
-          Settle Up
-        </button>
-      }
     </div>
   }
 </div>
 
-<!-- Add Expense Modal -->
+<!-- Add / Edit Expense Modal -->
 @if (group()) {
   <app-add-expense-modal
     [(open)]="addExpenseOpen"
     [group]="group()!"
     [currentUserId]="currentUserId()"
     [members]="allActiveMembers()"
+    [editExpense]="editingExpense()"
     (expenseAdded)="onExpenseAdded($event)"
   ></app-add-expense-modal>
 }
+
+<!-- Expense Detail Modal -->
+@if (group()) {
+  <app-expense-detail-modal
+    [(open)]="expenseDetailOpen"
+    [expense]="selectedExpense()"
+    [allExpenses]="expenses()"
+    [settlements]="settlements()"
+    [currentUserId]="currentUserId()"
+    (editRequested)="openEditExpense($event)"
+    (deleteRequested)="requestDeleteExpense($event)"
+  ></app-expense-detail-modal>
+}
+
+<!-- Delete confirm -->
+<app-confirm-prompt
+  [(open)]="deletePromptOpen"
+  title="Delete expense?"
+  message="This will permanently remove the expense and cannot be undone."
+  confirmText="Delete"
+  severity="danger"
+  (confirmed)="confirmDeleteExpense($event)"
+></app-confirm-prompt>
 
 <!-- Settle Up Modal -->
 @if (group()) {
@@ -229,7 +317,16 @@
     [group]="group()!"
     [currentUserId]="currentUserId()"
     [currentUserName]="auth.currentUser?.displayName ?? 'Me'"
-    [members]="activeMembersExcludingMe()"
+    [members]="settleUpMembers()"
+    [initialMemberId]="settleUpTargetMemberId()"
+    [initialAmount]="settleUpInitialAmount()"
     (settlementAdded)="onSettlementAdded($event)"
   ></app-settle-up-modal>
 }
+
+<!-- Settlement Detail Modal -->
+<app-settlement-detail-modal
+  [(open)]="settlementDetailOpen"
+  [settlement]="selectedSettlement()"
+  [currentUserId]="currentUserId()"
+></app-settlement-detail-modal>

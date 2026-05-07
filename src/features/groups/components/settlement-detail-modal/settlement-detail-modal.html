@@ -1,0 +1,76 @@
+<app-modal [(open)]="open" [bodyTemplate]="settlementDetailTpl" title="Payment Details" />
+
+<ng-template #settlementDetailTpl>
+  @if (settlement(); as s) {
+    <div class="flex flex-col gap-4">
+      <!-- Direction icon + label -->
+      <div class="flex flex-col items-center gap-2 py-2">
+        <div
+          class="h-14 w-14 rounded-full flex items-center justify-center"
+          [class.button-primary]="isOutgoing()"
+          [class.button-amber]="!isOutgoing()"
+        >
+          <ico name="arrow-right-left" size="md"></ico>
+        </div>
+        <p class="text-sm font-semibold text-center">{{ directionLabel() }}</p>
+        <p class="text-2xl font-bold title-font">{{ formatCurrency(s.amount, s.currency) }}</p>
+      </div>
+
+      <div class="flex flex-col gap-3 border border-[var(--color-border)] rounded-2xl p-4">
+        <!-- From -->
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs text-secondary font-medium">From</span>
+          <div class="flex items-center gap-2">
+            <div
+              class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold shrink-0"
+              [ngClass]="avatarClass(s.fromId)"
+            >
+              {{ initials(s.fromName) }}
+            </div>
+            <span class="text-sm font-medium">
+              {{ s.fromId === currentUserId() ? 'You' : s.fromName }}
+            </span>
+          </div>
+        </div>
+
+        <!-- To -->
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs text-secondary font-medium">To</span>
+          <div class="flex items-center gap-2">
+            <div
+              class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold shrink-0"
+              [ngClass]="avatarClass(s.toId)"
+            >
+              {{ initials(s.toName) }}
+            </div>
+            <span class="text-sm font-medium">
+              {{ s.toId === currentUserId() ? 'You' : s.toName }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Date -->
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs text-secondary font-medium">Date</span>
+          <span class="text-sm font-medium">{{ s.settledAt | date: 'dd MMM yyyy, hh:mm a' }}</span>
+        </div>
+
+        <!-- Note -->
+        @if (s.note) {
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs text-secondary font-medium">Note</span>
+            <span class="text-sm font-medium">{{ s.note }}</span>
+          </div>
+        }
+      </div>
+
+      <button
+        type="button"
+        class="py-2.5 rounded-xl text-sm font-medium button-secondary"
+        (click)="close()"
+      >
+        Close
+      </button>
+    </div>
+  }
+</ng-template>

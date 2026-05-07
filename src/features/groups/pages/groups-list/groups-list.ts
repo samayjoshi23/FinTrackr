@@ -187,15 +187,7 @@ export class GroupsList implements OnInit {
     return memberAvatarClass(id);
   }
 
-  formatCurrency(amount: number, currency: string): string {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(Math.abs(amount));
-  }
-
   onBack(): void {
-    void this.router.navigateByUrl('/user/home');
+    void this.router.navigateByUrl('/user/dashboard');
   }
 }
