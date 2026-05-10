@@ -3,8 +3,9 @@ import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { FormsModule, NgForm } from '@angular/forms';
 import {
+  LinkedObject,
+  RecurringTransactionCreateInput,
   TransactionCreateInput,
-  TransactionRecord,
 } from '../../../../shared/models/transaction.model';
 import { AccountsService } from '../../../../services/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
@@ -16,16 +17,17 @@ import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { date } from '../../../../core/date';
-import { paymentSourceOptions } from '../../types';
+import { paymentSourceOptions, recurringFrequencyOptions } from '../../../transactions/types';
+import { DatePicker } from '../../../../shared/components/date-picker/date-picker';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
-  selector: 'app-add-transaction',
-  imports: [Icon, FormsModule],
-  templateUrl: './add-transaction.html',
-  styleUrl: './add-transaction.css',
+  selector: 'app-add-recurring-transaction',
+  imports: [Icon, FormsModule, DatePicker],
+  templateUrl: './add-recurring-transaction.html',
+  styleUrl: './add-recurring-transaction.css',
 })
-export class AddTransaction {
+export class AddRecurringTransaction {
   private readonly accountsService = inject(AccountsService);
   private readonly router = inject(Router);
   private readonly auth = inject(Auth);
@@ -36,21 +38,27 @@ export class AddTransaction {
   private readonly reportsService = inject(ReportsService);
 
   selectedAccount = signal<Account | null>(null);
-  currency = signal<string>('INR');
   currencySymbol = signal<string>('₹');
   categories = signal<Category[]>([]);
-  today = signal<string>(date().format('YYYY-MM-DD'));
   paymentSources = signal<{ name: string; icon: string }[]>(paymentSourceOptions);
+  recurringFrequencies = signal<{ name: string; value: string }[]>(recurringFrequencyOptions);
 
   readonly limits = FORM_LIMITS;
 
-  /** True while IndexedDB write runs; buttons stay disabled until navigation. */
+  type = signal<'expense' | 'income'>('expense');
+  amount = signal<number | null>(null);
+  description = signal('');
+  source = signal('');
+  category = signal('');
+  icon = signal<string | null>(null);
+  recurringFrequency = signal('');
+  nextPaymentDate = signal<Date | null>(null);
+  isAutoPay = signal(false);
   saving = signal(false);
 
   async ngOnInit() {
     const account = await this.accountsService.getSelectedAccount();
     this.selectedAccount.set(account);
-    this.currency.set(account?.currency ?? 'INR');
     const categories = await this.categoriesService.getCategories();
     this.categories.set(categories);
 
@@ -63,28 +71,25 @@ export class AddTransaction {
     this.currencySymbol.set((symbolString ?? '₹').split('')[0]);
   }
 
-  transaction = signal<TransactionRecord>({
-    uid: '',
-    accountId: '',
-    amount: null,
-    description: '',
-    category: '',
-    type: 'expense',
-    source: '',
-    createdAt: null,
-    updatedAt: null,
-  });
-
-  onChangeType(type: 'expense' | 'income') {
-    this.transaction.set({ ...this.transaction(), type });
+  onChangeType(t: 'expense' | 'income') {
+    this.type.set(t);
   }
 
-  onChangeSource(source: string) {
-    this.transaction.set({ ...this.transaction(), source });
+  onChangeSource(s: string) {
+    this.source.set(s);
   }
 
-  onChangeCategory(category: Category) {
-    this.transaction.set({ ...this.transaction(), category: category.name, icon: category.icon });
+  onChangeCategory(cat: Category) {
+    this.category.set(cat.name);
+    this.icon.set(cat.icon ?? null);
+  }
+
+  onChangeFrequency(freq: string) {
+    this.recurringFrequency.set(freq);
+  }
+
+  onAutoPayToggle(checked: boolean) {
+    this.isAutoPay.set(checked);
   }
 
   async onSubmit(form: NgForm) {
@@ -100,7 +105,7 @@ export class AddTransaction {
       return;
     }
 
-    const rawAmount = Number(this.transaction().amount);
+    const rawAmount = Number(this.amount());
     if (
       !Number.isFinite(rawAmount) ||
       rawAmount < FORM_LIMITS.amountMin ||
@@ -112,19 +117,71 @@ export class AddTransaction {
       return;
     }
 
+    if (!this.source().trim()) {
+      this.notifier.error('Select a payment source.');
+      return;
+    }
+
+    if (!this.category().trim()) {
+      this.notifier.error('Select a category.');
+      return;
+    }
+
+    if (!this.recurringFrequency().trim()) {
+      this.notifier.error('Select a recurring frequency.');
+      return;
+    }
+
+    const nextPay = this.nextPaymentDate();
+    if (!nextPay || Number.isNaN(nextPay.getTime())) {
+      this.notifier.error('Select a next payment date.');
+      return;
+    }
+
     this.saving.set(true);
     try {
+      const recurringPayload: RecurringTransactionCreateInput = {
+        accountId: account.uid ?? '',
+        transactionId: '',
+        description: this.description().trim(),
+        category: this.category(),
+        amount: rawAmount,
+        type: this.type(),
+        icon: this.icon(),
+        source: this.source(),
+        recurringFrequency: this.recurringFrequency(),
+        isAutoPay: this.isAutoPay(),
+        isActive: true,
+        lastPaymentDate: new Date(),
+        nextPaymentDate: nextPay,
+      };
+
+      const recurringResponse = await this.transactionsService.createRecurringTransaction(
+        recurringPayload,
+        { syncRemoteInBackground: true },
+      );
+      const recurringId = recurringResponse.uid;
+
+      const linkedObject: LinkedObject = {
+        type: 'recurring',
+        id: recurringId,
+        recordId: recurringId,
+      };
+
       const paidBy = this.paidByForAccount(account);
       const transactionPayload: TransactionCreateInput = {
         accountId: account.uid ?? '',
         amount: rawAmount,
-        description: this.transaction().description.trim(),
-        category: this.transaction().category,
+        description: this.description().trim(),
+        category: this.category(),
         ...(paidBy ? { paidBy } : {}),
-        icon: this.transaction().icon ?? null,
-        type: this.transaction().type,
-        source: this.transaction().source ?? null,
+        icon: this.icon(),
+        type: this.type(),
+        source: this.source(),
         date: date().format('YYYY-MM-DD'),
+        linkedObject,
+        isRecurring: true,
+        recurringTransactionId: recurringId,
       };
 
       const transactionResponse = await this.transactionsService.createTransaction(
@@ -132,34 +189,30 @@ export class AddTransaction {
         { syncRemoteInBackground: true },
       );
 
-      // Optimistic balance update
+      void this.transactionsService
+        .updateRecurringTransaction(recurringId, { transactionId: transactionResponse.uid })
+        .catch((e) => console.error(e));
+
       const delta = transactionPayload.type === 'income' ? rawAmount : -rawAmount;
-      const optimisticBalance = (Number(account.balance) || 0) + delta;
-      const updatedAccount: Account = { ...account, balance: optimisticBalance };
-      this.selectedAccount.set(updatedAccount);
+      const updatedBalance = (Number(account.balance) || 0) + delta;
+      const updatedAccount: Account = { ...account, balance: updatedBalance };
       await this.accountsService.writeAccountToCache(updatedAccount);
 
-      const accountDocId = account.id || account.uid;
       void this.reportsService
         .updateReportForTransaction(transactionResponse)
         .catch((e) => console.error(e));
       void this.accountsService
         .adjustBalanceForTransaction(
-          accountDocId,
+          account.id || account.uid,
           rawAmount,
           transactionPayload.type === 'income' ? 'income' : 'expense',
         )
-        .catch((e) => {
-          console.error(e);
-          this.notifier.error(
-            'Balance will sync when online. Check your connection if this persists.',
-          );
-        });
+        .catch((e) => console.error(e));
 
-      await this.router.navigateByUrl('/user/transactions/list', { replaceUrl: true });
+      await this.router.navigateByUrl('/user/recurring', { replaceUrl: true });
     } catch (e) {
       console.error(e);
-      this.notifier.error('Could not save transaction.');
+      this.notifier.error('Could not save recurring transaction.');
     } finally {
       this.saving.set(false);
     }
@@ -171,8 +224,6 @@ export class AddTransaction {
 
   private paidByForAccount(account: Account): string | undefined {
     if (account.accountType !== 'multi-user') return undefined;
-    const uid = this.auth.currentUser?.uid;
-    if (uid) return uid;
-    return undefined;
+    return this.auth.currentUser?.uid ?? undefined;
   }
 }

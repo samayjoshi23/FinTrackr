@@ -1,0 +1,392 @@
+<div class="container-layout p-4 md:p-5">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">
+      {{ formType() === 'expense' ? 'Add Group Expense' : 'Record Payment' }}
+    </h1>
+  </header>
+
+  @if (loading()) {
+    <div class="flex items-center justify-center py-12">
+      <ico name="circle-notch-loader" size="lg" [spin]="true" class="text-secondary"></ico>
+    </div>
+  } @else {
+    <!-- ── EXPENSE FORM ──────────────────────────────────────────────────── -->
+    @if (formType() === 'expense') {
+      <form #expForm="ngForm" class="w-full flex flex-col gap-4" (ngSubmit)="onSubmit(expForm)">
+        <input type="hidden" name="src" [ngModel]="expenseSource()" required />
+        <input type="hidden" name="cat" [ngModel]="expenseCategory()" required />
+
+        <!-- Type (locked to Expense) -->
+        <div class="button-secondary rounded-2xl p-1 flex items-center w-full">
+          <p class="w-full text-center rounded-xl p-2 text-sm bg-red-600 text-white">Expense</p>
+        </div>
+
+        <!-- Amount -->
+        <div class="flex flex-col items-center justify-center">
+          <label for="exp-amount" class="text-xs text-gray-400">Amount</label>
+          <div class="flex items-center gap-1">
+            <span class="amount-symbol">{{ currencySymbol() }}</span>
+            <input
+              type="number"
+              id="exp-amount"
+              name="amount"
+              class="amount-input"
+              placeholder="0.00"
+              [ngModel]="expenseAmount()"
+              (ngModelChange)="expenseAmount.set($event)"
+              required
+              [min]="limits.amountMin"
+              [max]="limits.amountMax"
+              step="0.01"
+              #amtCtrl="ngModel"
+            />
+          </div>
+          @if (amtCtrl.invalid && amtCtrl.touched) {
+            <p class="mt-1 text-center text-xs text-red-600">
+              Enter an amount between {{ limits.amountMin }} and {{ limits.amountMax }}.
+            </p>
+          }
+        </div>
+
+        <!-- Description -->
+        <div class="flex flex-col gap-2">
+          <label for="exp-desc" class="text-xs text-gray-400">Description</label>
+          <input
+            type="text"
+            id="exp-desc"
+            name="description"
+            class="w-full"
+            placeholder="What is this for?"
+            [ngModel]="expenseDescription()"
+            (ngModelChange)="expenseDescription.set($event)"
+            required
+            [maxlength]="limits.transactionDescriptionMax"
+            #descCtrl="ngModel"
+          />
+          @if (descCtrl.invalid && descCtrl.touched) {
+            <p class="text-xs text-red-600">Description is required.</p>
+          }
+        </div>
+
+        <!-- Source -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Payment Source</label>
+          <div class="flex gap-2">
+            @for (ps of paymentSources; track ps.name) {
+              <div
+                class="flex items-center justify-between flex-col w-full gap-1 card rounded-xl p-2 cursor-pointer"
+                [class.selected-card]="ps.name === expenseSource()"
+                (click)="onExpenseSourceChange(ps.name)"
+              >
+                <ico
+                  [name]="ps.icon"
+                  size="md"
+                  [class]="ps.name === expenseSource() ? 'text-primary' : 'text-secondary'"
+                ></ico>
+                <p
+                  class="text-xs text-center {{
+                    ps.name === expenseSource() ? 'text-primary' : 'text-secondary'
+                  }}"
+                >
+                  {{ ps.name }}
+                </p>
+              </div>
+            }
+          </div>
+          @if (expForm.submitted && !expenseSource().trim()) {
+            <p class="text-xs text-red-600">Select a payment source.</p>
+          }
+        </div>
+
+        <!-- Category -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Category</label>
+          <div class="flex flex-wrap gap-2">
+            @for (cat of categories(); track cat.name) {
+              <div
+                class="flex items-center justify-between gap-1 card rounded-full p-2 cursor-pointer"
+                [class.selected-card]="cat.name === expenseCategory()"
+                (click)="onExpenseCategoryChange(cat)"
+              >
+                <ico
+                  [name]="cat.icon"
+                  size="sm"
+                  [class]="cat.name === expenseCategory() ? 'text-primary' : 'text-secondary'"
+                ></ico>
+                <p
+                  class="text-xs text-center {{
+                    cat.name === expenseCategory() ? 'text-primary' : 'text-secondary'
+                  }}"
+                >
+                  {{ cat.name }}
+                </p>
+              </div>
+            }
+          </div>
+          @if (expForm.submitted && !expenseCategory().trim()) {
+            <p class="text-xs text-red-600">Select a category.</p>
+          }
+        </div>
+
+        <!-- Paid By (multi-select chips) -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Paid By</label>
+          <div class="flex flex-wrap gap-2">
+            @for (m of allMembersForSplit(); track m.memberId) {
+              <div
+                class="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 cursor-pointer text-sm transition-colors purple-card"
+                [class.purple-card-selected]="expensePaidByIds().includes(m.memberId)"
+                (click)="togglePaidBy(m.memberId)"
+              >
+                <div
+                  class="h-6 w-6 rounded-full flex items-center border justify-center text-xs font-bold {{
+                    avatarClass(m.memberId)
+                  }}"
+                >
+                  {{ initials(m.memberDisplayName) }}
+                </div>
+                <span>{{
+                  m.memberId === currentUserId() ? 'You' : m.memberDisplayName.split(' ')[0]
+                }}</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Date -->
+        <div class="flex flex-col gap-1 w-full">
+          <label class="text-xs text-gray-400">Date</label>
+          <div class="field-wrapper before relative">
+            <span class="field-icon before">
+              <ico name="calendar" size="sm"></ico>
+            </span>
+            <app-date-picker
+              class="absolute top-0 left-0 z-[1] h-full w-full"
+              id="exp-date"
+              name="expenseDate"
+              modalTitle="Expense Date"
+              placeholder="Select date"
+              compactFieldIcon
+              [ngModel]="expenseDate()"
+              (ngModelChange)="expenseDate.set($event)"
+            />
+          </div>
+        </div>
+
+        <!-- Split Mode -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Split</label>
+          <div class="button-secondary rounded-2xl p-1 flex items-center gap-2 w-full">
+            <p
+              class="w-full text-center cursor-pointer rounded-xl p-2 text-sm {{
+                splitMode() === 'equal' ? 'button-primary' : 'text-secondary'
+              }}"
+              (click)="onSplitModeChange('equal')"
+            >
+              Equal
+            </p>
+            <p
+              class="w-full text-center cursor-pointer rounded-xl p-2 text-sm {{
+                splitMode() === 'custom' ? 'button-primary' : 'text-secondary'
+              }}"
+              (click)="onSplitModeChange('custom')"
+            >
+              Custom
+            </p>
+          </div>
+
+          @if (splitMode() === 'custom') {
+            <div class="flex flex-col gap-2 mt-1">
+              @for (cs of customSplits(); track cs.memberId) {
+                <div class="flex items-center gap-3 w-full">
+                  <div class="flex items-center gap-2 w-[30%]">
+                    <div
+                      class="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold {{
+                        avatarClass(cs.memberId)
+                      }} shrink-0"
+                    >
+                      {{ initials(cs.memberName) }}
+                    </div>
+                    <span class="text-sm text-ellipsis whitespace-nowrap">
+                      {{ cs.memberId === currentUserId() ? 'You' : cs.memberName.split(' ')[0] }}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    class="w-[70%] text-right"
+                    placeholder="0.00"
+                    [ngModel]="cs.amount"
+                    (ngModelChange)="cs.amount = $event"
+                    [name]="'split_' + cs.memberId"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              }
+              @if (isSplitMismatch()) {
+                <p class="text-xs text-red-600">
+                  Split total ({{ totalCustomSplit().toFixed(2) }}) must equal the expense amount.
+                </p>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Submit -->
+        <button
+          type="submit"
+          class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+          [disabled]="saving()"
+        >
+          @if (saving()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Saving…</span>
+          } @else {
+            <ico name="tick" size="sm"></ico>
+            <span>Add Expense</span>
+          }
+        </button>
+      </form>
+    }
+
+    <!-- ── SETTLEMENT FORM ───────────────────────────────────────────────── -->
+    @if (formType() === 'settlement') {
+      <form #settForm="ngForm" class="w-full flex flex-col gap-4" (ngSubmit)="onSubmit(settForm)">
+        <input type="hidden" name="src" [ngModel]="settlementSource()" required />
+
+        <!-- Direction info banner -->
+        <div class="card rounded-2xl p-3 flex items-center gap-3">
+          <ico name="arrow-right-circle" size="md" class="text-primary shrink-0"></ico>
+          <p class="text-sm text-secondary">{{ settlementDirectionLabel() }}</p>
+        </div>
+
+        <!-- Type (shown for context, auto-set) -->
+        <div class="button-secondary rounded-2xl p-1 flex items-center w-full">
+          <p class="w-full text-center rounded-xl p-2 text-sm bg-red-600 text-white">Expense</p>
+        </div>
+
+        <!-- Amount -->
+        <div class="flex flex-col items-center justify-center">
+          <label for="sett-amount" class="text-xs text-gray-400">Amount</label>
+          @if (maxSettlementAmount() !== null) {
+            <p class="text-xs text-secondary mb-1">
+              Remaining: {{ currencySymbol() }}{{ maxSettlementAmount()?.toFixed(2) }}
+            </p>
+          }
+          <div class="flex items-center gap-1">
+            <span class="amount-symbol">{{ currencySymbol() }}</span>
+            <input
+              type="number"
+              id="sett-amount"
+              name="amount"
+              class="amount-input"
+              placeholder="0.00"
+              [ngModel]="settlementAmount()"
+              (ngModelChange)="settlementAmount.set($event)"
+              required
+              [min]="0.01"
+              [max]="maxSettlementAmount() ?? limits.amountMax"
+              step="0.01"
+              #settAmtCtrl="ngModel"
+            />
+          </div>
+          @if (settAmtCtrl.invalid && settAmtCtrl.touched) {
+            <p class="mt-1 text-center text-xs text-red-600">Enter a valid amount.</p>
+          }
+        </div>
+
+        <!-- Description (pre-filled, disabled) -->
+        <div class="flex flex-col gap-2">
+          <label for="sett-desc" class="text-xs text-gray-400">Description</label>
+          <input
+            type="text"
+            id="sett-desc"
+            name="description"
+            class="w-full opacity-60"
+            [ngModel]="settlementDescription()"
+            disabled
+          />
+        </div>
+
+        <!-- Source -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Payment Source</label>
+          <div class="flex gap-2">
+            @for (ps of paymentSources; track ps.name) {
+              <div
+                class="flex items-center justify-between flex-col w-full gap-1 card rounded-xl p-2 cursor-pointer"
+                [class.selected-card]="ps.name === settlementSource()"
+                (click)="onSettlementSourceChange(ps.name)"
+              >
+                <ico
+                  [name]="ps.icon"
+                  size="md"
+                  [class]="ps.name === settlementSource() ? 'text-primary' : 'text-secondary'"
+                ></ico>
+                <p
+                  class="text-xs text-center {{
+                    ps.name === settlementSource() ? 'text-primary' : 'text-secondary'
+                  }}"
+                >
+                  {{ ps.name }}
+                </p>
+              </div>
+            }
+          </div>
+          @if (settForm.submitted && !settlementSource().trim()) {
+            <p class="text-xs text-red-600">Select a payment source.</p>
+          }
+        </div>
+
+        <!-- Category -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs text-gray-400">Category</label>
+          <div class="flex flex-wrap gap-2 grid grid-cols-3">
+            @for (cat of categories(); track cat.name) {
+              <div
+                class="flex items-center justify-between flex-col gap-1 card rounded-xl p-2 cursor-pointer"
+                [class.selected-card]="cat.name === settlementCategory()"
+                (click)="onSettlementCategoryChange(cat)"
+              >
+                <ico
+                  [name]="cat.icon"
+                  size="md"
+                  [class]="cat.name === settlementCategory() ? 'text-primary' : 'text-secondary'"
+                ></ico>
+                <p
+                  class="text-xs text-center {{
+                    cat.name === settlementCategory() ? 'text-primary' : 'text-secondary'
+                  }}"
+                >
+                  {{ cat.name }}
+                </p>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button
+          type="submit"
+          class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+          [disabled]="saving()"
+        >
+          @if (saving()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Processing…</span>
+          } @else {
+            <ico name="tick" size="sm"></ico>
+            <span>Record Payment</span>
+          }
+        </button>
+      </form>
+    }
+  }
+</div>

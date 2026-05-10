@@ -42,6 +42,7 @@ export class SettingsHome {
   editDisplayName = '';
   savingProfile = false;
   dateJoined = signal<Date>(new Date());
+  isDataLoading = signal(false);
   readonly limits = FORM_LIMITS;
 
   constructor() {
@@ -53,36 +54,45 @@ export class SettingsHome {
   }
 
   async ngOnInit() {
-    const stored = (localStorage.getItem(THEME_KEY) as ThemePreference) || 'light';
-    this.themeMode.set(
-      stored === 'dark' || stored === 'light' || stored === 'system' ? stored : 'light',
-    );
-    this.applyBodyTheme();
+    this.isDataLoading.set(true);
 
-    let userProfile: UserProfile | null = JSON.parse(
-      localStorage.getItem('userProfile') ?? 'null',
-    ) as UserProfile | null;
-    this.userProfile.set(userProfile ?? null);
-    const date: string | null = (userProfile?.['date'] as string) ?? null;
-    this.dateJoined.set(!!date ? new Date(date) : new Date());
-    let accounts = await this.accountsService.getAccounts().catch(() => []);
-    this.accounts.set(accounts ?? []);
+    try {
+      const stored = (localStorage.getItem(THEME_KEY) as ThemePreference) || 'light';
+      this.themeMode.set(
+        stored === 'dark' || stored === 'light' || stored === 'system' ? stored : 'light',
+      );
+      this.applyBodyTheme();
 
-    const current = await this.accountsService.getSelectedAccount();
-    this.currentAccount.set(current);
+      let userProfile: UserProfile | null = JSON.parse(
+        localStorage.getItem('userProfile') ?? 'null',
+      ) as UserProfile | null;
+      this.userProfile.set(userProfile ?? null);
+      const date: string | null = (userProfile?.['date'] as string) ?? null;
+      this.dateJoined.set(!!date ? new Date(date) : new Date());
+      let accounts = await this.accountsService.getAccounts().catch(() => []);
+      this.accounts.set(accounts ?? []);
 
-    this.setInitials();
+      const current = await this.accountsService.getSelectedAccount();
+      this.currentAccount.set(current);
 
-    let txTotal = 0;
-    let balanceSum = 0;
-    for (const a of accounts ?? []) {
-      const aid = a.uid || a.id;
-      const txs = await this.transactionsService.getTransactions().catch(() => []);
-      txTotal += txs.length;
-      balanceSum += Number(a.balance ?? 0);
+      this.setInitials();
+
+      let txTotal = 0;
+      let balanceSum = 0;
+      for (const a of accounts ?? []) {
+        const aid = a.uid || a.id;
+        const txs = await this.transactionsService.getTransactions().catch(() => []);
+        txTotal += txs.length;
+        balanceSum += Number(a.balance ?? 0);
+      }
+      this.totalTransactions.set(txTotal);
+      this.totalBalance.set(balanceSum);
+    } catch (e: any) {
+      console.error(e);
+      this.notifier.error('Could not load your data. Please try again.');
+    } finally {
+      this.isDataLoading.set(false);
     }
-    this.totalTransactions.set(txTotal);
-    this.totalBalance.set(balanceSum);
   }
 
   private refreshUserProfileFromStorage() {

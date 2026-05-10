@@ -21,17 +21,24 @@ export function computeExpenseRemaining(
   debtorId: string,
   creditorId: string,
 ): ExpenseRemainingSlice[] {
-  // Build slices: expenses where creditor paid and debtor had a non-zero split
+  // Build slices: expenses where creditor is one of the payers and debtor had a non-zero split
   const slices: (ExpenseRemainingSlice & { sortKey: string })[] = [];
   for (const expense of expenses) {
-    if (expense.paidById !== creditorId) continue;
+    const payerIds: string[] = expense.paidByIds?.length
+      ? expense.paidByIds
+      : [expense.paidById];
+    if (!payerIds.includes(creditorId)) continue;
     const split = expense.splits.find((s) => s.memberId === debtorId);
     if (!split || split.amount <= 0) continue;
+    // For multi-payer, the debtor owes creditorId only their proportional share
+    const debtorOwesCreditor =
+      payerIds.length > 1 ? split.amount / payerIds.length : split.amount;
+    if (debtorOwesCreditor <= 0) continue;
     // date is YYYY-MM-DD, so lexicographic sort = chronological
     slices.push({
       expenseId: expense.id,
-      splitAmount: split.amount,
-      remaining: split.amount,
+      splitAmount: debtorOwesCreditor,
+      remaining: debtorOwesCreditor,
       sortKey: `${expense.date ?? ''}|${expense.id ?? ''}`,
     });
   }
@@ -80,23 +87,25 @@ export function computeExpenseMemberStatuses(
   allExpenses: GroupExpense[],
   settlements: GroupSettlement[],
 ): MemberSplitStatus[] {
+  const payerIds: string[] = expense.paidByIds?.length
+    ? expense.paidByIds
+    : [expense.paidById];
+
   return expense.splits
-    .filter((split) => split.memberId !== expense.paidById)
+    .filter((split) => !payerIds.includes(split.memberId))
     .map((split) => {
-      const slices = computeExpenseRemaining(
-        allExpenses,
-        settlements,
-        split.memberId,
-        expense.paidById,
-      );
-      const slice = slices.find((s) => s.expenseId === expense.id);
-      const remaining = slice?.remaining ?? split.amount;
+      // For multi-payer, total remaining across all creditors for this split
+      const totalRemaining = payerIds.reduce((sum, creditorId) => {
+        const slices = computeExpenseRemaining(allExpenses, settlements, split.memberId, creditorId);
+        const slice = slices.find((s) => s.expenseId === expense.id);
+        return sum + (slice?.remaining ?? split.amount / payerIds.length);
+      }, 0);
       return {
         memberId: split.memberId,
         memberName: split.memberName,
         splitAmount: split.amount,
-        remaining,
-        settled: remaining <= 0.005,
+        remaining: totalRemaining,
+        settled: totalRemaining <= 0.005,
       };
     });
 }

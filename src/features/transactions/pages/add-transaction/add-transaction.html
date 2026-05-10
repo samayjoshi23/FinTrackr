@@ -119,7 +119,7 @@
     <!-- Category -->
     <div class="flex flex-col gap-2">
       <label for="category" class="text-xs text-gray-400">Category</label>
-      <div class="flex flex-wrap gap-2 grid grid-cols-3">
+      <!-- <div class="flex flex-wrap gap-2 grid grid-cols-3">
         @for (category of categories(); track category.name) {
           <div
             class="flex items-center justify-between flex-col gap-1 card rounded-xl p-2 cursor-pointer"
@@ -140,129 +140,33 @@
             </p>
           </div>
         }
+      </div> -->
+      <div class="flex flex-wrap gap-2">
+        @for (category of categories(); track category.name) {
+          <div
+            class="flex items-center justify-between gap-1 card rounded-full p-2 cursor-pointer"
+            [class.selected-card]="category.name === transaction().category"
+            (click)="onChangeCategory(category)"
+          >
+            <ico
+              [name]="category.icon"
+              size="sm"
+              [class]="category.name === transaction().category ? 'text-primary' : 'text-secondary'"
+            ></ico>
+            <p
+              class="text-xs text-center {{
+                category.name === transaction().category ? 'text-primary' : 'text-secondary'
+              }}"
+            >
+              {{ category.name }}
+            </p>
+          </div>
+        }
       </div>
       @if (txForm.submitted && !transaction().category.trim()) {
         <p class="text-xs text-red-600">Select a category.</p>
       }
     </div>
-
-    <!-- Recurring -->
-    <div
-      class="rounded-xl flex items-center flex-col {{
-        transaction().isRecurring ? 'purple-card-selected' : 'card'
-      }}"
-    >
-      <!-- Recurring toggle -->
-      <div class="flex items-center justify-between w-full p-3 gap-3">
-        <div class="flex items-start gap-2">
-          <ico name="arrow-refresh" class="mt-0.5" size="sm"></ico>
-          <div class="flex flex-col">
-            <p class="text-sm font-semibold">Recurring Transaction</p>
-            <span class="text-xs font-light"> A reminder will be sent if the payment is done </span>
-          </div>
-        </div>
-        <div class="flex items-center justify-center">
-          <label class="theme-switch" id="recurring-switch">
-            <input
-              type="checkbox"
-              class="theme-switch__checkbox"
-              id="recurring-switch"
-              [checked]="transaction().isRecurring"
-              (change)="onRecurringToggle($any($event.target).checked)"
-            />
-            <span class="theme-switch__track">
-              <span class="theme-switch__thumb"></span>
-            </span>
-            <span class="theme-switch__label"></span>
-          </label>
-        </div>
-      </div>
-      @if (transaction().isRecurring) {
-        <hr class="w-full text-purple-500" />
-        <div class="flex items-center justify-between w-full p-3 gap-3">
-          <div class="flex items-start gap-2">
-            <ico name="clock-rotate-left" class="mt-0.5" size="sm"></ico>
-            <div class="flex flex-col">
-              <p class="text-sm font-semibold">Auto Pay</p>
-              <span class="text-xs font-light">
-                Amount will be deducted from your account on the due date
-              </span>
-            </div>
-          </div>
-          <div class="flex items-center justify-center">
-            <label class="theme-switch" id="auto-pay-switch">
-              <input
-                type="checkbox"
-                class="theme-switch__checkbox"
-                id="auto-pay-switch"
-                [checked]="isAutoPay()"
-                (change)="onAutoPayToggle($any($event.target).checked)"
-              />
-              <span class="theme-switch__track">
-                <span class="theme-switch__thumb"></span>
-              </span>
-              <span class="theme-switch__label"></span>
-            </label>
-          </div>
-        </div>
-      }
-    </div>
-
-    @if (transaction().isRecurring) {
-      <input
-        type="hidden"
-        name="recurringFrequency"
-        [ngModel]="transaction().recurringFrequency"
-        required
-      />
-
-      <!-- Frequency -->
-      <div class="flex flex-col gap-2">
-        <label for="recurring-frequency" class="text-xs text-gray-400">Frequency</label>
-        <div class="flex gap-2 items-center">
-          @for (option of recurringFrequencies(); track option.value) {
-            <div
-              class="card flex items-center justify-center rounded-2xl text-xs cursor-pointer px-3 py-2 {{
-                transaction().recurringFrequency === option.value ? 'purple-card-selected' : 'card'
-              }}"
-              (click)="onChangeRecurringFrequency(option.value)"
-            >
-              <p class="text-xs">{{ option.name }}</p>
-            </div>
-          }
-        </div>
-        @if (
-          txForm.submitted && transaction().isRecurring && !transaction().recurringFrequency?.trim()
-        ) {
-          <p class="text-xs text-red-600">Select how often this repeats.</p>
-        }
-      </div>
-
-      <!-- Next Payment Date -->
-      <div class="flex flex-col gap-1 w-full">
-        <label for="next-payment-date" class="text-xs text-gray-400">Next Payment Date</label>
-        <div class="field-wrapper before relative">
-          <span class="field-icon before">
-            <ico name="calendar" size="sm"></ico>
-          </span>
-          <app-date-picker
-            class="absolute top-0 left-0 z-[1] h-full w-full"
-            id="next-payment-date"
-            name="nextPaymentDate"
-            modalTitle="Next Payment Date"
-            placeholder="Select date"
-            compactFieldIcon
-            required
-            [ngModel]="transaction().nextPaymentDate"
-            (ngModelChange)="transaction.set({ ...transaction(), nextPaymentDate: $event })"
-            #nextPayCtrl="ngModel"
-          />
-        </div>
-        @if (nextPayCtrl.invalid && nextPayCtrl.touched) {
-          <p class="text-xs text-red-600">Choose the next payment date.</p>
-        }
-      </div>
-    }
 
     <!-- Submit -->
     <div class="flex items-center justify-center">

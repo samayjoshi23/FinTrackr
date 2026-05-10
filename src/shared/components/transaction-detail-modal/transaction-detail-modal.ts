@@ -169,6 +169,39 @@ export class TransactionDetailModal {
     }
   }
 
+  goToLinkedObject(tx: import('../../models/transaction.model').TransactionRecord): void {
+    const linked = tx.linkedObject;
+    if (linked) {
+      if (linked.type === 'recurring') {
+        void this.router.navigateByUrl(`/user/recurring/view/${linked.recordId}`);
+      } else if (linked.type === 'group-expense' || linked.type === 'group-settlement') {
+        void this.router.navigateByUrl(`/user/groups/${linked.id}`);
+      }
+      this.open.set(false);
+      return;
+    }
+    // Backward-compat: fallback to recurringTransactionId
+    if (tx.recurringTransactionId) {
+      void this.router.navigateByUrl(`/user/recurring/view/${tx.recurringTransactionId}`);
+      this.open.set(false);
+    }
+  }
+
+  isLinkedToRecurring(tx: import('../../models/transaction.model').TransactionRecord): boolean {
+    return !!(tx.linkedObject?.type === 'recurring' || tx.recurringTransactionId);
+  }
+
+  isLinkedToGroup(tx: import('../../models/transaction.model').TransactionRecord): boolean {
+    return tx.linkedObject?.type === 'group-expense' || tx.linkedObject?.type === 'group-settlement';
+  }
+
+  linkedGroupLabel(tx: import('../../models/transaction.model').TransactionRecord): string {
+    if (tx.linkedObject?.type === 'group-expense') return 'View group expense';
+    if (tx.linkedObject?.type === 'group-settlement') return 'View group settlement';
+    return '';
+  }
+
+  /** @deprecated kept for template backward-compat */
   goToRecurring(recurringTransactionId: string): void {
     void this.router.navigateByUrl(`/user/recurring/view/${recurringTransactionId}`);
   }

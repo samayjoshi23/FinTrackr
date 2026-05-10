@@ -69,7 +69,7 @@
             <span></span>
           }
           <div class="flex items-center gap-1.5 shrink-0">
-            @if (!transaction()?.isRecurring) {
+            @if (!isLinkedToRecurring(tx) && !isLinkedToGroup(tx)) {
               <div
                 type="button"
                 class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
@@ -88,9 +88,15 @@
               <div
                 type="button"
                 class="rounded-lg flex items-center justify-center button-primary gap-1 px-2 py-1"
-                (click)="goToRecurring(tx.recurringTransactionId ?? '')"
+                (click)="goToLinkedObject(tx)"
               >
-                <span class="text-xs">View linked recurring transaction</span>
+                <span class="text-xs">
+                  @if (isLinkedToRecurring(tx)) {
+                    View linked recurring transaction
+                  } @else {
+                    {{ linkedGroupLabel(tx) }}
+                  }
+                </span>
                 <ico name="chevron-right" size="xs"></ico>
               </div>
             }
@@ -115,9 +121,13 @@
               {{ tx.amount | signedAmount: tx.type : currency() }}
             </p>
           </div>
-          @if (tx.recurringFrequency) {
+          @if (tx.linkedObject?.type === 'recurring') {
             <div class="card capitalize rounded-full px-2 py-1 card-light text-xs text-secondary">
-              {{ tx.recurringFrequency }}
+              recurring
+            </div>
+          } @else if (tx.linkedObject?.type === 'group-expense' || tx.linkedObject?.type === 'group-settlement') {
+            <div class="card capitalize rounded-full px-2 py-1 card-light text-xs text-secondary">
+              group
             </div>
           }
         </div>

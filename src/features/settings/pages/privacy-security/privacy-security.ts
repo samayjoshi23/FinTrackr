@@ -64,7 +64,7 @@ export class PrivacySecurity {
   }
 
   onChangePassword() {
-    this.notifier.show('Password changes are not wired yet. Use Firebase reset from login.');
+    void this.router.navigateByUrl('/reset-password');
   }
 
   private formatLastLogin(): string {

@@ -73,6 +73,7 @@ export class TransactionsService {
           icon: data.icon ?? null,
           type: data.type,
           ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
+          ...(data.linkedObject != null ? { linkedObject: data.linkedObject } : {}),
           ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
           ...(data.recurringFrequency != null && String(data.recurringFrequency).trim()
             ? { recurringFrequency: String(data.recurringFrequency).trim() }
@@ -81,7 +82,7 @@ export class TransactionsService {
             ? { recurringTransactionId: data.recurringTransactionId }
             : {}),
           ...(data.nextPaymentDate != null ? { nextPaymentDate: data.nextPaymentDate } : {}),
-          date: day,
+          date: data.date ?? day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -102,6 +103,7 @@ export class TransactionsService {
         icon: data.icon ?? null,
         type: data.type,
         ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
+        ...(data.linkedObject != null ? { linkedObject: data.linkedObject } : {}),
         ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
         ...(data.recurringFrequency != null && String(data.recurringFrequency).trim()
           ? { recurringFrequency: String(data.recurringFrequency).trim() }
@@ -110,7 +112,7 @@ export class TransactionsService {
           ? { recurringTransactionId: data.recurringTransactionId }
           : {}),
         ...(data.nextPaymentDate != null ? { nextPaymentDate: data.nextPaymentDate } : {}),
-        date: day,
+        date: data.date ?? day,
       },
       options?.syncRemoteInBackground ? { syncRemoteInBackground: true } : undefined,
     );

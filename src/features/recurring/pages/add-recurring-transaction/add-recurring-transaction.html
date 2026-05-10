@@ -1,0 +1,248 @@
+<div class="container-layout p-4 md:p-5">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">Add Recurring</h1>
+  </header>
+
+  <!-- Recurring info banner -->
+  <div class="purple-card-selected rounded-2xl p-3 flex items-start gap-3">
+    <ico name="arrow-refresh" size="sm" class="mt-0.5 shrink-0"></ico>
+    <div class="flex flex-col gap-0.5">
+      <p class="text-sm font-semibold">Recurring Transaction</p>
+      <p class="text-xs font-light">
+        This creates a recurring schedule. A reminder will be sent before each due date if auto-pay
+        is disabled.
+      </p>
+    </div>
+  </div>
+
+  <form #txForm="ngForm" class="w-full flex flex-col gap-4" (ngSubmit)="onSubmit(txForm)">
+    <input type="hidden" name="src" [ngModel]="source()" required />
+    <input type="hidden" name="cat" [ngModel]="category()" required />
+    <input type="hidden" name="freq" [ngModel]="recurringFrequency()" required />
+
+    <!-- Expense type -->
+    <div class="button-secondary rounded-2xl p-1 flex items-center gap-2 w-full">
+      <p
+        class="w-full text-center cursor-pointer rounded-xl p-2 text-sm {{
+          type() === 'expense' ? 'bg-red-600 text-white' : 'text-secondary'
+        }}"
+        (click)="onChangeType('expense')"
+      >
+        Expense
+      </p>
+      <p
+        class="w-full text-center cursor-pointer rounded-xl p-2 text-sm {{
+          type() === 'income' ? 'bg-green-600 text-white' : 'text-secondary'
+        }}"
+        (click)="onChangeType('income')"
+      >
+        Income
+      </p>
+    </div>
+
+    <!-- Amount -->
+    <div class="flex flex-col items-center justify-center">
+      <label for="amount" class="text-xs text-gray-400">Amount</label>
+      <div class="flex items-center gap-1">
+        <span class="amount-symbol">{{ currencySymbol() }}</span>
+        <input
+          type="number"
+          id="amount"
+          name="amount"
+          class="amount-input"
+          placeholder="0.00"
+          [ngModel]="amount()"
+          (ngModelChange)="amount.set($event)"
+          required
+          [min]="limits.amountMin"
+          [max]="limits.amountMax"
+          step="0.01"
+          #amountCtrl="ngModel"
+        />
+      </div>
+      @if (amountCtrl.invalid && amountCtrl.touched) {
+        <p class="mt-1 text-center text-xs text-red-600">
+          Enter an amount between {{ limits.amountMin }} and {{ limits.amountMax }}.
+        </p>
+      }
+    </div>
+
+    <!-- Description -->
+    <div class="flex flex-col gap-2">
+      <label for="description" class="text-xs text-gray-400">Description</label>
+      <input
+        type="text"
+        id="description"
+        name="description"
+        class="w-full"
+        placeholder="What is this for?"
+        [ngModel]="description()"
+        (ngModelChange)="description.set($event)"
+        required
+        [minlength]="1"
+        [maxlength]="limits.transactionDescriptionMax"
+        #descCtrl="ngModel"
+      />
+      @if (descCtrl.invalid && descCtrl.touched) {
+        <p class="text-xs text-red-600">
+          Description is required (max {{ limits.transactionDescriptionMax }} characters).
+        </p>
+      }
+    </div>
+
+    <!-- Source -->
+    <div class="flex flex-col gap-2">
+      <label class="text-xs text-gray-400">Payment Source</label>
+      <div class="flex gap-2">
+        @for (ps of paymentSources(); track ps.name) {
+          <div
+            class="flex items-center justify-between flex-col w-full gap-1 card rounded-xl p-2 cursor-pointer"
+            [class.selected-card]="ps.name === source()"
+            (click)="onChangeSource(ps.name)"
+          >
+            <ico
+              [name]="ps.icon"
+              size="md"
+              [class]="ps.name === source() ? 'text-primary' : 'text-secondary'"
+            ></ico>
+            <p
+              class="text-xs text-center {{
+                ps.name === source() ? 'text-primary' : 'text-secondary'
+              }}"
+            >
+              {{ ps.name }}
+            </p>
+          </div>
+        }
+      </div>
+      @if (txForm.submitted && !source().trim()) {
+        <p class="text-xs text-red-600">Select a payment source.</p>
+      }
+    </div>
+
+    <!-- Category -->
+    <div class="flex flex-col gap-2">
+      <label class="text-xs text-gray-400">Category</label>
+      <div class="flex flex-wrap gap-2">
+        @for (cat of categories(); track cat.name) {
+          <div
+            class="flex items-center justify-between gap-1 card rounded-full p-2 cursor-pointer"
+            [class.selected-card]="cat.name === category()"
+            (click)="onChangeCategory(cat)"
+          >
+            <ico
+              [name]="cat.icon"
+              size="sm"
+              [class]="cat.name === category() ? 'text-primary' : 'text-secondary'"
+            ></ico>
+            <p
+              class="text-xs text-center {{
+                cat.name === category() ? 'text-primary' : 'text-secondary'
+              }}"
+            >
+              {{ cat.name }}
+            </p>
+          </div>
+        }
+      </div>
+      @if (txForm.submitted && !category().trim()) {
+        <p class="text-xs text-red-600">Select a category.</p>
+      }
+    </div>
+
+    <!-- Auto Pay -->
+    <div class="card rounded-xl flex items-center justify-between p-3 gap-3">
+      <div class="flex items-start gap-2">
+        <ico name="clock-rotate-left" class="mt-0.5" size="sm"></ico>
+        <div class="flex flex-col">
+          <p class="text-sm font-semibold">Auto Pay</p>
+          <span class="text-xs font-light">
+            Amount will be deducted from your account on the due date
+          </span>
+        </div>
+      </div>
+      <label class="theme-switch" id="auto-pay-switch">
+        <input
+          type="checkbox"
+          class="theme-switch__checkbox"
+          id="auto-pay-switch"
+          [checked]="isAutoPay()"
+          (change)="onAutoPayToggle($any($event.target).checked)"
+        />
+        <span class="theme-switch__track">
+          <span class="theme-switch__thumb"></span>
+        </span>
+        <span class="theme-switch__label"></span>
+      </label>
+    </div>
+
+    <!-- Frequency -->
+    <div class="flex flex-col gap-2">
+      <label class="text-xs text-gray-400">Frequency</label>
+      <div class="flex gap-2 items-center">
+        @for (option of recurringFrequencies(); track option.value) {
+          <div
+            class="card flex items-center justify-center rounded-2xl text-xs cursor-pointer px-3 py-2 {{
+              recurringFrequency() === option.value ? 'purple-card-selected' : 'card'
+            }}"
+            (click)="onChangeFrequency(option.value)"
+          >
+            <p class="text-xs">{{ option.name }}</p>
+          </div>
+        }
+      </div>
+      @if (txForm.submitted && !recurringFrequency().trim()) {
+        <p class="text-xs text-red-600">Select how often this repeats.</p>
+      }
+    </div>
+
+    <!-- Next Payment Date -->
+    <div class="flex flex-col gap-1 w-full">
+      <label class="text-xs text-gray-400">Next Payment Date</label>
+      <div class="field-wrapper before relative">
+        <span class="field-icon before">
+          <ico name="calendar" size="sm"></ico>
+        </span>
+        <app-date-picker
+          class="absolute top-0 left-0 z-[1] h-full w-full"
+          id="next-payment-date"
+          name="nextPaymentDate"
+          modalTitle="Next Payment Date"
+          placeholder="Select date"
+          compactFieldIcon
+          required
+          [ngModel]="nextPaymentDate()"
+          (ngModelChange)="nextPaymentDate.set($event)"
+          #nextPayCtrl="ngModel"
+        />
+      </div>
+      @if (nextPayCtrl.invalid && nextPayCtrl.touched) {
+        <p class="text-xs text-red-600">Choose the next payment date.</p>
+      }
+    </div>
+
+    <!-- Submit -->
+    <div class="flex items-center justify-center">
+      <button
+        type="submit"
+        class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+        [disabled]="saving()"
+      >
+        @if (saving()) {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+          <span>Saving…</span>
+        } @else {
+          <ico name="tick" size="sm"></ico>
+          <span>Add Recurring {{ type() === 'expense' ? 'Expense' : 'Income' }}</span>
+        }
+      </button>
+    </div>
+  </form>
+</div>

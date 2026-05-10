@@ -2,6 +2,7 @@ import { NotifierDuration, NotifierPosition } from '../shared/components/notifie
 
 export const environment = {
   production: false,
+  appVersion: '1.0.0',
   firebase: {
     apiKey: 'AIzaSyCc1c8a34rzJsoYc84vuSY9E9Ko8I36Moo',
     authDomain: 'fintrackr-e7734.firebaseapp.com',

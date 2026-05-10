@@ -29,6 +29,11 @@ export const routes: Routes = [
     loadComponent: () => import('./../core/auth/onboarding/onboarding').then((m) => m.Onboarding),
   },
   {
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./../core/auth/reset-password/reset-password').then((m) => m.ResetPassword),
+  },
+  {
     path: 'user',
     loadComponent: () => import('./../features/features').then((m) => m.Features),
     canActivate: [authGuard, requireOnboardedGuard],
@@ -106,6 +111,13 @@ export const routes: Routes = [
           import('./../features/recurring/pages/recurring/recurring').then((m) => m.Recurring),
       },
       {
+        path: 'recurring/add',
+        loadComponent: () =>
+          import(
+            './../features/recurring/pages/add-recurring-transaction/add-recurring-transaction'
+          ).then((m) => m.AddRecurringTransaction),
+      },
+      {
         path: 'recurring/view/:id',
         loadComponent: () =>
           import('./../features/recurring/pages/view-recurring/view-recurring').then(
@@ -128,6 +140,13 @@ export const routes: Routes = [
         path: 'groups/new',
         redirectTo: 'groups',
         pathMatch: 'full',
+      },
+      {
+        path: 'groups/:id/add',
+        loadComponent: () =>
+          import(
+            './../features/groups/pages/add-group-transaction/add-group-transaction'
+          ).then((m) => m.AddGroupTransaction),
       },
       {
         path: 'groups/:id',
@@ -188,6 +207,11 @@ export const routes: Routes = [
               import('./../features/settings/pages/privacy-security/privacy-security').then(
                 (m) => m.PrivacySecurity,
               ),
+          },
+          {
+            path: 'about',
+            loadComponent: () =>
+              import('./../features/settings/pages/about/about').then((m) => m.About),
           },
           {
             path: '**',

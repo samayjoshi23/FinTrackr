@@ -271,10 +271,8 @@ export class AccountsService {
   /** Get the account doc by user id (defaults to current user). */
   async getAccount(userId?: string): Promise<Account | null> {
     const uid = userId ?? this.requireUid();
-    return this.offlineCrud.fetchOne<Account>(
-      'accounts',
-      uid,
-      async () => this.getAccountDirect(uid),
+    return this.offlineCrud.fetchOne<Account>('accounts', uid, async () =>
+      this.getAccountDirect(uid),
     );
   }
 
@@ -346,21 +344,17 @@ export class AccountsService {
       throw new Error('You must keep at least one account.');
     }
 
-    await this.offlineCrud.remove(
-      'accounts',
-      accountDocId,
-      async () => {
-        const ref = this.accountDocRef(accountDocId);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          throw new Error('Account not found.');
-        }
-        if ((snap.data()['ownerId'] as string | undefined) !== uid) {
-          throw new Error('Not allowed to remove this account.');
-        }
-        await deleteDoc(ref);
-      },
-    );
+    await this.offlineCrud.remove('accounts', accountDocId, async () => {
+      const ref = this.accountDocRef(accountDocId);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        throw new Error('Account not found.');
+      }
+      if ((snap.data()['ownerId'] as string | undefined) !== uid) {
+        throw new Error('Not allowed to remove this account.');
+      }
+      await deleteDoc(ref);
+    });
 
     await this.selectAccount(null);
   }

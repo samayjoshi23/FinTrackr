@@ -71,7 +71,6 @@ export class GroupExpensesService {
     const snap = await getDocs(
       query(this.expensesCol(groupId), orderBy('date', 'desc'), orderBy('createdAt', 'desc')),
     );
-    debugger;
     let expenses = snap.docs.map((d) => toExpense(d.id, d.data() as GroupExpenseDocument));
     return expenses;
   }

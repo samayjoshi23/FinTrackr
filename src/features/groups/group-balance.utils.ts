@@ -29,17 +29,28 @@ export function computeBalances(
   }
 
   for (const expense of expenses) {
-    if (expense.paidById === currentUserId) {
-      // Current user paid — others owe us their share
+    // Resolve all payer ids (supports both legacy single-payer and new multi-payer)
+    const payerIds: string[] = expense.paidByIds?.length
+      ? expense.paidByIds
+      : [expense.paidById];
+
+    const isCurrentUserAPayer = payerIds.includes(currentUserId);
+
+    if (isCurrentUserAPayer) {
+      // Current user is one of the payers — non-payer members owe us their share
       for (const split of expense.splits) {
-        if (split.memberId === currentUserId) continue;
+        if (payerIds.includes(split.memberId)) continue; // skip payers
         net.set(split.memberId, (net.get(split.memberId) ?? 0) + split.amount);
       }
     } else {
-      // Someone else paid — current user owes the payer their own split
+      // Current user is not a payer — they owe each payer their proportional sub-share
       const mySplit = expense.splits.find((s) => s.memberId === currentUserId);
       if (mySplit && mySplit.amount > 0) {
-        net.set(expense.paidById, (net.get(expense.paidById) ?? 0) - mySplit.amount);
+        // Distribute the debt evenly among payers
+        const debtPerPayer = mySplit.amount / payerIds.length;
+        for (const payerId of payerIds) {
+          net.set(payerId, (net.get(payerId) ?? 0) - debtPerPayer);
+        }
       }
     }
   }

@@ -19,13 +19,14 @@ export class SignedAmountPipe implements PipeTransform {
     const numeric = Number(amount ?? 0);
     const absolute = Number.isFinite(numeric) ? Math.abs(numeric) : 0;
     const code = (currencyCode ?? 'USD').trim() || 'USD';
+    const formatLocale = code.toUpperCase() === 'INR' ? 'en-IN' : this.locale;
     const normalizedType = String(type ?? '').toLowerCase();
     let sign = '';
     if (normalizedType === 'income') sign = '+';
     else if (normalizedType === 'expense') sign = '-';
     else if (forceSign) sign = numeric >= 0 ? '+' : '-';
     const formatted =
-      this.currencyPipe.transform(absolute, code, 'symbol-narrow', digitsInfo, this.locale) ??
+      this.currencyPipe.transform(absolute, code, 'symbol-narrow', digitsInfo, formatLocale) ??
       `${absolute}`;
     return `${sign}${formatted}`;
   }

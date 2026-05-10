@@ -202,13 +202,24 @@ export class GroupDetail implements OnInit {
     void this.router.navigateByUrl('/user/groups');
   }
 
+  navigateAddExpense(): void {
+    const gid = this.group()?.id;
+    if (!gid) return;
+    void this.router.navigateByUrl(`/user/groups/${gid}/add?type=expense`);
+  }
+
+  navigateSettleUp(b: MemberBalance): void {
+    const gid = this.group()?.id;
+    if (!gid) return;
+    const amount = Math.abs(b.netAmount).toFixed(2);
+    void this.router.navigateByUrl(
+      `/user/groups/${gid}/add?type=settlement&toId=${b.memberId}&amount=${amount}`,
+    );
+  }
+
   /** Opens the settle-up modal pre-selected to the given balance member (single-recipient mode). */
   openSettleUpForMember(b: MemberBalance): void {
-    const member = this.resolvedMemberList().find((m) => m.memberId === b.memberId);
-    this.settleUpMembers.set(member ? [member] : this.activeMembersExcludingMe());
-    this.settleUpTargetMemberId.set(b.memberId);
-    this.settleUpInitialAmount.set(Math.abs(b.netAmount).toFixed(2));
-    this.settleUpOpen.set(true);
+    this.navigateSettleUp(b);
   }
 
   openExpenseDetail(expense: GroupExpense): void {

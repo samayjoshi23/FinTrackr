@@ -1,0 +1,142 @@
+<div class="container-layout p-4 md:p-5">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">About</h1>
+  </header>
+
+  <div class="flex flex-col gap-5">
+    <!-- App identity -->
+    <div class="flex flex-col items-center gap-3 pt-4 pb-2">
+      <div class="h-20 w-20 rounded-2xl bg-mauve-100 flex items-center justify-center shadow-sm">
+        <img src="app-logo.png" alt="FinTrackr logo" class="h-14 w-14 object-contain" />
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <h2 class="text-2xl font-bold title-font">
+          <span class="text-mauve-600">Fin</span><span class="text-emerald-600">Trackr</span>
+        </h2>
+        <span class="text-xs text-secondary bg-surface-alt px-2.5 py-0.5 rounded-full">
+          v{{ appVersion }}
+        </span>
+      </div>
+      <p class="text-sm text-secondary text-center max-w-xs leading-relaxed">
+        Track your finances, split group expenses, and manage recurring payments — all in one app.
+      </p>
+    </div>
+
+    <!-- Developer info -->
+    <div class="card-light flex flex-col gap-3 p-3 rounded-2xl">
+      <h3 class="text-sm font-semibold text-secondary">Developer</h3>
+      <div class="flex items-center gap-3">
+        <div
+          class="h-11 w-11 rounded-full bg-gradient-to-br from-mauve-400 to-emerald-500 flex items-center justify-center text-white font-bold text-lg"
+        >
+          SJ
+        </div>
+        <div class="flex flex-col">
+          <span class="font-medium text-sm">Samay Joshi</span>
+          <span class="text-xs text-secondary">Full-Stack Developer</span>
+        </div>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button
+          type="button"
+          class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-sm font-medium hover:bg-surface-alt transition-colors"
+          (click)="openGitHub()"
+        >
+          <ico name="github" size="sm"></ico>
+          GitHub
+        </button>
+        <button
+          type="button"
+          class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-sm font-medium hover:bg-surface-alt transition-colors"
+          (click)="openPortfolio()"
+        >
+          <ico name="globe" size="sm"></ico>
+          Portfolio
+        </button>
+      </div>
+    </div>
+
+    <!-- Share app -->
+    <div
+      class="card-light flex items-center justify-between w-full text-left cursor-pointer rounded-2xl p-3"
+      (click)="onShareApp()"
+    >
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-secondary-light flex items-center justify-center">
+          <ico name="share" size="sm" class="text-primary"></ico>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-sm font-medium">Share FinTrackr</span>
+          <span class="text-xs text-secondary">Share the app with friends</span>
+        </div>
+      </div>
+      <ico name="arrow-right" size="sm" class="text-secondary"></ico>
+    </div>
+
+    <!-- Feedback -->
+    <div class="card-light flex flex-col gap-3 p-3 rounded-2xl">
+      <h3 class="text-sm font-semibold text-secondary">Send Feedback</h3>
+
+      <form
+        #feedbackForm="ngForm"
+        (ngSubmit)="onSubmitFeedback(feedbackForm)"
+        class="flex flex-col gap-3"
+      >
+        <!-- Star rating -->
+        <div class="flex items-center justify-between">
+          <div class="flex gap-1">
+            @for (star of ratingStars; track star) {
+              <div
+                class="text-2xl transition-transform hover:scale-130 cursor-pointer"
+                [class.text-amber-400]="star <= feedbackRating()"
+                [class.text-gray-300]="star > feedbackRating()"
+                (click)="setRating(star)"
+              >
+                ★
+              </div>
+            }
+          </div>
+          <span class="text-sm text-secondary"
+            >{{ feedbackRating() }} out of {{ ratingStars.length }}</span
+          >
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <textarea
+            name="feedbackMessage"
+            rows="3"
+            placeholder="Share your thoughts, report bugs, or suggest features…"
+            [ngModel]="feedbackMessage()"
+            (ngModelChange)="feedbackMessage.set($event)"
+            required
+            minlength="10"
+            #msgField="ngModel"
+          ></textarea>
+          @if (msgField.invalid && msgField.touched) {
+            <p class="text-xs text-red-500">Please enter at least 10 characters.</p>
+          }
+        </div>
+
+        <button
+          type="submit"
+          class="button-primary rounded-xl py-2.5 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          [disabled]="submittingFeedback()"
+        >
+          @if (submittingFeedback()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Sending…</span>
+          } @else {
+            <span>Submit Feedback</span>
+          }
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

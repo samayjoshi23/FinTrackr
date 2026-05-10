@@ -60,12 +60,8 @@
     <!-- Forgot password -->
     <div class="text-end">
       <a
-        type="button"
-        class="text-xs text-gray-400"
-        [class.cursor-pointer]="!isSubmitting()"
-        [class.pointer-events-none]="isSubmitting()"
-        [class.opacity-50]="isSubmitting()"
-        (click)="onForgotPassword()"
+        routerLink="/reset-password"
+        class="text-xs text-gray-400 cursor-pointer"
       >
         Forgot password?
       </a>

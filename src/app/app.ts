@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
@@ -5,10 +6,12 @@ import { Auth } from '@angular/fire/auth';
 import { filter } from 'rxjs/operators';
 import { Notifier } from '../shared/components/notifier/pages/notifier';
 import { AuthService } from '../services/auth.service';
+import { BiometricLockService } from '../core/services/biometric-lock.service';
+import { Icon } from '../shared/components/icon/icon';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Notifier],
+  imports: [RouterOutlet, Notifier, CommonModule, Icon],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -19,10 +22,12 @@ export class App {
   private readonly auth = inject(Auth);
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly biometricLock = inject(BiometricLockService);
+
+  unlocking = signal(false);
+  unlockFailed = signal(false);
 
   constructor() {
-    // If the browser back stack still reaches /login or /register while signed in, bounce home
-    // (primary prevention is navigate { replaceUrl: true } after auth).
     this.router.events
       .pipe(
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
@@ -37,5 +42,28 @@ export class App {
           void this.router.navigateByUrl(home, { replaceUrl: true });
         });
       });
+
+    // Check biometric lock on startup
+    this.biometricLock.checkStartupLock();
+    if (this.biometricLock.locked()) {
+      void this.triggerBiometric();
+    }
+  }
+
+  async triggerBiometric(): Promise<void> {
+    this.unlocking.set(true);
+    this.unlockFailed.set(false);
+    try {
+      const ok = await this.biometricLock.requestBiometric();
+      if (ok) {
+        this.biometricLock.unlock();
+      } else {
+        this.unlockFailed.set(true);
+      }
+    } catch {
+      this.unlockFailed.set(true);
+    } finally {
+      this.unlocking.set(false);
+    }
   }
 }

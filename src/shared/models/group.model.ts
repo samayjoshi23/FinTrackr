@@ -59,8 +59,16 @@ export interface GroupExpenseDocument {
   description: string;
   amount: number;
   currency: string;
+  /**
+   * Primary payer id. For single-payer expenses this is the sole payer.
+   * For multi-payer expenses this is the first (or primary) payer; use paidByIds for all.
+   */
   paidById: string;
   paidByName: string;
+  /** All payer ids for multi-payer expenses. Contains at least paidById. */
+  paidByIds?: string[];
+  /** Display names for all payers, parallel array to paidByIds. */
+  paidByNames?: string[];
   splits: ExpenseSplit[];
   date: string; // 'YYYY-MM-DD'
   createdAt: Timestamp | null;
@@ -80,6 +88,10 @@ export interface GroupExpenseCreateInput {
   currency: string;
   paidById: string;
   paidByName: string;
+  /** All payer ids — defaults to [paidById] for single-payer expenses. */
+  paidByIds?: string[];
+  /** Display names parallel to paidByIds. */
+  paidByNames?: string[];
   splits: ExpenseSplit[];
   date: string;
 }
@@ -87,7 +99,14 @@ export interface GroupExpenseCreateInput {
 export type GroupExpenseUpdateInput = Partial<
   Pick<
     GroupExpenseDocument,
-    'description' | 'amount' | 'paidById' | 'paidByName' | 'splits' | 'date'
+    | 'description'
+    | 'amount'
+    | 'paidById'
+    | 'paidByName'
+    | 'paidByIds'
+    | 'paidByNames'
+    | 'splits'
+    | 'date'
   >
 >;
 
