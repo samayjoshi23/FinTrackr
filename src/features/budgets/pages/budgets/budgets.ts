@@ -36,6 +36,7 @@ export class Budgets {
   private readonly notifier = inject(NotifierService);
 
   currency = signal<string>('INR');
+  loading = signal(true);
   budgets = signal<Budget[]>([]);
   transactions = signal<TransactionRecord[]>([]);
   categories = signal<Category[]>([]);
@@ -103,10 +104,7 @@ export class Budgets {
 
   readonly categoryCards = computed<CategoryBudgetCardModel[]>(() => {
     const month = this.monthLabel();
-    const totalsByCategory = new Map<
-      string,
-      { spent: number; limit: number; budgetId: string }
-    >();
+    const totalsByCategory = new Map<string, { spent: number; limit: number; budgetId: string }>();
 
     for (const b of this.budgets().filter((b) => this.isBudgetMonth(b.month, month))) {
       const cat = (b.category ?? '').trim() || 'Uncategorized';
@@ -150,27 +148,32 @@ export class Budgets {
   });
 
   async ngOnInit() {
-    const account = await this.accountsService.getSelectedAccount();
-    if (!account) return;
-    this.currency.set(account.currency ?? 'INR');
-
+    this.loading.set(true);
     try {
-      const [budgets, txs, cats] = await Promise.all([
-        this.budgetsService.getBudgets(),
-        this.transactionsService.getTransactions(),
-        this.categoriesService.getCategories(),
-      ]);
-      this.budgets.set(budgets ?? []);
-      this.transactions.set(txs ?? []);
-      this.categories.set(cats ?? []);
-    } catch (e) {
-      console.error(e);
-      this.budgets.set([]);
-      this.transactions.set([]);
-      this.categories.set([]);
-    }
+      const account = await this.accountsService.getSelectedAccount();
+      if (!account) return;
+      this.currency.set(account.currency ?? 'INR');
 
-    this.queueProgressBarAnimation();
+      try {
+        const [budgets, txs, cats] = await Promise.all([
+          this.budgetsService.getBudgets(),
+          this.transactionsService.getTransactions(),
+          this.categoriesService.getCategories(),
+        ]);
+        this.budgets.set(budgets ?? []);
+        this.transactions.set(txs ?? []);
+        this.categories.set(cats ?? []);
+      } catch (e) {
+        console.error(e);
+        this.budgets.set([]);
+        this.transactions.set([]);
+        this.categories.set([]);
+      }
+
+      this.queueProgressBarAnimation();
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   private queueProgressBarAnimation(): void {
@@ -264,5 +267,9 @@ export class Budgets {
     const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
     const ms = end.getTime() - date.getTime();
     return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+  }
+
+  goBack(): void {
+    this.router.navigateByUrl('/user/dashboard');
   }
 }

@@ -1,5 +1,13 @@
 <div class="container-layout p-4 md:p-5">
-  <h1 class="text-2xl font-semibold title-font text-center">Settings</h1>
+  <div class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      (click)="goBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">Settings</h1>
+  </div>
 
   @if (isDataLoading()) {
     <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>

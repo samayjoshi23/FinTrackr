@@ -7,21 +7,30 @@
     >
       <ico name="left-arrow" size="sm"></ico>
     </div>
-    <h1 class="text-lg font-semibold title-font flex-1 text-center">Account Details</h1>
+    <h1 class="text-lg font-semibold title-font flex-1">Account Details</h1>
     <span class="w-9 shrink-0"></span>
   </header>
 
   @if (loading()) {
-    <p class="text-sm text-secondary text-display">Loading…</p>
+    <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>
   } @else if (account(); as acc) {
     <div class="card-light rounded-2xl p-4 flex flex-col gap-4">
-      <div class="flex items-center gap-3">
-        <div
-          class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
-        >
-          <ico name="bank" size="md" class="text-primary"></ico>
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div
+            class="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
+          >
+            <ico name="bank" size="md" class="text-primary"></ico>
+          </div>
+          <span class="text-base font-semibold title-font truncate">{{ acc.name }}</span>
         </div>
-        <span class="text-base font-semibold title-font">{{ acc.name }}</span>
+        <div
+          class="text-sm text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer shrink-0"
+          (click)="openEditModal()"
+        >
+          <ico name="pencil" size="sm"></ico>
+          Edit
+        </div>
       </div>
       <div class="rounded-xl flex flex-col gap-1 px-4 py-3 card">
         <span class="text-xs text-secondary">Current Balance</span>
@@ -114,4 +123,135 @@
     [transaction]="selectedTransaction()"
     [currency]="account()?.currency ?? 'INR'"
   />
+
+  <app-modal
+    [(open)]="editModalOpen"
+    title="Edit account"
+    [bodyTemplate]="editAccountTpl"
+  ></app-modal>
+
+  <ng-template #editAccountTpl>
+    <form
+      class="flex flex-col gap-4"
+      #accountEditForm="ngForm"
+      (ngSubmit)="saveAccountEdit(accountEditForm)"
+    >
+      <div class="flex flex-col gap-2">
+        <label for="editName" class="text-xs text-secondary font-light">Account name</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="bank" size="sm"></ico>
+          </span>
+          <input
+            id="editName"
+            name="editName"
+            type="text"
+            class="w-full"
+            [(ngModel)]="editName"
+            required
+            [minlength]="limits.nameMinLen"
+            [maxlength]="limits.nameMax"
+            #editNameCtrl="ngModel"
+          />
+        </div>
+        @if (editNameCtrl.invalid && editNameCtrl.touched) {
+          <p class="text-xs text-red-600">
+            Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
+          </p>
+        }
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label for="editBalance" class="text-xs text-secondary font-light">Current balance</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            id="editBalance"
+            name="editBalance"
+            type="number"
+            class="w-full"
+            [(ngModel)]="editBalance"
+            required
+            min="0"
+            step="0.01"
+            #editBalanceCtrl="ngModel"
+          />
+        </div>
+        @if (editBalanceCtrl.invalid && editBalanceCtrl.touched) {
+          <p class="text-xs text-red-600">Enter a valid balance.</p>
+        }
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button
+          type="button"
+          class="button-secondary rounded-xl py-3 flex-1 font-semibold"
+          (click)="editModalOpen = false"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="button-primary rounded-xl py-3 flex-1 font-semibold"
+          [disabled]="savingEdit()"
+        >
+          {{ savingEdit() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </form>
+  </ng-template>
 </div>
+
+<ng-template #loadingTpl>
+  <div
+    class="flex flex-col gap-4 animate-pulse"
+    aria-busy="true"
+    aria-label="Loading account details"
+  >
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-4">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl bg-secondary-light"></div>
+          <div class="h-5 w-32 rounded-md bg-secondary-light"></div>
+        </div>
+        <div class="h-4 w-12 rounded-md bg-secondary-light"></div>
+      </div>
+      <div class="rounded-xl px-4 py-3 card flex flex-col gap-2">
+        <div class="h-3 w-24 rounded-md bg-secondary-light"></div>
+        <div class="h-6 w-28 rounded-md bg-secondary-light"></div>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="h-5 w-32 rounded-md bg-secondary-light"></div>
+      <div class="h-3 w-36 rounded-md bg-secondary-light"></div>
+      <div class="flex flex-wrap gap-2">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="h-8 w-16 rounded-full bg-secondary-light"></div>
+        }
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="h-5 w-28 rounded-md bg-secondary-light"></div>
+      <div class="flex flex-col gap-2">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="card rounded-xl p-3 flex items-center justify-between gap-2">
+            <div class="flex flex-col gap-2 min-w-0 flex-1">
+              <div class="h-4 w-32 rounded-md bg-secondary-light"></div>
+              <div class="h-3 w-20 rounded-md bg-secondary-light"></div>
+            </div>
+            <div class="h-4 w-14 rounded-md bg-secondary-light shrink-0"></div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-3 mt-2">
+      <div class="h-12 w-full rounded-xl bg-secondary-light"></div>
+      <div class="h-12 w-full rounded-xl bg-secondary-light"></div>
+    </div>
+  </div>
+</ng-template>

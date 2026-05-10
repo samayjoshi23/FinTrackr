@@ -15,6 +15,7 @@ import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { Modal } from '../../../../shared/components/modal/modal';
 import { GroupExpensesService } from '../../group-expenses.service';
+import { GroupCloudFunctionsService } from '../../group-cloud-functions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import {
   Group,
@@ -35,6 +36,7 @@ type SplitMode = 'equal' | 'custom';
 })
 export class AddExpenseModal implements OnChanges {
   private readonly expensesService = inject(GroupExpensesService);
+  private readonly groupCloudFunctions = inject(GroupCloudFunctionsService);
   private readonly notifier = inject(NotifierService);
   private readonly auth = inject(Auth);
 
@@ -240,8 +242,12 @@ export class AddExpenseModal implements OnChanges {
         this.notifier.success('Expense updated.');
         this.expenseAdded.emit(updated);
       } else {
-        const expense = await this.expensesService.addExpense({
-          groupId: this.group().id,
+        const gid = this.group().id;
+        const otherMemberIds = this.members()
+          .map((m) => m.memberId)
+          .filter((id) => id !== this.currentUserId());
+        const expenseInput = {
+          groupId: gid,
           description: desc,
           amount,
           currency: this.group().currency,
@@ -249,6 +255,25 @@ export class AddExpenseModal implements OnChanges {
           paidByName,
           splits,
           date: this.formModel.date,
+        };
+        const expense = await this.expensesService.addExpense(expenseInput, {
+          postSyncCallablesBuilder: (expenseId) => [
+            this.groupCloudFunctions.buildNotifyExpenseCallable(
+              { ...expenseInput, id: expenseId, createdAt: null, updatedAt: null },
+              paidByName,
+              otherMemberIds,
+            ),
+          ],
+          onSuccess: (_expenseId, savedExpense) => {
+            this.groupCloudFunctions.invokeFireAndForget(
+              'notifyGroupExpense',
+              this.groupCloudFunctions.buildNotifyExpenseCallable(
+                savedExpense,
+                paidByName,
+                otherMemberIds,
+              ).payload,
+            );
+          },
         });
         this.notifier.success('Expense added.');
         this.expenseAdded.emit(expense);

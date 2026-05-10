@@ -5,6 +5,7 @@ import { IndexedDbCacheService } from './indexed-db-cache.service';
 import { SyncQueueService } from './sync-queue.service';
 import { NotifierService } from '../../shared/components/notifier/notifier.service';
 import { NotifierSeverity } from '../../shared/components/notifier/types';
+import { PostSyncCallable } from './sync-queue.model';
 import { TransactionRecord } from '../../shared/models/transaction.model';
 import {
   applyTransactionFilters,
@@ -21,6 +22,7 @@ const FIRESTORE_COLLECTION_BY_STORE: Record<string, string> = {
   goals: 'goals',
   categories: 'categories',
   accounts: 'accounts',
+  groups: 'groups',
   'monthly-reports': 'monthlyReports',
   'recurring-transactions': 'recurring-transactions',
 };
@@ -221,6 +223,72 @@ export class OfflineCrudService {
     }
   }
 
+  /**
+   * CREATE for subcollections (e.g. `groups/{id}/expenses`).
+   * Identical to {@link create} but takes an explicit Firestore `collectionPath` (slash-delimited)
+   * instead of looking up from `FIRESTORE_COLLECTION_BY_STORE`, so it works for any depth.
+   *
+   * @param postSyncCallablesBuilder Optional factory called with the assigned id; its result is
+   *   stored on the queue entry and invoked by `SyncService` after the server write succeeds.
+   * @param onSuccess Optional fire-and-forget callback invoked after a **successful immediate**
+   *   online write (not used in the offline/queued path — callables handle that).
+   */
+  async createWithPath<T>(
+    storeName: string,
+    collectionPath: string,
+    keyField: string,
+    firestoreFn: (assignedId: string) => Promise<T>,
+    payload: Record<string, unknown>,
+    options?: {
+      fixedDocId?: string;
+      postSyncCallablesBuilder?: (assignedId: string) => PostSyncCallable[];
+      onSuccess?: (assignedId: string, result: T) => void;
+    },
+  ): Promise<T> {
+    const assignedId =
+      options?.fixedDocId ?? doc(collection(this.firestore, collectionPath)).id;
+    const now = new Date();
+    const optimistic = {
+      ...payload,
+      [keyField]: assignedId,
+      createdAt: now,
+      updatedAt: now,
+      _pendingSync: true,
+    } as unknown as T;
+
+    await this.cache.put(storeName, optimistic);
+
+    const postSyncCallables = options?.postSyncCallablesBuilder?.(assignedId);
+
+    const enqueuePending = async () => {
+      await this.syncQueue.enqueue({
+        storeName,
+        operation: 'create',
+        payload: { ...payload, _syncPreassignedId: assignedId },
+        tempLocalId: assignedId,
+        timestamp: Date.now(),
+        ...(postSyncCallables?.length ? { postSyncCallables } : {}),
+      });
+      this.notifier.show('Saved locally. Will sync when connected.', NotifierSeverity.WARNING);
+    };
+
+    if (!this.network.isOnline()) {
+      await enqueuePending();
+      return optimistic;
+    }
+
+    try {
+      const result = await firestoreFn(assignedId);
+      const merged = { ...(result as object), _pendingSync: false } as unknown as T;
+      await this.cache.put(storeName, merged);
+      options?.onSuccess?.(assignedId, merged);
+      return merged;
+    } catch {
+      await enqueuePending();
+      return optimistic;
+    }
+  }
+
   /** Firestore write after optimistic IndexedDB row; failures fall back to sync queue. */
   private syncRemoteCreate<T>(
     storeName: string,
@@ -286,11 +354,15 @@ export class OfflineCrudService {
 
   /**
    * DELETE: remove from IndexedDB first, then Firestore when online (or queue delete for sync).
+   *
+   * @param extraPayload Optional context stored in the queue entry (e.g. `{ _groupId }` for
+   *   subcollection paths that the sync worker needs to reconstruct the Firestore ref).
    */
   async remove(
     storeName: string,
     docId: string,
     firestoreFn: () => Promise<void>,
+    extraPayload?: Record<string, unknown>,
   ): Promise<void> {
     await this.cache.delete(storeName, docId);
 
@@ -298,7 +370,7 @@ export class OfflineCrudService {
       await this.syncQueue.enqueue({
         storeName,
         operation: 'delete',
-        payload: {},
+        payload: extraPayload ?? {},
         docId,
         timestamp: Date.now(),
       });
@@ -394,3 +466,6 @@ export class OfflineCrudService {
     }
   }
 }
+
+/** Re-exported so services can use the type without a separate import. */
+export type { PostSyncCallable };

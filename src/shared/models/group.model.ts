@@ -27,6 +27,11 @@ export interface Group extends Omit<GroupDocument, 'createdAt' | 'updatedAt' | '
   members: GroupMember[];
   createdAt: Date | null;
   updatedAt: Date | null;
+  /**
+   * Present only on IndexedDB-cached rows: current user id, for the `viewerUid` index
+   * (offline / cache-first list scope).
+   */
+  viewerUid?: string;
 }
 
 export interface GroupCreateInput {

@@ -74,24 +74,27 @@ service cloud.firestore {
     match /transactions/{transactionId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
-      allow update, delete: if canAccessAccount(resource.data.accountId)
+      allow update: if canAccessAccount(resource.data.accountId)
         && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
     }
 
     // ─── Recurring transactions (same account scoping as transactions) ───────
     match /recurring-transactions/{recurringId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
-      allow update, delete: if canAccessAccount(resource.data.accountId)
+      allow update: if canAccessAccount(resource.data.accountId)
         && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
     }
 
     // ─── Monthly reports (monthlyReports — keyed by accountId in app queries) ─
     match /monthlyReports/{reportId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
-      allow update, delete: if canAccessAccount(resource.data.accountId)
+      allow update: if canAccessAccount(resource.data.accountId)
         && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
     }
 
     // ─── Budgets / goals / categories (account-scoped) ──────────────────────

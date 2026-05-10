@@ -1,4 +1,4 @@
-<div class="w-full h-full flex flex-col p-4 md:p-5 gap-4 overflow-y-auto pb-15">
+<div class="container-layout p-4 md:p-5">
   <!-- Header -->
   <header class="flex items-center gap-2">
     <div
@@ -29,6 +29,7 @@
           [minlength]="limits.nameMinLen"
           [maxlength]="limits.nameMax"
           #nameCtrl="ngModel"
+          [ngModelOptions]="{ standalone: true }"
         />
       </div>
       @if (nameCtrl.invalid && nameCtrl.touched) {
@@ -60,6 +61,7 @@
           step="0.01"
           [(ngModel)]="targetAmount"
           #targetCtrl="ngModel"
+          [ngModelOptions]="{ standalone: true }"
         />
       </div>
       @if (targetCtrl.invalid && targetCtrl.touched) {
@@ -81,9 +83,11 @@
           modalTitle="Due Date"
           placeholder="YYYY-MM-DD"
           compactFieldIcon
-          [ngModel]="dueDate"
+          name="dueDate"
+          [(ngModel)]="dueDate"
           #dueDateCtrl="ngModel"
           required
+          [ngModelOptions]="{ standalone: true }"
         />
         @if (dueDateCtrl.invalid && dueDateCtrl.touched) {
           <p class="text-xs text-red-600">Pick a due date.</p>
@@ -110,6 +114,7 @@
           step="0.01"
           [(ngModel)]="currentAmount"
           #currentCtrl="ngModel"
+          [ngModelOptions]="{ standalone: true }"
         />
       </div>
       @if (currentCtrl.invalid && currentCtrl.touched) {

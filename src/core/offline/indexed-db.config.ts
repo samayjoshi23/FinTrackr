@@ -3,7 +3,7 @@ import { DBConfig } from 'ngx-indexed-db';
 export const indexedDbConfig: DBConfig = {
   name: 'FinTrackrDB',
   /** Bump when adding object stores or indexes so existing DBs run upgrade (e.g. `notifications`). */
-  version: 4,
+  version: 6,
   objectStoresMeta: [
     {
       store: 'accounts',
@@ -87,6 +87,29 @@ export const indexedDbConfig: DBConfig = {
         { name: 'accountId', keypath: 'accountId', options: { unique: false } },
         { name: 'status', keypath: 'status', options: { unique: false } },
         { name: 'createdAt', keypath: 'createdAt', options: { unique: false } },
+      ],
+    },
+    {
+      store: 'groups',
+      storeConfig: { keyPath: 'id', autoIncrement: false },
+      storeSchema: [
+        { name: 'viewerUid', keypath: 'viewerUid', options: { unique: false } },
+        { name: 'creatorId', keypath: 'creatorId', options: { unique: false } },
+      ],
+    },
+    {
+      store: 'group-expenses',
+      storeConfig: { keyPath: 'id', autoIncrement: false },
+      storeSchema: [
+        { name: 'groupId', keypath: 'groupId', options: { unique: false } },
+        { name: 'date', keypath: 'date', options: { unique: false } },
+      ],
+    },
+    {
+      store: 'group-settlements',
+      storeConfig: { keyPath: 'id', autoIncrement: false },
+      storeSchema: [
+        { name: 'groupId', keypath: 'groupId', options: { unique: false } },
       ],
     },
   ],

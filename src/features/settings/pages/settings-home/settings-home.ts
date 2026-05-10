@@ -173,4 +173,8 @@ export class SettingsHome {
   addAccount() {
     this.router.navigateByUrl('/user/settings/accounts/new');
   }
+
+  goBack(): void {
+    this.router.navigateByUrl('/user/dashboard');
+  }
 }

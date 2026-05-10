@@ -9,7 +9,6 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 import { Category } from '../../../categories/types';
 import { AccountsService } from '../../../../services/accounts.service';
 import { CategoriesService } from '../../../../services/categories.service';
-import { Account } from '../../../../shared/models/account.model';
 import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
@@ -68,25 +67,34 @@ export class TransactionList {
   });
 
   async ngOnInit() {
-    const account = await this.accountsService.getSelectedAccount();
-    this.currency.set(account?.currency ?? 'INR');
-
-    this.applyQueryParams();
-
     try {
-      const cats = await this.categoriesService.getCategories();
-      this.categories.set(cats ?? []);
-    } catch {
-      this.categories.set([]);
-    }
+      const account = await this.accountsService.getSelectedAccount();
+      this.currency.set(account?.currency ?? 'INR');
 
-    if (!(account?.uid ?? account?.id)) {
+      this.applyQueryParams();
+
+      try {
+        const cats = await this.categoriesService.getCategories();
+        this.categories.set(cats ?? []);
+      } catch {
+        this.categories.set([]);
+      }
+
+      if (!(account?.uid ?? account?.id)) {
+        this.notifier.error('No account selected.');
+        return;
+      }
+
+      await this.reloadFromFilters();
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not load transactions.');
+      this.displayedTransactions.set([]);
+      this.totalFiltered.set(0);
+      this.hasMore.set(false);
+    } finally {
       this.loading.set(false);
-      this.notifier.error('No account selected.');
-      return;
     }
-
-    await this.reloadFromFilters();
   }
 
   /** Deep links from dashboard: ?type=income|expense&date=month&category=all&advanced=1 */

@@ -1,0 +1,93 @@
+/* In-app shell loader (matches index.html boot UI) until first real route is ready */
+:host-context(body.theme-light) #fintrackr-app-boot {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+:host-context(body.theme-dark) #fintrackr-app-boot {
+  background: #020617;
+  color: #f8fafc;
+}
+
+#fintrackr-app-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#fintrackr-app-boot .fintrackr-boot__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: center;
+  max-width: 16rem;
+}
+
+#fintrackr-app-boot .fintrackr-boot__mark {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, #10b981 0%, #059669 45%, #047857 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  box-shadow:
+    0 10px 15px -3px rgba(5, 150, 105, 0.25),
+    0 4px 6px -4px rgba(5, 150, 105, 0.2);
+}
+
+#fintrackr-app-boot .fintrackr-boot__title {
+  margin: 0;
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+#fintrackr-app-boot .fintrackr-boot__sub {
+  margin: -0.5rem 0 0;
+  font-size: 0.875rem;
+  opacity: 0.72;
+}
+
+#fintrackr-app-boot .fintrackr-boot__spinner {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 3px solid rgba(5, 150, 105, 0.22);
+  border-top-color: #059669;
+  animation: fintrackr-app-boot-spin 0.65s linear infinite;
+}
+
+:host-context(body.theme-dark) #fintrackr-app-boot .fintrackr-boot__spinner {
+  border-color: rgba(16, 185, 129, 0.2);
+  border-top-color: #34d399;
+}
+
+@keyframes fintrackr-app-boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -23,15 +23,21 @@ export class Categories {
   private readonly notifier = inject(NotifierService);
 
   categories = signal<Category[]>([]);
+  loading = signal(true);
   deletePromptOpen = signal(false);
   deletingCategory = signal<Category | null>(null);
   deleting = signal(false);
 
   async ngOnInit() {
-    const account = await this.accountsService.getSelectedAccount();
-    if (!account) return;
-    const rows = await this.categoriesService.getCategories().catch(() => []);
-    this.categories.set(rows ?? []);
+    this.loading.set(true);
+    try {
+      const account = await this.accountsService.getSelectedAccount();
+      if (!account) return;
+      const rows = await this.categoriesService.getCategories().catch(() => []);
+      this.categories.set(rows ?? []);
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   onNew() {
@@ -69,5 +75,9 @@ export class Categories {
       this.deleting.set(false);
       this.deletingCategory.set(null);
     }
+  }
+
+  goBack(): void {
+    this.router.navigateByUrl('/user/dashboard');
   }
 }

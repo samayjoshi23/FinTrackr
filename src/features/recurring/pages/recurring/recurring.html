@@ -1,6 +1,14 @@
 <div class="container-layout p-4 md:p-5">
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold title-font">Recurring</h1>
+    <div class="flex items-center gap-2">
+      <div
+        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        (click)="goBack()"
+      >
+        <ico name="left-arrow" size="sm"></ico>
+      </div>
+      <h1 class="text-xl font-semibold title-font">Recurring</h1>
+    </div>
     <div
       class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
       (click)="onAdd()"
@@ -10,7 +18,9 @@
     </div>
   </div>
 
-  @if (items().length === 0) {
+  @if (loading()) {
+    <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>
+  } @else if (items().length === 0) {
     <div class="card rounded-2xl p-4 flex flex-col gap-2">
       <p class="text-sm text-secondary">No recurring schedules yet</p>
       <p class="text-xs text-secondary font-light">
@@ -81,3 +91,27 @@
     </div>
   }
 </div>
+
+<ng-template #loadingTpl>
+  <div
+    class="flex flex-col gap-3 animate-pulse"
+    aria-busy="true"
+    aria-label="Loading recurring schedules"
+  >
+    @for (i of [1, 2, 3]; track i) {
+      <div class="card rounded-xl p-4 flex items-center gap-3">
+        <div class="h-11 w-11 rounded-xl bg-secondary-light shrink-0"></div>
+        <div class="flex justify-between items-center min-w-0 flex-1 gap-2">
+          <div class="flex flex-col gap-2 min-w-0 flex-1">
+            <div class="h-4 w-36 rounded-md bg-secondary-light"></div>
+            <div class="h-3 w-28 rounded-md bg-secondary-light"></div>
+          </div>
+          <div class="flex flex-col gap-2 items-end shrink-0">
+            <div class="h-4 w-16 rounded-md bg-secondary-light"></div>
+            <div class="h-5 w-12 rounded-full bg-secondary-light"></div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+</ng-template>

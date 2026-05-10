@@ -45,4 +45,8 @@ export class Recurring {
   onView(rec: RecurringTransactionRecord) {
     void this.router.navigateByUrl(`/user/recurring/view/${rec.uid}`);
   }
+
+  goBack(): void {
+    this.router.navigateByUrl('/user/dashboard');
+  }
 }

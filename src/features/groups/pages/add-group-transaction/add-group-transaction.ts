@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
-import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { FormsModule, NgForm } from '@angular/forms';
 import { LinkedObject, TransactionCreateInput } from '../../../../shared/models/transaction.model';
@@ -14,6 +13,7 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 import { GroupsService } from '../../groups.service';
 import { GroupExpensesService } from '../../group-expenses.service';
 import { GroupSettlementsService } from '../../group-settlements.service';
+import { GroupCloudFunctionsService } from '../../group-cloud-functions.service';
 import { memberAvatarClass, memberInitials } from '../../group-balance.utils';
 import {
   ExpenseSplit,
@@ -42,7 +42,6 @@ export class AddGroupTransaction {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly auth = inject(Auth);
-  private readonly functions = inject(Functions);
   private readonly location = inject(Location);
   private readonly accountsService = inject(AccountsService);
   private readonly categoriesService = inject(CategoriesService);
@@ -52,6 +51,7 @@ export class AddGroupTransaction {
   private readonly groupsService = inject(GroupsService);
   private readonly expensesService = inject(GroupExpensesService);
   private readonly settlementsService = inject(GroupSettlementsService);
+  private readonly groupCloudFunctions = inject(GroupCloudFunctionsService);
 
   groupId = signal('');
   formType = signal<GroupTransactionType>('expense');
@@ -99,7 +99,8 @@ export class AddGroupTransaction {
 
   async ngOnInit() {
     const gid = this.route.snapshot.paramMap.get('id') ?? '';
-    const type = (this.route.snapshot.queryParamMap.get('type') ?? 'expense') as GroupTransactionType;
+    const type = (this.route.snapshot.queryParamMap.get('type') ??
+      'expense') as GroupTransactionType;
     const toId = this.route.snapshot.queryParamMap.get('toId') ?? '';
     const preAmount = this.route.snapshot.queryParamMap.get('amount') ?? '';
     const preDesc = this.route.snapshot.queryParamMap.get('description') ?? '';
@@ -307,19 +308,43 @@ export class AddGroupTransaction {
       (id) => allMembers.find((m) => m.memberId === id)?.memberDisplayName ?? id,
     );
 
+    const expenseInput = {
+      groupId: gid,
+      description: this.expenseDescription().trim(),
+      amount,
+      currency: grp.currency,
+      paidById: primaryPayerId,
+      paidByName: primaryPayerName,
+      paidByIds: payerIds,
+      paidByNames: payerNames,
+      splits,
+      date: this.expenseDate(),
+    };
+
+    const otherMemberIds = this.members()
+      .map((m) => m.memberId)
+      .filter((id) => id !== this.currentUserId());
+
     this.saving.set(true);
     try {
-      const expense = await this.expensesService.addExpense({
-        groupId: gid,
-        description: this.expenseDescription().trim(),
-        amount,
-        currency: grp.currency,
-        paidById: primaryPayerId,
-        paidByName: primaryPayerName,
-        paidByIds: payerIds,
-        paidByNames: payerNames,
-        splits,
-        date: this.expenseDate(),
+      const expense = await this.expensesService.addExpense(expenseInput, {
+        postSyncCallablesBuilder: (expenseId) => [
+          this.groupCloudFunctions.buildNotifyExpenseCallable(
+            { ...expenseInput, id: expenseId, createdAt: null, updatedAt: null },
+            primaryPayerName,
+            otherMemberIds,
+          ),
+        ],
+        onSuccess: (_expenseId, savedExpense) => {
+          this.groupCloudFunctions.invokeFireAndForget(
+            'notifyGroupExpense',
+            this.groupCloudFunctions.buildNotifyExpenseCallable(
+              savedExpense,
+              primaryPayerName,
+              otherMemberIds,
+            ).payload,
+          );
+        },
       });
 
       // Create transaction for the current user (payer) with linkedObject
@@ -348,18 +373,13 @@ export class AddGroupTransaction {
           syncRemoteInBackground: true,
         });
 
-        void this.reportsService.updateReportForTransaction(txResponse).catch((e) => console.error(e));
+        void this.reportsService
+          .updateReportForTransaction(txResponse)
+          .catch((e) => console.error(e));
         void this.accountsService
-          .adjustBalanceForTransaction(
-            account.id || account.uid,
-            amount,
-            'expense',
-          )
+          .adjustBalanceForTransaction(account.id || account.uid, amount, 'expense')
           .catch((e) => console.error(e));
       }
-
-      // Notify other group members via cloud function
-      void this.notifyGroupMembers(gid, expense);
 
       this.notifier.success('Expense added.');
       await this.router.navigateByUrl(`/user/groups/${gid}`, { replaceUrl: true });
@@ -401,17 +421,54 @@ export class AddGroupTransaction {
     const credName = this.creditorName();
     if (!grp || !credId) return;
 
+    const settlementInput = {
+      groupId: gid,
+      fromId: this.currentUserId(),
+      fromName: this.currentUserName(),
+      toId: credId,
+      toName: credName,
+      amount,
+      currency: grp.currency,
+      note: this.settlementDescription().trim(),
+    };
+
+    const settlementDesc =
+      this.settlementDescription().trim() || `Settlement from ${this.currentUserName()}`;
+
     this.saving.set(true);
     try {
-      const settlement = await this.settlementsService.addSettlement({
-        groupId: gid,
-        fromId: this.currentUserId(),
-        fromName: this.currentUserName(),
-        toId: credId,
-        toName: credName,
-        amount,
-        currency: grp.currency,
-        note: this.settlementDescription().trim(),
+      const settlement = await this.settlementsService.addSettlement(settlementInput, {
+        postSyncCallablesBuilder: (settlementId) => [
+          this.groupCloudFunctions.buildRecordSettlementCallable({
+            groupId: gid,
+            settlementId,
+            creditorId: credId,
+            debtorId: this.currentUserId(),
+            debtorName: this.currentUserName(),
+            amount,
+            description: settlementDesc,
+            category: this.settlementCategory() || 'Other',
+            source: this.settlementSource(),
+            currency: grp.currency,
+          }),
+        ],
+        onSuccess: (settlementId) => {
+          this.groupCloudFunctions.invokeFireAndForget(
+            'recordGroupSettlement',
+            this.groupCloudFunctions.buildRecordSettlementCallable({
+              groupId: gid,
+              settlementId,
+              creditorId: credId,
+              debtorId: this.currentUserId(),
+              debtorName: this.currentUserName(),
+              amount,
+              description: settlementDesc,
+              category: this.settlementCategory() || 'Other',
+              source: this.settlementSource(),
+              currency: grp.currency,
+            }).payload,
+          );
+        },
       });
 
       const linkedObject: LinkedObject = {
@@ -422,7 +479,6 @@ export class AddGroupTransaction {
 
       const account = this.selectedAccount();
       if (account) {
-        // Case 1: Current user (debtor) is settling — record expense against their account
         const txPayload: TransactionCreateInput = {
           accountId: account.uid ?? '',
           amount,
@@ -440,25 +496,13 @@ export class AddGroupTransaction {
           syncRemoteInBackground: true,
         });
 
-        void this.reportsService.updateReportForTransaction(txResponse).catch((e) => console.error(e));
+        void this.reportsService
+          .updateReportForTransaction(txResponse)
+          .catch((e) => console.error(e));
         void this.accountsService
           .adjustBalanceForTransaction(account.id || account.uid, amount, 'expense')
           .catch((e) => console.error(e));
       }
-
-      // Cloud function: create income for creditor + notify them
-      void this.recordSettlementForCreditor({
-        groupId: gid,
-        settlementId: settlement.id,
-        creditorId: credId,
-        debtorId: this.currentUserId(),
-        debtorName: this.currentUserName(),
-        amount,
-        description: this.settlementDescription().trim() || `Settlement from ${this.currentUserName()}`,
-        category: this.settlementCategory() || 'Other',
-        source: this.settlementSource(),
-        currency: grp.currency,
-      });
 
       this.notifier.success('Settlement recorded.');
       await this.router.navigateByUrl(`/user/groups/${gid}`, { replaceUrl: true });
@@ -467,44 +511,6 @@ export class AddGroupTransaction {
       this.notifier.error('Could not record settlement.');
     } finally {
       this.saving.set(false);
-    }
-  }
-
-  private notifyGroupMembers(groupId: string, expense: GroupExpense): void {
-    try {
-      const fn = httpsCallable(this.functions, 'notifyGroupExpense');
-      void fn({
-        groupId,
-        expenseId: expense.id,
-        description: expense.description,
-        amount: expense.amount,
-        paidByName: this.currentUserName(),
-        memberIds: this.members()
-          .map((m) => m.memberId)
-          .filter((id) => id !== this.currentUserId()),
-      }).catch((e) => console.error('notifyGroupExpense', e));
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  private recordSettlementForCreditor(payload: {
-    groupId: string;
-    settlementId: string;
-    creditorId: string;
-    debtorId: string;
-    debtorName: string;
-    amount: number;
-    description: string;
-    category: string;
-    source: string;
-    currency: string;
-  }): void {
-    try {
-      const fn = httpsCallable(this.functions, 'recordGroupSettlement');
-      void fn(payload).catch((e) => console.error('recordGroupSettlement', e));
-    } catch (e) {
-      console.error(e);
     }
   }
 

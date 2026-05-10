@@ -50,6 +50,7 @@ export const routes: Routes = [
       },
       {
         path: 'transactions/list',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/transactions/pages/transaction-list/transaction-list').then(
             (m) => m.TransactionList,
@@ -57,6 +58,7 @@ export const routes: Routes = [
       },
       {
         path: 'transactions/add',
+        data: { browserBackTarget: '/user/transactions/list' },
         loadComponent: () =>
           import('./../features/transactions/pages/add-transaction/add-transaction').then(
             (m) => m.AddTransaction,
@@ -64,16 +66,19 @@ export const routes: Routes = [
       },
       {
         path: 'budgets',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/budgets/pages/budgets/budgets').then((m) => m.Budgets),
       },
       {
         path: 'budgets/new',
+        data: { browserBackTarget: '/user/budgets' },
         loadComponent: () =>
           import('./../features/budgets/pages/new-budget/new-budget').then((m) => m.NewBudget),
       },
       {
         path: 'budgets/edit/:id',
+        data: { browserBackTarget: '/user/budgets' },
         loadComponent: () =>
           import('./../features/budgets/pages/edit-budget/edit-budget').then((m) => m.EditBudget),
       },
@@ -88,11 +93,13 @@ export const routes: Routes = [
       },
       {
         path: 'categories',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/categories/pages/categories/categories').then((m) => m.Categories),
       },
       {
         path: 'categories/new',
+        data: { browserBackTarget: '/user/categories' },
         loadComponent: () =>
           import('./../features/categories/pages/new-category/new-category').then(
             (m) => m.NewCategory,
@@ -100,6 +107,7 @@ export const routes: Routes = [
       },
       {
         path: 'categories/edit/:id',
+        data: { browserBackTarget: '/user/categories' },
         loadComponent: () =>
           import('./../features/categories/pages/edit-category/edit-category').then(
             (m) => m.EditCategory,
@@ -107,18 +115,21 @@ export const routes: Routes = [
       },
       {
         path: 'recurring',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/recurring/pages/recurring/recurring').then((m) => m.Recurring),
       },
       {
         path: 'recurring/add',
+        data: { browserBackTarget: '/user/recurring' },
         loadComponent: () =>
-          import(
-            './../features/recurring/pages/add-recurring-transaction/add-recurring-transaction'
-          ).then((m) => m.AddRecurringTransaction),
+          import('./../features/recurring/pages/add-recurring-transaction/add-recurring-transaction').then(
+            (m) => m.AddRecurringTransaction,
+          ),
       },
       {
         path: 'recurring/view/:id',
+        data: { browserBackTarget: '/user/recurring' },
         loadComponent: () =>
           import('./../features/recurring/pages/view-recurring/view-recurring').then(
             (m) => m.ViewRecurring,
@@ -126,6 +137,7 @@ export const routes: Routes = [
       },
       {
         path: 'recurring/edit/:id',
+        data: { browserBackTarget: '/user/recurring' },
         loadComponent: () =>
           import('./../features/recurring/pages/edit-recurring/edit-recurring').then(
             (m) => m.EditRecurring,
@@ -133,6 +145,7 @@ export const routes: Routes = [
       },
       {
         path: 'groups',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/groups/pages/groups-list/groups-list').then((m) => m.GroupsList),
       },
@@ -143,23 +156,27 @@ export const routes: Routes = [
       },
       {
         path: 'groups/:id/add',
+        data: { browserBackTarget: '/user/groups/:id' },
         loadComponent: () =>
-          import(
-            './../features/groups/pages/add-group-transaction/add-group-transaction'
-          ).then((m) => m.AddGroupTransaction),
+          import('./../features/groups/pages/add-group-transaction/add-group-transaction').then(
+            (m) => m.AddGroupTransaction,
+          ),
       },
       {
         path: 'groups/:id',
+        data: { browserBackTarget: '/user/groups' },
         loadComponent: () =>
           import('./../features/groups/pages/group-detail/group-detail').then((m) => m.GroupDetail),
       },
       {
         path: 'reports',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/reports/pages/reports/reports').then((m) => m.Reports),
       },
       {
         path: 'settings/notifications',
+        data: { browserBackTarget: '/user/settings' },
         loadComponent: () =>
           import('./../features/notifications/pages/notification-settings/notification-settings').then(
             (m) => m.NotificationSettings,
@@ -167,6 +184,7 @@ export const routes: Routes = [
       },
       {
         path: 'notifications',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/notifications/pages/notification-list/notification-list').then(
             (m) => m.NotificationList,
@@ -174,6 +192,7 @@ export const routes: Routes = [
       },
       {
         path: 'settings',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () =>
           import('./../features/settings/pages/global-settings/global-settings').then(
             (m) => m.GlobalSettings,
@@ -189,6 +208,7 @@ export const routes: Routes = [
           },
           {
             path: 'accounts/new',
+            data: { browserBackTarget: '/user/settings' },
             loadComponent: () =>
               import('./../features/accounts/pages/create-account/create-account').then(
                 (m) => m.CreateAccount,
@@ -196,6 +216,7 @@ export const routes: Routes = [
           },
           {
             path: 'accounts/:id',
+            data: { browserBackTarget: '/user/settings' },
             loadComponent: () =>
               import('./../features/settings/pages/account-details/account-details').then(
                 (m) => m.AccountDetails,
@@ -203,6 +224,7 @@ export const routes: Routes = [
           },
           {
             path: 'privacy',
+            data: { browserBackTarget: '/user/settings' },
             loadComponent: () =>
               import('./../features/settings/pages/privacy-security/privacy-security').then(
                 (m) => m.PrivacySecurity,
@@ -210,11 +232,13 @@ export const routes: Routes = [
           },
           {
             path: 'about',
+            data: { browserBackTarget: '/user/settings' },
             loadComponent: () =>
               import('./../features/settings/pages/about/about').then((m) => m.About),
           },
           {
             path: '**',
+            data: { browserBackTarget: '/user/settings' },
             loadComponent: () =>
               import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
           },
@@ -222,14 +246,14 @@ export const routes: Routes = [
       },
       {
         path: '**',
-        loadComponent: () =>
-          import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
+        data: { browserBackTarget: '/user/dashboard' },
+        loadComponent: () => import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
       },
     ],
   },
   {
     path: '**',
-    loadComponent: () =>
-      import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
+    data: { browserBackTarget: '/login' },
+    loadComponent: () => import('./../core/pages/not-found/not-found').then((m) => m.NotFound),
   },
 ];

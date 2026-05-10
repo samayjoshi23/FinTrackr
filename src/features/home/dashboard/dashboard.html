@@ -164,7 +164,9 @@
       </a>
     </div>
     <div class="flex flex-col gap-2">
-      @if (recentTransactions().length === 0) {
+      @if (loading()) {
+        <ng-container *ngTemplateOutlet="recentTxLoadingTpl"></ng-container>
+      } @else if (recentTransactions().length === 0) {
         <div class="flex items-center justify-center gap-2 card p-3 rounded-2xl flex-col">
           <p class="text-sm text-secondary text-center">No transactions made yet</p>
           <a href="/user/transactions/add" class="text-xs text-primary">+ Add a new transaction</a>
@@ -213,3 +215,20 @@
     (transactionUpdated)="onTransactionUpdated($event)"
   />
 </div>
+
+<ng-template #recentTxLoadingTpl>
+  <div class="flex flex-col gap-2 animate-pulse" aria-busy="true" aria-label="Loading recent transactions">
+    @for (i of [1, 2, 3]; track i) {
+      <div class="card rounded-2xl p-4 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-4 min-w-0 flex-1">
+          <div class="h-6 w-6 rounded bg-secondary-light shrink-0"></div>
+          <div class="flex flex-col gap-2 min-w-0 flex-1">
+            <div class="h-4 w-28 rounded-md bg-secondary-light"></div>
+            <div class="h-3 w-40 rounded-md bg-secondary-light"></div>
+          </div>
+        </div>
+        <div class="h-4 w-16 rounded-md bg-secondary-light shrink-0"></div>
+      </div>
+    }
+  </div>
+</ng-template>

@@ -48,6 +48,7 @@ export class Dashboard {
   selectedAccount = signal<Account | null>(null);
   recentTransactions = signal<TransactionRecord[]>([]);
   currency = signal<string>('INR');
+  loading = signal(true);
   txDetailOpen = model(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
 
@@ -84,31 +85,36 @@ export class Dashboard {
   }
 
   async initDashboard(): Promise<void> {
-    let account = await this.accountsService.getSelectedAccount();
-    if (!account) {
-      account = await this.accountsService.selectAccount(null);
-    }
-    this.selectedAccount.set(account ?? null);
-    this.currency.set(account?.currency ?? 'INR');
-    if (this.selectedAccount()) {
-      const [recentTransactions, report] = await Promise.all([
-        this.transactionsService.getTransactionsPage(
-          {
-            search: '',
-            type: 'all',
-            category: 'all',
-            datePreset: 'all',
-          },
-          0,
-          10,
-        ),
-        this.reportsService.ensureCurrentMonthReport(),
-      ]);
-      this.applyMonthlyReport(report);
-      this.recentTransactions.set(recentTransactions.items);
-    }
+    this.loading.set(true);
+    try {
+      let account = await this.accountsService.getSelectedAccount();
+      if (!account) {
+        account = await this.accountsService.selectAccount(null);
+      }
+      this.selectedAccount.set(account ?? null);
+      this.currency.set(account?.currency ?? 'INR');
+      if (this.selectedAccount()) {
+        const [recentTransactions, report] = await Promise.all([
+          this.transactionsService.getTransactionsPage(
+            {
+              search: '',
+              type: 'all',
+              category: 'all',
+              datePreset: 'all',
+            },
+            0,
+            10,
+          ),
+          this.reportsService.ensureCurrentMonthReport(),
+        ]);
+        this.applyMonthlyReport(report);
+        this.recentTransactions.set(recentTransactions.items);
+      }
 
-    this.queueBudgetProgressAnimation();
+      this.queueBudgetProgressAnimation();
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   private queueBudgetProgressAnimation(): void {

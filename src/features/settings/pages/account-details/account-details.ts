@@ -1,19 +1,23 @@
 import { CommonModule, Location } from '@angular/common';
 import { Component, computed, effect, inject, model, signal } from '@angular/core';
+import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { AccountsService } from '../../../../services/accounts.service';
 import { TransactionsService } from '../../../../services/transactions.service';
+import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Account } from '../../../../shared/models/account.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { SETTINGS_CURRENCIES } from '../../settings-currencies';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
+import { Modal } from '../../../../shared/components/modal/modal';
+import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-account-details',
-  imports: [CommonModule, Icon, TransactionDetailModal, SignedAmountPipe],
+  imports: [CommonModule, FormsModule, Icon, Modal, TransactionDetailModal, SignedAmountPipe],
   templateUrl: './account-details.html',
   styleUrl: './account-details.css',
 })
@@ -23,15 +27,21 @@ export class AccountDetails {
   private readonly location = inject(Location);
   private readonly accountsService = inject(AccountsService);
   private readonly transactionsService = inject(TransactionsService);
+  private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
 
   readonly currencies = SETTINGS_CURRENCIES;
+  readonly limits = FORM_LIMITS;
 
   account = signal<Account | null>(null);
   recentActivity = signal<TransactionRecord[]>([]);
   loading = signal(true);
   selecting = signal(false);
   removing = signal(false);
+  savingEdit = signal(false);
+  editModalOpen = false;
+  editName = '';
+  editBalance: number | null = null;
 
   txDetailOpen = model(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
@@ -88,6 +98,49 @@ export class AccountDetails {
 
   onBack() {
     this.location.back();
+  }
+
+  openEditModal(): void {
+    const a = this.account();
+    if (!a) return;
+    this.editName = a.name ?? '';
+    this.editBalance = Number(a.balance ?? 0);
+    this.editModalOpen = true;
+  }
+
+  async saveAccountEdit(form: NgForm): Promise<void> {
+    const a = this.account();
+    if (!a) return;
+    if (form.invalid || this.editBalance === null || Number.isNaN(Number(this.editBalance))) {
+      form.control.markAllAsTouched();
+      this.notifier.error('Enter a valid name and balance.');
+      return;
+    }
+
+    this.savingEdit.set(true);
+    try {
+      await this.accountsService.updateAccount(a.id, {
+        name: this.editName.trim(),
+        balance: Number(this.editBalance),
+      });
+      const fresh = await this.accountsService.getAccount(a.id);
+      if (fresh) {
+        this.account.set(fresh);
+        const sel = this.selectedAccount();
+        if (sel?.id === fresh.id) {
+          await this.accountsService.writeAccountToCache(fresh);
+          this.selectedAccount.set(fresh);
+          await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+        }
+      }
+      this.editModalOpen = false;
+      this.notifier.success('Account updated.');
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not update account.');
+    } finally {
+      this.savingEdit.set(false);
+    }
   }
 
   async onSelectThisAccount() {

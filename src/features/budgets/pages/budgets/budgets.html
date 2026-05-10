@@ -1,7 +1,15 @@
 <div class="container-layout p-4 md:p-5">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold title-font">Budgets</h1>
+    <div class="flex items-center gap-2">
+      <div
+        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        (click)="goBack()"
+      >
+        <ico name="left-arrow" size="sm"></ico>
+      </div>
+      <h1 class="text-xl font-semibold title-font">Budgets</h1>
+    </div>
     <div
       class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
       (click)="onNewBudget()"
@@ -11,7 +19,9 @@
     </div>
   </div>
 
-  @if (budgets().length === 0) {
+  @if (loading()) {
+    <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>
+  } @else if (budgets().length === 0) {
     <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
       <p class="text-sm font-light">No budgets yet</p>
       <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
@@ -190,3 +200,31 @@
   severity="danger"
   (confirmed)="onDeleteConfirmed($event)"
 />
+
+<ng-template #loadingTpl>
+  <div class="flex flex-col gap-3 animate-pulse" aria-busy="true" aria-label="Loading budgets">
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-3">
+      <div class="h-3 w-28 rounded-md bg-secondary-light"></div>
+      <div class="h-8 w-44 rounded-md bg-secondary-light"></div>
+      <div class="h-2 w-full rounded-full bg-secondary-light"></div>
+      <div class="h-3 w-56 rounded-md bg-secondary-light"></div>
+    </div>
+    <div class="h-4 w-20 rounded-md bg-secondary-light"></div>
+    @for (i of [1, 2, 3]; track i) {
+      <div class="card rounded-2xl p-4 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-xl bg-secondary-light"></div>
+            <div class="h-4 w-28 rounded-md bg-secondary-light"></div>
+          </div>
+          <div class="h-4 w-10 rounded-md bg-secondary-light"></div>
+        </div>
+        <div class="h-2 w-full rounded-full bg-secondary-light"></div>
+        <div class="flex justify-between">
+          <div class="h-3 w-16 rounded-md bg-secondary-light"></div>
+          <div class="h-3 w-16 rounded-md bg-secondary-light"></div>
+        </div>
+      </div>
+    }
+  </div>
+</ng-template>

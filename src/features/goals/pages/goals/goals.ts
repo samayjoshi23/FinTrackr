@@ -65,4 +65,8 @@ export class Goals {
       return 'entertainment';
     return 'bullseye';
   }
+
+  goBack(): void {
+    this.router.navigateByUrl('/user/dashboard');
+  }
 }

@@ -11,6 +11,10 @@ import { BudgetsService } from '../../services/budgets.service';
 import { CategoriesService } from '../../services/categories.service';
 import { GoalsService } from '../../services/goals.service';
 import { ReportsService } from '../../services/reports.service';
+import { GroupsService } from '../../features/groups/groups.service';
+import { GroupExpensesService } from '../../features/groups/group-expenses.service';
+import { GroupSettlementsService } from '../../features/groups/group-settlements.service';
+import { GroupCloudFunctionsService } from '../../features/groups/group-cloud-functions.service';
 
 import {
   TransactionCreateInput,
@@ -21,6 +25,12 @@ import { BudgetCreateInput, BudgetUpdateInput } from '../../shared/models/budget
 import { GoalCreateInput, GoalUpdateInput } from '../../shared/models/goal.model';
 import { AccountCreateInput, AccountUpdateInput } from '../../shared/models/account.model';
 import { CategoryCreateInput, CategoryUpdateInput } from '../../features/categories/types';
+import {
+  GroupCreateInput,
+  GroupExpenseCreateInput,
+  GroupExpenseUpdateInput,
+  GroupSettlementCreateInput,
+} from '../../shared/models/group.model';
 
 const MAX_RETRIES = 5;
 
@@ -37,6 +47,10 @@ export class SyncService {
   private readonly categoriesService = inject(CategoriesService);
   private readonly goalsService = inject(GoalsService);
   private readonly reportsService = inject(ReportsService);
+  private readonly groupsService = inject(GroupsService);
+  private readonly groupExpensesService = inject(GroupExpensesService);
+  private readonly groupSettlementsService = inject(GroupSettlementsService);
+  private readonly groupCloudFunctions = inject(GroupCloudFunctionsService);
 
   private syncing = false;
 
@@ -46,7 +60,9 @@ export class SyncService {
 
     // Watch for online status changes and trigger sync
     effect(() => {
-      if (this.network.isOnline() && !this.syncing) {
+      const isOnline = this.network.isOnline();
+      const pendingCount = this.network.pendingSyncCount();
+      if (isOnline && pendingCount > 0 && !this.syncing) {
         this.syncAll();
       }
     });
@@ -99,16 +115,33 @@ export class SyncService {
   }
 
   private async processEntry(entry: SyncQueueEntry): Promise<boolean> {
+    let success = false;
     switch (entry.operation) {
       case 'create':
-        return this.processCreate(entry);
+        success = await this.processCreate(entry);
+        break;
       case 'update':
-        return this.processUpdate(entry);
+        success = await this.processUpdate(entry);
+        break;
       case 'delete':
-        return this.processDelete(entry);
+        success = await this.processDelete(entry);
+        break;
       default:
         return false;
     }
+
+    if (success && entry.postSyncCallables?.length) {
+      for (const callable of entry.postSyncCallables) {
+        try {
+          await this.groupCloudFunctions.invoke(callable.name, callable.payload);
+        } catch (e) {
+          // Log but don't fail the queue entry — callable errors are non-blocking
+          console.error(`Post-sync callable '${callable.name}' failed:`, e);
+        }
+      }
+    }
+
+    return success;
   }
 
   private extractPreassignedCreate(
@@ -201,6 +234,39 @@ export class SyncService {
         }
         created = true;
         break;
+      case 'groups':
+        if (pre) {
+          await this.groupsService.applyPendingGroupCreate(
+            pre.id,
+            pre.rest as unknown as GroupCreateInput,
+          );
+        } else {
+          return false;
+        }
+        created = true;
+        break;
+      case 'group-expenses':
+        if (pre) {
+          await this.groupExpensesService.applyPendingGroupExpenseCreate(
+            pre.id,
+            pre.rest as unknown as GroupExpenseCreateInput,
+          );
+        } else {
+          return false;
+        }
+        created = true;
+        break;
+      case 'group-settlements':
+        if (pre) {
+          await this.groupSettlementsService.applyPendingGroupSettlementCreate(
+            pre.id,
+            pre.rest as unknown as GroupSettlementCreateInput,
+          );
+        } else {
+          return false;
+        }
+        created = true;
+        break;
       default:
         return false;
     }
@@ -265,6 +331,21 @@ export class SyncService {
           entry.payload as Record<string, unknown>,
         );
         break;
+      case 'groups':
+        await this.groupsService.applyPendingGroupUpdate(
+          entry.docId,
+          entry.payload as Record<string, unknown>,
+        );
+        break;
+      case 'group-expenses': {
+        const { _groupId, ...patch } = entry.payload as Record<string, unknown>;
+        await this.groupExpensesService.applyPendingGroupExpenseUpdate(
+          _groupId as string,
+          entry.docId,
+          patch as GroupExpenseUpdateInput,
+        );
+        break;
+      }
       default:
         return false;
     }
@@ -291,6 +372,18 @@ export class SyncService {
         case 'recurring-transactions':
           await this.transactionsService.applyPendingRecurringDelete(entry.docId);
           break;
+        case 'groups':
+          await this.groupsService.applyPendingGroupDelete(entry.docId);
+          break;
+        case 'group-expenses': {
+          const groupId = entry.payload['_groupId'] as string | undefined;
+          if (!groupId) return false;
+          await this.groupExpensesService.applyPendingGroupExpenseDelete(groupId, entry.docId);
+          break;
+        }
+        case 'group-settlements':
+          // Settlements are immutable; no delete path in the UI
+          return false;
         default:
           return false;
       }
@@ -314,6 +407,9 @@ export class SyncService {
     await this.cache.clear('budgets');
     await this.cache.clear('goals');
     await this.cache.clear('categories');
+    await this.cache.clear('groups');
+    await this.cache.clear('group-expenses').catch(() => {});
+    await this.cache.clear('group-settlements').catch(() => {});
     await this.cache.clear('sync-metadata');
     await this.cache.clear('monthly-reports').catch(() => {});
     await this.cache.clear('notifications').catch(() => {});

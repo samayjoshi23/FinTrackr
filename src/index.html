@@ -14,11 +14,94 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     />
+    <!-- Critical boot UI: shows inside <app-root> until Angular replaces it (no dependency on app bundles). -->
+    <style>
+      #fintrackr-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483646;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        box-sizing: border-box;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          'Helvetica Neue',
+          Arial,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      body.theme-light #fintrackr-boot {
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      body.theme-dark #fintrackr-boot {
+        background: #020617;
+        color: #f8fafc;
+      }
+      #fintrackr-boot .fintrackr-boot__inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.25rem;
+        text-align: center;
+        max-width: 16rem;
+      }
+      #fintrackr-boot .fintrackr-boot__mark {
+        width: 4.5rem;
+        height: 4.5rem;
+        border-radius: 1rem;
+        background: linear-gradient(145deg, #10b981 0%, #059669 45%, #047857 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        box-shadow:
+          0 10px 15px -3px rgba(5, 150, 105, 0.25),
+          0 4px 6px -4px rgba(5, 150, 105, 0.2);
+      }
+      #fintrackr-boot .fintrackr-boot__title {
+        margin: 0;
+        font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.375rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      #fintrackr-boot .fintrackr-boot__sub {
+        margin: -0.5rem 0 0;
+        font-size: 0.875rem;
+        opacity: 0.72;
+      }
+      #fintrackr-boot .fintrackr-boot__spinner {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 50%;
+        border: 3px solid rgba(5, 150, 105, 0.22);
+        border-top-color: #059669;
+        animation: fintrackr-boot-spin 0.65s linear infinite;
+      }
+      body.theme-dark #fintrackr-boot .fintrackr-boot__spinner {
+        border-color: rgba(16, 185, 129, 0.2);
+        border-top-color: #34d399;
+      }
+      @keyframes fintrackr-boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body class="theme-light">
-    <app-root></app-root>
-    <noscript>Please enable JavaScript to continue using this application.</noscript>
-
     <script>
       (function () {
         var k = 'fintrackr-theme';
@@ -34,5 +117,41 @@
         document.body.classList.toggle('theme-light', t === 'light');
       })();
     </script>
+    <app-root>
+      <div id="fintrackr-boot" role="status" aria-live="polite" aria-label="Fintrackr">
+        <div class="fintrackr-boot__inner">
+          <div class="fintrackr-boot__mark" aria-hidden="true">F</div>
+          <div>
+            <p class="fintrackr-boot__title">FinTrackr</p>
+            <p class="fintrackr-boot__sub" id="fintrackr-boot-sub"></p>
+          </div>
+          <div class="fintrackr-boot__spinner" aria-hidden="true"></div>
+        </div>
+      </div>
+      <script>
+        (function () {
+          var entries =
+            typeof performance !== 'undefined' && performance.getEntriesByType
+              ? performance.getEntriesByType('navigation')
+              : [];
+          var nav = entries[0];
+          var type = nav && nav.type;
+          var root = document.getElementById('fintrackr-boot');
+          var sub = document.getElementById('fintrackr-boot-sub');
+          if (!root || !sub) return;
+          if (type === 'reload') {
+            sub.textContent = 'Reloading Fintrackr...';
+            root.setAttribute('aria-label', 'Reloading Fintrackr');
+          } else if (type === 'navigate') {
+            sub.textContent = 'Starting Fintrackr...';
+            root.setAttribute('aria-label', 'Starting Fintrackr');
+          } else {
+            root.style.display = 'none';
+            root.setAttribute('aria-hidden', 'true');
+          }
+        })();
+      </script>
+    </app-root>
+    <noscript>Please enable JavaScript to continue using this application.</noscript>
   </body>
 </html>

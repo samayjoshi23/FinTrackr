@@ -1,7 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -10,6 +9,7 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from '@angular/fire/firestore';
@@ -20,6 +20,8 @@ import {
   GroupMember,
   GroupUpdateInput,
 } from '../../shared/models/group.model';
+import { OfflineCrudService } from '../../core/offline/offline-crud.service';
+import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.service';
 
 const COLLECTION = 'groups';
 
@@ -59,6 +61,8 @@ function toGroup(id: string, data: GroupDocument): Group {
 export class GroupsService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
+  private readonly offlineCrud = inject(OfflineCrudService);
+  private readonly idbCache = inject(IndexedDbCacheService);
 
   private requireUid(): string {
     const uid = this.auth.currentUser?.uid;
@@ -66,43 +70,18 @@ export class GroupsService {
     return uid;
   }
 
-  async createGroup(input: GroupCreateInput): Promise<Group> {
-    const uid = this.requireUid();
-    const payload: Omit<GroupDocument, 'createdAt' | 'updatedAt' | 'icon'> & {
-      icon?: string;
-      createdAt: unknown;
-      updatedAt: unknown;
-      memberIds: string[];
-      activeMemberIds: string[];
-    } = {
-      name: input.name.trim(),
-      currency: input.currency,
-      creatorId: uid,
-      members: input.members,
-      ...deriveGroupMemberIndexes(input.members),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-    const icon = input.icon?.trim();
-    if (icon) {
-      payload.icon = icon;
-    }
-    const ref = await addDoc(collection(this.firestore, COLLECTION), payload);
-    return this.getGroup(ref.id) as Promise<Group>;
+  private withViewer(group: Group, uid: string): Group {
+    return { ...group, viewerUid: uid };
   }
 
-  async getGroup(groupId: string): Promise<Group | null> {
+  /** Firestore-only read (no IndexedDB). */
+  private async getGroupDirect(groupId: string): Promise<Group | null> {
     const snap = await getDoc(doc(this.firestore, COLLECTION, groupId));
     if (!snap.exists()) return null;
-    let groupData = toGroup(snap.id, snap.data() as GroupDocument);
-    return groupData;
+    return toGroup(snap.id, snap.data() as GroupDocument);
   }
 
-  /**
-   * Returns all groups where the current user is listed as a member
-   * (either active or pending invite).
-   */
-  async getMyGroups(): Promise<Group[]> {
+  private async fetchMyGroupsFromFirestore(): Promise<Group[]> {
     const uid = this.requireUid();
     const col = collection(this.firestore, COLLECTION);
     const [asCreator, asMember] = await Promise.all([
@@ -115,28 +94,179 @@ export class GroupsService {
     for (const snap of [...asCreator.docs, ...asMember.docs]) {
       if (seen.has(snap.id)) continue;
       seen.add(snap.id);
-      groups.push(toGroup(snap.id, snap.data() as GroupDocument));
+      groups.push(this.withViewer(toGroup(snap.id, snap.data() as GroupDocument), uid));
     }
     return groups.sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0));
   }
 
+  async createGroup(input: GroupCreateInput): Promise<Group> {
+    const uid = this.requireUid();
+    const indexes = deriveGroupMemberIndexes(input.members);
+    const payload: Record<string, unknown> = {
+      name: input.name.trim(),
+      currency: input.currency,
+      creatorId: uid,
+      members: input.members,
+      memberIds: indexes.memberIds,
+      activeMemberIds: indexes.activeMemberIds,
+    };
+    if (input.icon?.trim()) {
+      payload['icon'] = input.icon.trim();
+    }
+
+    return this.offlineCrud.create<Group>(
+      'groups',
+      'id',
+      async (assignedId: string) => {
+        const ref = doc(this.firestore, COLLECTION, assignedId);
+        await setDoc(ref, {
+          ...payload,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        const row = await this.getGroupDirect(assignedId);
+        if (!row) {
+          throw new Error('Failed to read group after creation.');
+        }
+        return this.withViewer(row, uid);
+      },
+      payload,
+    );
+  }
+
+  /** Sync worker: create on server after offline create was queued. */
+  async applyPendingGroupCreate(docId: string, data: GroupCreateInput): Promise<void> {
+    const uid = this.requireUid();
+    const indexes = deriveGroupMemberIndexes(data.members);
+    const ref = doc(this.firestore, COLLECTION, docId);
+    await setDoc(ref, {
+      name: data.name.trim(),
+      currency: data.currency,
+      creatorId: uid,
+      members: data.members,
+      memberIds: indexes.memberIds,
+      activeMemberIds: indexes.activeMemberIds,
+      ...(data.icon?.trim() ? { icon: data.icon.trim() } : {}),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    const row = await this.getGroupDirect(docId);
+    if (!row) throw new Error('Failed to read group after pending create sync.');
+    await this.idbCache.put('groups', { ...row, viewerUid: uid, _pendingSync: false });
+  }
+
+  async getGroup(groupId: string): Promise<Group | null> {
+    const uid = this.requireUid();
+    return this.offlineCrud.fetchOne<Group>(
+      'groups',
+      groupId,
+      async () => {
+        const row = await this.getGroupDirect(groupId);
+        return row ? this.withViewer(row, uid) : null;
+      },
+    );
+  }
+
+  /**
+   * Returns all groups where the current user is listed as a member
+   * (either active or pending invite). Cache-first with background Firestore revalidation.
+   */
+  async getMyGroups(): Promise<Group[]> {
+    const uid = this.requireUid();
+    return this.offlineCrud.fetchAll<Group>(
+      'groups',
+      () => this.fetchMyGroupsFromFirestore(),
+      { indexName: 'viewerUid', value: uid },
+    );
+  }
+
   async updateGroup(groupId: string, input: GroupUpdateInput): Promise<void> {
+    const uid = this.requireUid();
+    const cached = await this.offlineCrud.fetchOne<Group>(
+      'groups',
+      groupId,
+      async () => {
+        const row = await this.getGroupDirect(groupId);
+        return row ? this.withViewer(row, uid) : null;
+      },
+    );
+
+    if (!cached) {
+      throw new Error('Group not found.');
+    }
+
+    const patchRecord: Record<string, unknown> = {};
+    if (input.name !== undefined) patchRecord['name'] = input.name.trim();
+    if (input.icon !== undefined) patchRecord['icon'] = input.icon?.trim() ?? null;
+    if (input.currency !== undefined) patchRecord['currency'] = input.currency;
+    if (input.members !== undefined) {
+      patchRecord['members'] = input.members;
+      const idx = deriveGroupMemberIndexes(input.members as GroupMember[]);
+      patchRecord['memberIds'] = idx.memberIds;
+      patchRecord['activeMemberIds'] = idx.activeMemberIds;
+    }
+
+    await this.offlineCrud.update<Group>(
+      'groups',
+      groupId,
+      async () => {
+        const ref = doc(this.firestore, COLLECTION, groupId);
+        const existing = await getDoc(ref);
+        if (!existing.exists()) {
+          throw new Error('Group not found.');
+        }
+        const updates: Record<string, unknown> = {
+          updatedAt: serverTimestamp(),
+        };
+        if (input.name !== undefined) updates['name'] = input.name.trim();
+        if (input.icon !== undefined) updates['icon'] = input.icon?.trim() ?? null;
+        if (input.currency !== undefined) updates['currency'] = input.currency;
+        if (input.members !== undefined) {
+          const members = input.members as GroupMember[];
+          updates['members'] = members;
+          Object.assign(updates, deriveGroupMemberIndexes(members));
+        }
+        await updateDoc(ref, updates);
+      },
+      patchRecord,
+      cached as unknown as Record<string, unknown>,
+    );
+  }
+
+  /** Sync worker: apply queued patch to Firestore and refresh IndexedDB row. */
+  async applyPendingGroupUpdate(docId: string, patch: Record<string, unknown>): Promise<void> {
+    const uid = this.requireUid();
+    const ref = doc(this.firestore, COLLECTION, docId);
+    const existing = await getDoc(ref);
+    if (!existing.exists()) {
+      throw new Error('Group not found.');
+    }
     const updates: Record<string, unknown> = {
-      ...input,
       updatedAt: serverTimestamp(),
     };
-    if (input.members) {
-      const { memberIds, activeMemberIds } = deriveGroupMemberIndexes(
-        input.members as GroupMember[],
-      );
-      updates['memberIds'] = memberIds;
-      updates['activeMemberIds'] = activeMemberIds;
+    if (patch['name'] !== undefined) updates['name'] = String(patch['name']).trim();
+    if (patch['icon'] !== undefined) updates['icon'] = patch['icon'];
+    if (patch['currency'] !== undefined) updates['currency'] = patch['currency'];
+    if (patch['members'] !== undefined) {
+      const members = patch['members'] as GroupMember[];
+      updates['members'] = members;
+      Object.assign(updates, deriveGroupMemberIndexes(members));
     }
-    await updateDoc(doc(this.firestore, COLLECTION, groupId), updates);
+    await updateDoc(ref, updates);
+    const row = await this.getGroupDirect(docId);
+    if (!row) throw new Error('Failed to read group after sync.');
+    await this.idbCache.put('groups', { ...row, viewerUid: uid, _pendingSync: false });
   }
 
   async deleteGroup(groupId: string): Promise<void> {
-    await deleteDoc(doc(this.firestore, COLLECTION, groupId));
+    await this.offlineCrud.remove('groups', groupId, async () => {
+      await deleteDoc(doc(this.firestore, COLLECTION, groupId));
+    });
+  }
+
+  /** Sync worker: delete on server after offline delete was queued. */
+  async applyPendingGroupDelete(docId: string): Promise<void> {
+    await deleteDoc(doc(this.firestore, COLLECTION, docId));
   }
 
   /** Adds a pending (isActive: false) member to an existing group. */

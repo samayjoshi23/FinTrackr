@@ -1,3 +1,8 @@
+export interface PostSyncCallable {
+  name: string;
+  payload: Record<string, unknown>;
+}
+
 export interface SyncQueueEntry {
   id: string;
   storeName: string;
@@ -9,4 +14,6 @@ export interface SyncQueueEntry {
   status: 'pending' | 'in-progress' | 'failed';
   retryCount: number;
   errorMessage?: string;
+  /** Cloud Functions callables to invoke after the Firestore write succeeds during sync. */
+  postSyncCallables?: PostSyncCallable[];
 }
