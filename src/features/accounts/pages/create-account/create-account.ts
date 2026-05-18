@@ -38,20 +38,20 @@ const CREATE_ACCOUNT_PAGES: {
 }[] = [
   {
     sequence: 1,
-    title: 'Account details',
-    description: 'Name and starting balance',
-    skippable: false,
-  },
-  {
-    sequence: 2,
     title: 'Currency',
     description: 'Default currency for this account',
     skippable: false,
   },
   {
-    sequence: 3,
+    sequence: 2,
     title: 'Account type',
     description: 'Single-user or shared with others',
+    skippable: false,
+  },
+  {
+    sequence: 3,
+    title: 'Account details',
+    description: 'Name and starting balance',
     skippable: false,
   },
   {
@@ -215,23 +215,29 @@ export class CreateAccount {
     if (!skip) {
       switch (this.currentPage()) {
         case 1: {
-          const n = this.formModel.account.name?.trim();
-          const bal = this.formModel.account.balance;
-          if (!n || bal === '' || bal === null || Number.isNaN(Number(bal))) {
-            this.notifier.error('Enter account name and balance.');
-            return;
-          }
-          break;
-        }
-        case 2: {
           if (!this.formModel.account.currency) {
             this.notifier.error('Select a currency.');
             return;
           }
           break;
         }
+        case 2: {
+          // Account type always has a valid default (single-user); no validation needed.
+          break;
+        }
         case 3: {
           if (!this.accountCommitted()) {
+            const n = this.formModel.account.name?.trim();
+            const bal = this.formModel.account.balance;
+            if (!n || bal === '' || bal === null || Number.isNaN(Number(bal))) {
+              this.notifier.error('Enter account name and balance.');
+              return;
+            }
+            const nameErr = await this.checkNameUniqueness(n);
+            if (nameErr) {
+              this.notifier.error(nameErr);
+              return;
+            }
             this.stepBusy.set(true);
             try {
               const err = await this.runCreateAccountAndSeedCategories();
@@ -301,6 +307,14 @@ export class CreateAccount {
       return;
     }
     this.currentPage.set(this.currentPage() + 1);
+  }
+
+  private async checkNameUniqueness(name: string): Promise<string | null> {
+    const all = await this.accountsService.getAccounts();
+    const conflict = all.find(
+      (a) => a.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    return conflict ? `An account named "${conflict.name}" already exists.` : null;
   }
 
   private buildMemberRows(): AccountMember[] {
@@ -420,11 +434,13 @@ export class CreateAccount {
           b.limit?.toString().trim() && b.categoryUid?.trim()
             ? { categoryUid: b.categoryUid.trim(), limit: Number(b.limit) }
             : null;
+        const initialBalance = acc.initialBalance ?? Number(this.formModel.account.balance);
         await this.reportsService
           .createOnboardingStarterMonthlyReport(
             acc.id,
             ordered.map((c) => ({ uid: c.uid, name: c.name })),
             budgetMeta,
+            initialBalance,
           )
           .catch(() => {});
       }

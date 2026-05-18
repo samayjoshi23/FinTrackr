@@ -33,52 +33,11 @@
       </p>
     </div>
 
-    <!-- Step 1: name + balance -->
+    <!-- Step 1: currency -->
     <div
       class="flex flex-col gap-3"
       [class.hidden]="currentPage() !== 1"
       [attr.inert]="currentPage() !== 1 ? '' : null"
-    >
-      <div class="flex flex-col gap-1">
-        <label for="accName" class="text-xs text-gray-400">Account name</label>
-        <div class="field-wrapper before">
-          <span class="field-icon before">
-            <ico name="office-building" size="sm"></ico>
-          </span>
-          <input
-            type="text"
-            class="w-full"
-            id="accName"
-            name="accName"
-            placeholder="e.g. Joint / Family / Office"
-            [(ngModel)]="formModel.account.name"
-            [maxlength]="limits.nameMax"
-          />
-        </div>
-      </div>
-      <div class="flex flex-col gap-1">
-        <label for="accBalance" class="text-xs text-gray-400">Balance</label>
-        <div class="field-wrapper before">
-          <span class="field-icon before">
-            <ico name="dollar-sign" size="sm"></ico>
-          </span>
-          <input
-            type="number"
-            class="w-full"
-            id="accBalance"
-            name="accBalance"
-            placeholder="e.g. 1000"
-            [(ngModel)]="formModel.account.balance"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 2: currency -->
-    <div
-      class="flex flex-col gap-3"
-      [class.hidden]="currentPage() !== 2"
-      [attr.inert]="currentPage() !== 2 ? '' : null"
     >
       @for (currency of currencies(); track $index) {
         <div
@@ -93,11 +52,11 @@
       }
     </div>
 
-    <!-- Step 3: account type + invites -->
+    <!-- Step 2: account type + invites -->
     <div
       class="flex flex-col gap-4"
-      [class.hidden]="currentPage() !== 3"
-      [attr.inert]="currentPage() !== 3 ? '' : null"
+      [class.hidden]="currentPage() !== 2"
+      [attr.inert]="currentPage() !== 2 ? '' : null"
     >
       <div class="grid grid-cols-2 gap-2">
         <button
@@ -130,13 +89,6 @@
         </button>
       </div>
 
-      @if (accountCommitted()) {
-        <p class="text-xs text-amber-600 font-light">
-          Account created. You can still review your choices below; go forward to add a budget or
-          goal.
-        </p>
-      }
-
       @if (accountType() === 'multi-user') {
         <div class="flex flex-col gap-2">
           <span class="text-xs text-gray-400">Invite members</span>
@@ -156,7 +108,6 @@
                 name="inviteMember"
                 placeholder="Search by name or email"
                 [(ngModel)]="memberSearchQuery"
-                [disabled]="accountCommitted()"
                 (ngModelChange)="onMemberSearchChange()"
                 autocomplete="off"
                 autocapitalize="off"
@@ -164,7 +115,7 @@
               />
             </div>
 
-            @if (memberSearchQuery.trim().length >= 2 && !accountCommitted()) {
+            @if (memberSearchQuery.trim().length >= 2) {
               <div
                 class="member-search-dropdown card-light rounded-xl border bg-[var(--color-bg-elevated)] shadow-lg"
                 (mousedown)="$event.preventDefault()"
@@ -216,22 +167,66 @@
                     <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
                     <p class="text-xs text-secondary truncate">{{ m.email }}</p>
                   </div>
-                  @if (!accountCommitted()) {
-                    <button
-                      type="button"
-                      class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
-                      (click)="removeInvitedMember(m.uid)"
-                      aria-label="Remove"
-                    >
-                      <ico name="times" size="sm"></ico>
-                    </button>
-                  }
+                  <button
+                    type="button"
+                    class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
+                    (click)="removeInvitedMember(m.uid)"
+                    aria-label="Remove"
+                  >
+                    <ico name="times" size="sm"></ico>
+                  </button>
                 </div>
               }
             </div>
           </div>
         }
         </div>
+      }
+    </div>
+
+    <!-- Step 3: name + balance -->
+    <div
+      class="flex flex-col gap-3"
+      [class.hidden]="currentPage() !== 3"
+      [attr.inert]="currentPage() !== 3 ? '' : null"
+    >
+      <div class="flex flex-col gap-1">
+        <label for="accName" class="text-xs text-gray-400">Account name</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="office-building" size="sm"></ico>
+          </span>
+          <input
+            type="text"
+            class="w-full"
+            id="accName"
+            name="accName"
+            placeholder="e.g. Joint / Family / Office"
+            [(ngModel)]="formModel.account.name"
+            [maxlength]="limits.nameMax"
+          />
+        </div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="accBalance" class="text-xs text-gray-400">Starting balance</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            class="w-full"
+            id="accBalance"
+            name="accBalance"
+            placeholder="e.g. 1000"
+            [(ngModel)]="formModel.account.balance"
+          />
+        </div>
+      </div>
+      @if (accountCommitted()) {
+        <p class="text-xs text-amber-600 font-light">
+          Account created. Go forward to add a budget or goal.
+        </p>
       }
     </div>
 

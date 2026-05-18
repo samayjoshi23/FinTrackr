@@ -16,6 +16,8 @@ export interface AccountDocument {
   uid: string;
   name: string;
   balance: number;
+  /** The starting balance entered when the account was first created. Never updated after creation. */
+  initialBalance?: number;
   currency: string;
   isSelected?: boolean;
   isActive?: boolean;

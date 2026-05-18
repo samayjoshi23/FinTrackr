@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { AccountsService } from '../../../services/accounts.service';
 import { AuthService } from '../../../services/auth.service';
 import { ProfileUploadService } from '../../../services/profile-upload.service';
@@ -10,7 +10,7 @@ import { DatePicker } from '../../../shared/components/date-picker/date-picker';
 import { currencies, onboardingPages } from './types';
 import { budgetSuggestionCards } from './types';
 import { Router } from '@angular/router';
-import { Account, AccountCreateInput } from '../../../shared/models/account.model';
+import { Account, AccountCreateInput, AccountMember, AccountType } from '../../../shared/models/account.model';
 import { BudgetsService } from '../../../services/budgets.service';
 import { GoalsService } from '../../../services/goals.service';
 import { BudgetCreateInput } from '../../../shared/models/budget.model';
@@ -23,10 +23,13 @@ import {
 import { CategoriesService } from '../../../services/categories.service';
 import { ReportsService } from '../../../services/reports.service';
 import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
+import { UsersLookupService, UserLookupHit } from '../../../services/users-lookup.service';
+import { NotifierService } from '../../../shared/components/notifier/notifier.service';
+import { UsersSearchFilterPipe } from '../../../shared/pipes/users-search-filter.pipe';
 
 @Component({
   selector: 'app-onboarding',
-  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe],
+  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe, UsersSearchFilterPipe],
   templateUrl: './onboarding.html',
   styleUrl: './onboarding.css',
 })
@@ -39,6 +42,8 @@ export class Onboarding {
   private readonly router = inject(Router);
   private readonly categoriesService = inject(CategoriesService);
   private readonly reportsService = inject(ReportsService);
+  readonly usersLookup = inject(UsersLookupService);
+  private readonly notifier = inject(NotifierService);
 
   userProfile = signal<UserProfile | null>(null);
   formModel = {
@@ -88,6 +93,16 @@ export class Onboarding {
   /** True while a step save or final navigation runs. */
   isStepBusy = signal(false);
 
+  accountType = signal<AccountType>('single-user');
+  memberSearchQuery = '';
+  invitedMembers = signal<UserLookupHit[]>([]);
+  readonly memberSearchExcludeUids = computed(() => [
+    this.ownerUid,
+    ...this.invitedMembers().map((m) => m.uid),
+  ]);
+
+  private ownerUid = '';
+
   get rawForm() {
     return this.formModel;
   }
@@ -96,6 +111,7 @@ export class Onboarding {
     this.userProfile.set(
       JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null,
     );
+    this.ownerUid = (this.userProfile()?.['uid'] as string) ?? '';
     this.formModel.user.fullName = String(this.userProfile()?.['displayName'] ?? '');
     this.formModel.user.profilePicture = String(this.userProfile()?.['photoURL'] ?? '');
     this.formModel.budget.month = new Date().toLocaleString('en-US', { month: 'long' });
@@ -141,6 +157,9 @@ export class Onboarding {
     if (account.currency) {
       this.formModel.account.currency = account.currency;
       this.onSelectCurrency(account.currency);
+    }
+    if (account.accountType) {
+      this.accountType.set(account.accountType);
     }
   }
 
@@ -196,6 +215,41 @@ export class Onboarding {
 
   selectBudgetCategory(uid: string) {
     this.formModel.budget.categoryUid = uid;
+  }
+
+  setAccountType(t: AccountType) {
+    this.accountType.set(t);
+    if (t === 'single-user') {
+      this.invitedMembers.set([]);
+      this.memberSearchQuery = '';
+      this.usersLookup.resetDirectory();
+      return;
+    }
+    void this.usersLookup.loadUsersDirectory();
+  }
+
+  removeInvitedMember(uid: string) {
+    this.invitedMembers.update((list) => list.filter((m) => m.uid !== uid));
+  }
+
+  onMemberSearchChange(): void {
+    const q = this.memberSearchQuery.trim();
+    if (q.length >= 2) void this.usersLookup.loadUsersDirectory();
+  }
+
+  pickMember(hit: UserLookupHit, ev: Event): void {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (hit.uid === this.ownerUid) {
+      this.notifier.error("You can't add yourself as a member.");
+      return;
+    }
+    if (this.invitedMembers().some((m) => m.uid === hit.uid)) {
+      this.notifier.show('That person is already added.');
+      return;
+    }
+    this.invitedMembers.update((list) => [...list, hit]);
+    this.memberSearchQuery = '';
   }
 
   onChangeProfilePicture() {
@@ -281,11 +335,14 @@ export class Onboarding {
           }
           break;
         }
-        case 2:
-          if (!(this.rawForm.account.name?.trim() && this.rawForm.account.balance !== '')) return;
-          break;
-        case 3: {
+        case 2: {
           if (!this.rawForm.account.currency) return;
+          break;
+        }
+        case 3: {
+          const name = this.rawForm.account.name?.trim();
+          const balance = this.rawForm.account.balance;
+          if (!name || balance === '') return;
           const err = await this.withStepBusy(() => this.runStepCreateAccountAndCategories());
           if (err) {
             console.error(err);
@@ -345,6 +402,14 @@ export class Onboarding {
 
   private async runStepCreateAccountAndCategories(): Promise<string | null> {
     try {
+      const nameErr = await this.checkNameUniqueness(
+        this.rawForm.account.name,
+        this.ids().accountId || undefined,
+      );
+      if (nameErr) {
+        this.notifier.error(nameErr);
+        return nameErr;
+      }
       await this.createOrUpdateFirstAccount();
       await this.seedAllDefaultCategories();
       return null;
@@ -385,11 +450,14 @@ export class Onboarding {
         const b = this.formModel.budget;
         const budgetMeta =
           b.limit && b.categoryUid ? { categoryUid: b.categoryUid, limit: Number(b.limit) } : null;
+        const account = await this.accountsService.getAccount(accountId).catch(() => null);
+        const initialBalance = account?.initialBalance ?? Number(this.formModel.account.balance);
         await this.reportsService
           .createOnboardingStarterMonthlyReport(
             accountId,
             cats.map((c) => ({ uid: c.uid, name: c.name })),
             budgetMeta,
+            initialBalance,
           )
           .catch(() => {});
       }
@@ -430,6 +498,23 @@ export class Onboarding {
     await this.authService.upsertUserProfile(userData);
   }
 
+  private buildMemberRows(): AccountMember[] {
+    return this.invitedMembers().map((m) => ({
+      memberId: m.uid,
+      memberDisplayName: m.displayName || m.email || 'Member',
+      isJoined: false,
+      isActive: false,
+    }));
+  }
+
+  private async checkNameUniqueness(name: string, excludeId?: string): Promise<string | null> {
+    const all = await this.accountsService.getAccounts();
+    const conflict = all.find(
+      (a) => a.name.trim().toLowerCase() === name.trim().toLowerCase() && a.id !== excludeId,
+    );
+    return conflict ? `An account named "${conflict.name}" already exists.` : null;
+  }
+
   private async createOrUpdateFirstAccount() {
     const accountForm = this.rawForm.account;
     const ownerId = this.userProfile()?.['uid'] as string;
@@ -439,9 +524,9 @@ export class Onboarding {
       currency: accountForm.currency,
       isSelected: true,
       isActive: true,
-      members: [],
+      members: this.accountType() === 'multi-user' ? this.buildMemberRows() : [],
       ownerId,
-      accountType: 'single-user',
+      accountType: this.accountType(),
     };
 
     const existing = await this.accountsService.getAccount(ownerId);
@@ -454,6 +539,8 @@ export class Onboarding {
         currency: accountData.currency,
         isSelected: true,
         isActive: true,
+        accountType: accountData.accountType,
+        members: accountData.members,
       });
       account = await this.accountsService.getAccount(existing.id);
       this.ids.update((s) => ({ ...s, accountId: existing.id }));

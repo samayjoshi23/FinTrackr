@@ -108,6 +108,7 @@ export class AccountsService {
         if (!existing.exists()) {
           payload['createdAt'] = serverTimestamp();
           payload['date'] = day;
+          payload['initialBalance'] = Number(data.balance);
         }
         await setDoc(ref, payload, { merge: true });
         const account = await this.getAccountDirect(assignedId);
@@ -119,6 +120,7 @@ export class AccountsService {
       {
         name: data.name.trim(),
         balance: Number(data.balance),
+        initialBalance: Number(data.balance),
         currency: data.currency,
         isSelected: data.isSelected,
         isActive: data.isActive,
@@ -403,6 +405,7 @@ export class AccountsService {
       uid: (d['uid'] as string) ?? id,
       name: (d['name'] as string) ?? '',
       balance: Number(d['balance'] ?? 0),
+      initialBalance: typeof d['initialBalance'] === 'number' ? d['initialBalance'] : undefined,
       currency: (d['currency'] as string) ?? '',
       isSelected: d['isSelected'] as boolean | undefined,
       isActive: d['isActive'] as boolean | undefined,

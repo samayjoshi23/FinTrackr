@@ -28,14 +28,14 @@ export const onboardingPages: {
   },
   {
     sequence: 2,
-    title: 'Add your first account',
-    description: 'Account name and starting balance',
+    title: 'Choose your currency',
+    description: 'This will be your default currency',
     skippable: false,
   },
   {
     sequence: 3,
-    title: 'Choose your currency',
-    description: 'This will be your default currency',
+    title: 'Add your first account',
+    description: 'Account name, balance, and account type',
     skippable: false,
   },
   {

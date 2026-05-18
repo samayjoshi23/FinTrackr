@@ -236,6 +236,7 @@ export class ReportsService {
     accountId: string,
     categories: Array<{ uid: string; name: string }>,
     budgetForCategory?: { categoryUid: string; limit: number } | null,
+    initialBalance?: number,
   ): Promise<void> {
     if (!accountId || categories.length === 0) return;
 
@@ -268,6 +269,7 @@ export class ReportsService {
       categoryBreakdown,
       recurrings: { totalIncome: 0, totalExpense: 0, spentOn: [] },
       isFinalized: false,
+      initialBalance: typeof initialBalance === 'number' ? initialBalance : undefined,
       date: day,
       createdAt: now,
       updatedAt: now,

@@ -32,11 +32,60 @@
           Edit
         </div>
       </div>
-      <div class="rounded-xl flex flex-col gap-1 px-4 py-3 card">
-        <span class="text-xs text-secondary">Current Balance</span>
-        <span class="text-xl font-bold text-primary title-font">
-          {{ acc.balance | signedAmount: null : acc.currency : '1.0-0' }}
-        </span>
+      <div class="rounded-xl flex flex-col card">
+        <div class="flex items-end justify-between gap-2 px-3 py-2">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-xs text-secondary">Current Balance</span>
+            <span class="text-xl font-bold text-primary title-font">
+              {{ acc.balance | signedAmount: null : acc.currency : '1.0-0' }}
+            </span>
+          </div>
+          @if (balanceChange(); as change) {
+            <div
+              class="flex items-center gap-1 rounded-full text-xs font-semibold px-2 py-1"
+              [ngClass]="{
+                'bg-primary-light text-primary': change.isGain,
+                'red-card !text-red-600': !change.isGain,
+              }"
+            >
+              @if (change.isGain) {
+                <ico name="arrow-up" size="xs" class="text-primary"></ico>
+              } @else {
+                <ico name="arrow-down" size="xs" class="text-red-600"></ico>
+              }
+              {{ change.pct | number: '1.1-1' }}%
+            </div>
+          }
+        </div>
+        @if (acc.initialBalance != null) {
+          <div
+            class="flex items-center justify-between border-t border-[var(--color-border)] px-3 py-2"
+          >
+            <span class="text-xs text-secondary">Started with</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-secondary title-font">
+                {{ acc.initialBalance | signedAmount: null : acc.currency : '1.0-0' }}
+              </span>
+              @if (balanceChange(); as change) {
+                <span
+                  class="text-xs font-medium px-2 py-1 rounded-full"
+                  [ngClass]="{
+                    'text-primary bg-primary-light': change.isGain,
+                    'red-card !text-red-600': !change.isGain,
+                  }"
+                >
+                  {{
+                    change.diff
+                      | signedAmount
+                        : (change.isGain ? 'income' : 'expense')
+                        : acc.currency
+                        : '1.0-0'
+                  }}
+                </span>
+              }
+            </div>
+          </div>
+        }
       </div>
     </div>
 
@@ -218,9 +267,18 @@
         </div>
         <div class="h-4 w-12 rounded-md bg-secondary-light"></div>
       </div>
-      <div class="rounded-xl px-4 py-3 card flex flex-col gap-2">
-        <div class="h-3 w-24 rounded-md bg-secondary-light"></div>
-        <div class="h-6 w-28 rounded-md bg-secondary-light"></div>
+      <div class="rounded-xl px-4 py-3 card flex flex-col gap-3">
+        <div class="flex items-end justify-between gap-2">
+          <div class="flex flex-col gap-2">
+            <div class="h-3 w-24 rounded-md bg-secondary-light"></div>
+            <div class="h-6 w-28 rounded-md bg-secondary-light"></div>
+          </div>
+          <div class="h-6 w-16 rounded-full bg-secondary-light"></div>
+        </div>
+        <div class="flex items-center justify-between border-t border-[var(--color-border)] pt-2">
+          <div class="h-3 w-20 rounded-md bg-secondary-light"></div>
+          <div class="h-3 w-24 rounded-md bg-secondary-light"></div>
+        </div>
       </div>
     </div>
 

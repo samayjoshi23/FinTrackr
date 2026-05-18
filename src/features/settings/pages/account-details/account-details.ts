@@ -55,6 +55,17 @@ export class AccountDetails {
     return a.id === c.id;
   });
 
+  /** Gain/loss relative to initialBalance. Null when initialBalance is not set. */
+  readonly balanceChange = computed(() => {
+    const a = this.account();
+    if (!a || a.initialBalance == null) return null;
+    const initial = a.initialBalance;
+    const current = a.balance;
+    const diff = current - initial;
+    const pct = initial !== 0 ? (diff / Math.abs(initial)) * 100 : 0;
+    return { diff, pct, isGain: diff >= 0 };
+  });
+
   constructor() {
     effect(() => {
       if (!this.txDetailOpen()) this.selectedTransaction.set(null);

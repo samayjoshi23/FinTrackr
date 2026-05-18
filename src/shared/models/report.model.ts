@@ -30,6 +30,8 @@ export interface MonthlyReport {
     spentOn: string[];
   };
   isFinalized: boolean;
+  /** The account's starting balance at the time this report was first created. Static — never updated. */
+  initialBalance?: number;
   /** Calendar day string when the report row was created / last synced (`YYYY-MM-DD`). */
   date?: string;
   createdAt?: Date | null;
@@ -51,6 +53,8 @@ export interface MonthlyReportCreateInput {
     spentOn?: string[];
   };
   isFinalized?: boolean;
+  /** The account's starting balance; captured once at report creation for historical comparison. */
+  initialBalance?: number;
   date?: string;
   createdAt?: Date | null;
   updatedAt?: Date | null;
