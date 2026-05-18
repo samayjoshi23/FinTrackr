@@ -64,7 +64,7 @@ export class Signup {
         normalizedEmail,
         normalizedPassword,
       );
-      this.notifier.success('Welcome to FinTrackr! Please complete your profile to get started.');
+      this.notifier.success('Welcome to LogMyMudra! Please complete your profile to get started.');
       await this.navigateAfterAuth(user.uid);
     } catch (error) {
       this.notifier.error(this.getErrorMessage(error));

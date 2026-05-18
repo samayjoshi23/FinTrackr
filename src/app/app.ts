@@ -20,7 +20,7 @@ import {
   styleUrl: './app.css',
 })
 export class App {
-  protected readonly title = signal('fintrackr');
+  protected readonly title = signal('LogMyMudra');
 
   private readonly router = inject(Router);
   private readonly auth = inject(Auth);

@@ -6,9 +6,17 @@
     [attr.aria-label]="shellLoaderMessage()"
   >
     <div class="fintrackr-boot__inner">
-      <div class="fintrackr-boot__mark" aria-hidden="true">F</div>
+      <div class="fintrackr-boot__mark" aria-hidden="true">
+        <img
+          src="web-app-manifest-192x192.png"
+          alt=""
+          width="72"
+          height="72"
+          decoding="async"
+        />
+      </div>
       <div>
-        <p class="fintrackr-boot__title">FinTrackr</p>
+        <p class="fintrackr-boot__title">LogMyMudra</p>
         <p class="fintrackr-boot__sub">{{ shellLoaderMessage() }}</p>
       </div>
       <div class="fintrackr-boot__spinner" aria-hidden="true"></div>
@@ -33,7 +41,7 @@
         <ico name="fingerprint" size="xl" class="text-white"></ico>
       </div>
       <div class="flex flex-col gap-1">
-        <h1 class="text-xl font-bold title-font">FinTrackr</h1>
+        <h1 class="text-xl font-bold title-font">LogMyMudra</h1>
         <p class="text-sm text-secondary">Verify your identity to continue</p>
       </div>
 

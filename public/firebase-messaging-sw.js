@@ -19,7 +19,7 @@ const messaging = firebase.messaging();
 
 // Customize background notification display.
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title ?? 'FinTrackr';
+  const title = payload.notification?.title ?? 'LogMyMudra';
   const body = payload.notification?.body ?? '';
   const deepLink = payload.data?.deepLink ?? '/user/notifications';
 

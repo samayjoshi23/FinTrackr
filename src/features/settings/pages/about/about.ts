@@ -54,7 +54,7 @@ export class About {
 
   async onShareApp() {
     const shareData: ShareData = {
-      title: 'FinTrackr',
+      title: 'LogMyMudra',
       text: 'Track your finances, split group expenses, and manage recurring payments — all in one app.',
       url: window.location.origin,
     };

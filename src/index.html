@@ -2,11 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Fintrackr</title>
+    <title>LogMyMudra</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="LogMyMudra" />
     <meta name="theme-color" content="#059669" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -56,19 +60,17 @@
         width: 4.5rem;
         height: 4.5rem;
         border-radius: 1rem;
-        background: linear-gradient(145deg, #10b981 0%, #059669 45%, #047857 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-        font-size: 1.75rem;
-        font-weight: 700;
-        letter-spacing: -0.04em;
-        line-height: 1;
+        overflow: hidden;
+        flex-shrink: 0;
         box-shadow:
           0 10px 15px -3px rgba(5, 150, 105, 0.25),
           0 4px 6px -4px rgba(5, 150, 105, 0.2);
+      }
+      #fintrackr-boot .fintrackr-boot__mark img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       #fintrackr-boot .fintrackr-boot__title {
         margin: 0;
@@ -118,11 +120,19 @@
       })();
     </script>
     <app-root>
-      <div id="fintrackr-boot" role="status" aria-live="polite" aria-label="Fintrackr">
+      <div id="fintrackr-boot" role="status" aria-live="polite" aria-label="LogMyMudra">
         <div class="fintrackr-boot__inner">
-          <div class="fintrackr-boot__mark" aria-hidden="true">F</div>
+          <div class="fintrackr-boot__mark" aria-hidden="true">
+            <img
+              src="web-app-manifest-192x192.png"
+              alt=""
+              width="72"
+              height="72"
+              decoding="async"
+            />
+          </div>
           <div>
-            <p class="fintrackr-boot__title">FinTrackr</p>
+            <p class="fintrackr-boot__title">LogMyMudra</p>
             <p class="fintrackr-boot__sub" id="fintrackr-boot-sub"></p>
           </div>
           <div class="fintrackr-boot__spinner" aria-hidden="true"></div>
@@ -140,11 +150,11 @@
           var sub = document.getElementById('fintrackr-boot-sub');
           if (!root || !sub) return;
           if (type === 'reload') {
-            sub.textContent = 'Reloading Fintrackr...';
-            root.setAttribute('aria-label', 'Reloading Fintrackr');
+            sub.textContent = 'Reloading LogMyMudra...';
+            root.setAttribute('aria-label', 'Reloading LogMyMudra');
           } else if (type === 'navigate') {
-            sub.textContent = 'Starting Fintrackr...';
-            root.setAttribute('aria-label', 'Starting Fintrackr');
+            sub.textContent = 'Starting LogMyMudra...';
+            root.setAttribute('aria-label', 'Starting LogMyMudra');
           } else {
             root.style.display = 'none';
             root.setAttribute('aria-hidden', 'true');
