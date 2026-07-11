@@ -50,7 +50,7 @@ export class CategoriesService {
     const uid = this.requireUid();
     const accountId = await this.selectedAccountKey();
     if (!accountId) return [];
-    return this.offlineCrud.fetchAll<Category>(
+    let data = this.offlineCrud.fetchAll<Category>(
       'categories',
       async () => {
         const base = collection(this.firestore, CATEGORIES_COLLECTION);
@@ -60,6 +60,17 @@ export class CategoriesService {
       },
       { indexName: 'accountId', value: accountId },
     );
+
+    // Loading default category
+    (await data).push({
+          uid: 'default',
+          name: 'Other',
+          description: 'Uncategorized transactions',
+          icon: 'other',
+          accountId: accountId,
+          createdAt: new Date(),
+          updatedAt: new Date(),});
+    return data;
   }
 
   async getCategory(categoryId: string): Promise<Category | null> {

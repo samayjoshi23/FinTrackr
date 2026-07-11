@@ -21,16 +21,16 @@
 
   @if (loading()) {
     <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>
-  } @else if (budgets().length === 0) {
+  } @else if (!hasBudget()) {
     <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
-      <p class="text-sm font-light">No budgets yet</p>
+      <p class="text-sm font-light">No budget set yet</p>
       <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
-        Create your first budget
+        Set your monthly budget
       </button>
     </div>
   } @else {
     <!-- Summary -->
-    <div class="card-light rounded-2xl p-4 flex flex-col gap-3">
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-3 min-h-35">
       <div class="flex items-end justify-between">
         <p class="text-xs font-light text-secondary">{{ summary().monthLabel }} Budget</p>
         <div class="flex items-center gap-2">
@@ -49,8 +49,8 @@
         </div>
       </div>
 
-      <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
-        @if (summary().totalLimit > 0) {
+      <div class="min-h-1.5! w-full rounded-full bg-secondary-light overflow-hidden">
+        @if (summary().totalLimit >= 0) {
           <div
             class="h-full rounded-full min-w-0 budget-progress-fill"
             [style.width.%]="progressBarsShown() ? summaryBarWidthPercent() : 0"
@@ -61,7 +61,7 @@
 
       <div class="flex justify-between text-xs font-light">
         <p class="flex items-center gap-1 flex-wrap">
-          @if (summary().overBudgetAmount > 0) {
+          @if (summary().overBudgetAmount >= 0) {
             <span class="text-red-600 title-font font-medium">
               {{ summary().overBudgetAmount | signedAmount: null : currency() : '1.0-0' }}
               over budget
@@ -157,23 +157,25 @@
                   <ico name="arrow-right-left" size="sm"></ico>
                   <span>See transactions</span>
                 </div>
-                <div class="flex gap-2">
-                  <button
-                    type="button"
-                    class="flex items-center gap-1 text-sm button-yellow rounded-xl p-3 font-light"
-                    (click)="onEditBudget($event, card)"
-                  >
-                    <ico name="pencil" size="sm"></ico>
-                  </button>
-                  <button
-                    type="button"
-                    class="flex items-center gap-1 text-sm button-red rounded-xl p-3 font-light"
-                    [disabled]="deleting()"
-                    (click)="onDeleteRequest($event, card)"
-                  >
-                    <ico name="trash" size="sm"></ico>
-                  </button>
-                </div>
+                @if (!card.isOther) {
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      class="flex items-center gap-1 text-sm button-yellow rounded-xl p-3 font-light"
+                      (click)="onEditBudget($event)"
+                    >
+                      <ico name="pencil" size="sm"></ico>
+                    </button>
+                    <button
+                      type="button"
+                      class="flex items-center gap-1 text-sm button-red rounded-xl p-3 font-light"
+                      [disabled]="deleting()"
+                      (click)="onDeleteRequest($event, card)"
+                    >
+                      <ico name="trash" size="sm"></ico>
+                    </button>
+                  </div>
+                }
               </div>
             }
           </div>
@@ -186,13 +188,11 @@
 <!-- Delete budget confirmation -->
 <app-confirm-prompt
   [(open)]="deletePromptOpen"
-  title="Delete budget?"
+  title="Remove category budget?"
   [message]="
     'Remove the ' +
     (deletingCard()?.category ?? '') +
-    ' budget for ' +
-    summary().monthLabel +
-    '? This won\'t affect existing transactions.'
+    ' category budget? Its amount returns to Other and won\'t affect existing transactions.'
   "
   icon="trash"
   confirmText="Delete"

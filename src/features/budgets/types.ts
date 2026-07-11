@@ -13,8 +13,10 @@ export interface SummaryCardModel {
 
 export interface CategoryBudgetCardModel {
   category: string;
-  /** Firestore document id of the first budget for this category (used for edit/delete). */
-  budgetId: string;
+  /** `Category.uid` this card budgets, or '' for the derived "Other" card. */
+  categoryId: string;
+  /** True for the derived "Other" bucket (monthlyBudget − Σ category limits). Not editable. */
+  isOther: boolean;
   icon: string;
   spent: number;
   limit: number;

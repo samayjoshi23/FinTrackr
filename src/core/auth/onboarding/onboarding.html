@@ -269,29 +269,6 @@
       [class.hidden]="currentPage() !== 4"
       [attr.inert]="currentPage() !== 4 ? '' : null"
     >
-      <div class="flex flex-col gap-2">
-        <label class="text-xs text-gray-400">Category</label>
-        <div class="flex flex-wrap gap-2">
-          @for (c of onboardingCategories(); track c.uid) {
-            <div
-              class="card flex cursor-pointer items-center gap-2 rounded-full px-4 py-2"
-              [ngClass]="{ 'selected-card': c.uid === formModel.budget.categoryUid }"
-              (click)="selectBudgetCategory(c.uid)"
-            >
-              <ico
-                [name]="c.icon"
-                size="sm"
-                [class.text-primary]="c.uid === formModel.budget.categoryUid"
-                [class.text-secondary]="c.uid !== formModel.budget.categoryUid"
-              ></ico>
-              <p class="text-xs" [class.font-semibold]="c.uid === formModel.budget.categoryUid">
-                {{ c.name }}
-              </p>
-            </div>
-          }
-        </div>
-      </div>
-
       <div class="flex flex-col gap-1">
         <label for="monthlyBudget" class="text-xs text-gray-400">Monthly Budget</label>
         <div class="field-wrapper before">
@@ -327,6 +304,17 @@
           </div>
         }
       </div>
+
+      <button
+        type="button"
+        class="card flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-primary"
+        [disabled]="monthlyBudgetAmount() <= 0"
+        [class.opacity-50]="monthlyBudgetAmount() <= 0"
+        (click)="openCategoryBudgetModal()"
+      >
+        <ico name="tags" size="sm"></ico>
+        Set budget for categories
+      </button>
     </div>
 
     <div
@@ -430,3 +418,86 @@
     }
   </div>
 </form>
+
+<!-- Per-category budget allocation -->
+<app-modal
+  [(open)]="categoryBudgetModalOpen"
+  [bodyTemplate]="categoryBudgetTpl"
+  title="Set individual category budget"
+/>
+
+<ng-template #categoryBudgetTpl>
+  <div class="flex flex-col gap-3">
+    <p class="text-xs text-secondary font-light">
+      Split your
+      {{ monthlyBudgetAmount() | signedAmount: null : formModel.account.currency : '1.0-0' }}
+      monthly budget across categories. Anything left over goes to “Other”.
+    </p>
+
+    <div class="flex flex-col gap-2 max-h-[45vh] overflow-y-auto p-2">
+      @for (c of onboardingCategories(); track c.uid) {
+        <div class="field-wrapper before">
+            <span 
+              class="field-icon before bg-secondary-light rounded-lg flex items-center justify-center gap-2"
+              [style]="{ height: '2rem', left: '0.25rem', top: '0.25rem'}"
+            >
+              <ico [name]="c.icon" size="sm" class="text-primary"></ico>
+              <p class="flex-1 text-sm pr-3">{{ c.name }}</p>
+            </span>
+          <div class="field-wrapper before w-28 shrink-0">
+            <input
+              type="number"
+              class="w-full text-right"
+              min="0"
+              placeholder="0"
+              [name]="'catBudget_' + c.uid"
+              [(ngModel)]="categoryBudgetDraft[c.uid]"
+            />
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="flex flex-col gap-1 border-t border-[var(--color-border)] pt-3 text-xs">
+      <div class="flex justify-between">
+        <span class="text-secondary">Allocated</span>
+        <span class="title-font font-medium">
+          {{ categoryBudgetTotal() | signedAmount: null : formModel.account.currency : '1.0-0' }}
+        </span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-secondary">Remaining (Other)</span>
+        <span
+          class="title-font font-medium"
+          [class.text-red-600]="categoryBudgetRemaining() < 0"
+        >
+          {{ categoryBudgetRemaining() | signedAmount: null : formModel.account.currency : '1.0-0' }}
+        </span>
+      </div>
+      @if (categoryBudgetRemaining() < 0) {
+        <p class="text-red-600 font-light">
+          Category budgets exceed your monthly budget. Reduce them to continue.
+        </p>
+      }
+    </div>
+
+    <div class="flex gap-2">
+      <button
+        type="button"
+        class="button-secondary flex-1 rounded-xl py-2.5 text-sm font-medium"
+        (click)="cancelCategoryBudgets()"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="button-primary flex-1 rounded-xl py-2.5 text-sm font-medium"
+        [disabled]="!canSaveCategoryBudgets()"
+        [class.opacity-50]="!canSaveCategoryBudgets()"
+        (click)="saveCategoryBudgets()"
+      >
+        Save
+      </button>
+    </div>
+  </div>
+</ng-template>

@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "LogMyMudra",
-  "short_name": "LogMyMudra",
+  "name": "FinTrackr",
+  "short_name": "FinTrackr",
   "description": "Personal finance tracker - track expenses, budgets, and goals",
   "display": "standalone",
   "scope": "/",

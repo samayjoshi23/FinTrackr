@@ -159,14 +159,5 @@ export const DEFAULT_CATEGORIES: Category[] = [
     accountId: '',
     createdAt: new Date(),
     updatedAt: new Date(),
-  },
-  {
-    uid: '8',
-    name: 'Other',
-    description: 'Other categories',
-    icon: 'other',
-    accountId: '',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
+  }
 ];

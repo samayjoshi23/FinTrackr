@@ -168,6 +168,19 @@
     <div class="flex flex-col gap-2">
       <h2 class="text-sm title-font font-medium">General</h2>
       <div
+        routerLink="/user/categories"
+        class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
+      >
+        <div class="rounded-xl flex items-center justify-center shrink-0">
+          <ico name="tags" size="md" class="text-secondary"></ico>
+        </div>
+        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+          <span class="text-sm font-semibold">Categories</span>
+          <span class="text-xs text-secondary font-light">Manage your spending categories</span>
+        </div>
+        <ico name="chevron-right" size="sm" class="text-secondary"></ico>
+      </div>
+      <div
         routerLink="/user/settings/notifications"
         class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
       >

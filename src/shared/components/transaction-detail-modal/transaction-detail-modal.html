@@ -43,7 +43,7 @@
           </button>
           <button
             type="button"
-            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-primary flex items-center justify-center gap-2 disabled:opacity-60"
+            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-primary flex items-center justify-center gap-2 disabled:opacity-60 gap-2"
             [disabled]="saving()"
             (click)="onEditSave(tx)"
           >
@@ -176,10 +176,12 @@
 
 <app-confirm-prompt
   [(open)]="deletePromptOpen"
+  [(isLoading)]="deleting"
   title="Delete transaction?"
   message="This will permanently remove this transaction and reverse its effect on your account balance."
   icon="trash"
   confirmText="Delete"
+  loadingText="Deleting…"
   cancelText="Cancel"
   severity="danger"
   (confirmed)="onDeleteConfirmed($event)"

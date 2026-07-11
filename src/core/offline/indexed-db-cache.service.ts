@@ -38,6 +38,7 @@ export class IndexedDbCacheService {
   }
 
   async delete(storeName: string, key: string | number): Promise<void> {
+    console.log('IndexedDbCacheService: delete', storeName, key);
     await firstValueFrom(this.db.deleteByKey(storeName, key));
   }
 

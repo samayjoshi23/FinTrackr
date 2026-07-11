@@ -19,8 +19,8 @@ import {
   AccountMember,
   AccountType,
 } from '../../../../shared/models/account.model';
-import { BudgetCreateInput } from '../../../../shared/models/budget.model';
 import { GoalCreateInput } from '../../../../shared/models/goal.model';
+import { Modal } from '../../../../shared/components/modal/modal';
 import {
   Category,
   CategoryCreateInput,
@@ -70,7 +70,15 @@ const CREATE_ACCOUNT_PAGES: {
 
 @Component({
   selector: 'app-create-account',
-  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe, UsersSearchFilterPipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    Icon,
+    DatePicker,
+    SignedAmountPipe,
+    UsersSearchFilterPipe,
+    Modal,
+  ],
   templateUrl: './create-account.html',
   styleUrl: './create-account.css',
 })
@@ -99,7 +107,8 @@ export class CreateAccount {
     budget: {
       limit: '',
       month: '',
-      categoryUid: '',
+      /** categoryId → monthly limit for the per-category allocation modal. */
+      categoryBudgets: {} as Record<string, number>,
     },
     goal: {
       name: '',
@@ -122,6 +131,12 @@ export class CreateAccount {
   ]);
 
   accountCategories = signal<Category[]>([]);
+
+  /** Per-category budget allocation modal. */
+  categoryBudgetModalOpen = signal(false);
+  /** Working copy of per-category limits while the modal is open (categoryId → amount). */
+  categoryBudgetDraft: Record<string, number | null> = {};
+
   /** Set after step 3 create + seed. */
   createdAccount = signal<Account | null>(null);
   accountCommitted = signal(false);
@@ -150,8 +165,55 @@ export class CreateAccount {
     );
   }
 
-  selectBudgetCategory(uid: string) {
-    this.formModel.budget.categoryUid = uid;
+  /** Whole monthly budget entered on the budget step. */
+  monthlyBudgetAmount(): number {
+    return Number(this.formModel.budget.limit) || 0;
+  }
+
+  openCategoryBudgetModal(): void {
+    if (this.monthlyBudgetAmount() <= 0) {
+      this.notifier.error('Enter a monthly budget first.');
+      return;
+    }
+    const draft: Record<string, number | null> = {};
+    for (const c of this.accountCategories()) {
+      const existing = this.formModel.budget.categoryBudgets[c.uid];
+      draft[c.uid] = existing && existing > 0 ? existing : null;
+    }
+    this.categoryBudgetDraft = draft;
+    this.categoryBudgetModalOpen.set(true);
+  }
+
+  /** Σ of the draft per-category inputs. */
+  categoryBudgetTotal(): number {
+    return Object.values(this.categoryBudgetDraft).reduce<number>(
+      (acc, v) => acc + (Number(v) || 0),
+      0,
+    );
+  }
+
+  /** Monthly budget left to allocate (can go negative to warn the user). */
+  categoryBudgetRemaining(): number {
+    return this.monthlyBudgetAmount() - this.categoryBudgetTotal();
+  }
+
+  canSaveCategoryBudgets(): boolean {
+    return this.monthlyBudgetAmount() > 0 && this.categoryBudgetTotal() <= this.monthlyBudgetAmount();
+  }
+
+  saveCategoryBudgets(): void {
+    if (!this.canSaveCategoryBudgets()) return;
+    const map: Record<string, number> = {};
+    for (const [id, v] of Object.entries(this.categoryBudgetDraft)) {
+      const n = Number(v);
+      if (id && Number.isFinite(n) && n > 0) map[id] = n;
+    }
+    this.formModel.budget.categoryBudgets = map;
+    this.categoryBudgetModalOpen.set(false);
+  }
+
+  cancelCategoryBudgets(): void {
+    this.categoryBudgetModalOpen.set(false);
   }
 
   setAccountType(t: AccountType) {
@@ -253,12 +315,7 @@ export class CreateAccount {
         }
         case 4: {
           const lim = this.formModel.budget.limit?.toString().trim();
-          const catUid = this.formModel.budget.categoryUid?.trim();
-          if (lim || catUid) {
-            if (!lim || !catUid) {
-              this.notifier.error('Pick a category and budget amount, or skip.');
-              return;
-            }
+          if (lim) {
             this.stepBusy.set(true);
             try {
               await this.createBudgetRow();
@@ -358,9 +415,6 @@ export class CreateAccount {
         if (c) ordered.push(c);
       }
       this.accountCategories.set(ordered);
-      if (ordered.length > 0 && !this.formModel.budget.categoryUid) {
-        this.formModel.budget.categoryUid = ordered[0].uid;
-      }
 
       // TODO: Send notification to each invited member asking them to join this account.
 
@@ -393,16 +447,13 @@ export class CreateAccount {
   private async createBudgetRow(): Promise<void> {
     const acc = this.createdAccount();
     if (!acc) throw new Error('No account');
-    const cat = this.accountCategories().find((c) => c.uid === this.formModel.budget.categoryUid);
-    const input: BudgetCreateInput = {
-      limit: this.formModel.budget.limit,
-      month: this.formModel.budget.month,
+    const monthlyBudget = Number(this.formModel.budget.limit) || 0;
+    if (monthlyBudget <= 0) return;
+    await this.budgetsService.upsertBudgetPlan({
       accountId: acc.id,
-      name: cat?.name ?? 'Budget',
-      category: cat?.name ?? '',
-      categoryId: this.formModel.budget.categoryUid?.trim() || undefined,
-    };
-    await this.budgetsService.createBudget(input);
+      monthlyBudget,
+      categoryBudgets: this.formModel.budget.categoryBudgets ?? {},
+    });
   }
 
   private async createGoalRow(): Promise<void> {
@@ -430,9 +481,10 @@ export class CreateAccount {
       const ordered = this.accountCategories();
       if (ordered.length > 0) {
         const b = this.formModel.budget;
+        const monthlyBudget = Number(b.limit) || 0;
         const budgetMeta =
-          b.limit?.toString().trim() && b.categoryUid?.trim()
-            ? { categoryUid: b.categoryUid.trim(), limit: Number(b.limit) }
+          monthlyBudget > 0
+            ? { monthlyBudget, categoryBudgets: b.categoryBudgets ?? {} }
             : null;
         const initialBalance = acc.initialBalance ?? Number(this.formModel.account.balance);
         await this.reportsService

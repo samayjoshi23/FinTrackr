@@ -25,6 +25,7 @@ export class TransactionDetailModal {
   private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
+
   open = model(false);
   transaction = input<TransactionRecord | null>(null);
   currency = input<string>('INR');
@@ -38,6 +39,7 @@ export class TransactionDetailModal {
   editMode = signal(false);
   editAmountValue = signal<number | null>(null);
   deletePromptOpen = signal(false);
+  deleting = signal(false);
   saving = signal(false);
   /** When the selected account is multi-user and the transaction has `paidBy`. */
   showPaidByRow = signal(false);
@@ -143,8 +145,9 @@ export class TransactionDetailModal {
     const tx = this.transaction();
     if (!tx) return;
 
-    this.saving.set(true);
+    this.deleting.set(true);
     try {
+      console.log('Deleting transaction', tx.uid);
       await this.transactionsService.deleteTransaction(tx.uid);
 
       // Reverse the transaction's effect on the account balance
@@ -165,7 +168,8 @@ export class TransactionDetailModal {
       console.error(e);
       this.notifier.error('Could not delete transaction.');
     } finally {
-      this.saving.set(false);
+      this.deletePromptOpen.set(false);
+      this.deleting.set(false);
     }
   }
 

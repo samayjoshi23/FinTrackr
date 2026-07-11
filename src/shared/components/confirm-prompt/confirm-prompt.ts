@@ -12,6 +12,7 @@ export type PromptSeverity = 'info' | 'success' | 'warn' | 'danger';
 })
 export class ConfirmPrompt {
   readonly open = model(false);
+  readonly isLoading = model(false);
   readonly title = input<string>('Are you sure?');
   readonly message = input<string>('');
   readonly icon = input<string>('trash');
@@ -19,6 +20,7 @@ export class ConfirmPrompt {
   readonly cancelText = input<string>('Cancel');
   readonly severity = input<PromptSeverity>('warn');
   readonly confirmed = output<boolean>();
+  readonly loadingText = input<string>('Loading…');
 
   readonly iconBgClass = computed(() => {
     switch (this.severity()) {
@@ -48,7 +50,6 @@ export class ConfirmPrompt {
 
   onConfirm(): void {
     this.confirmed.emit(true);
-    this.open.set(false);
   }
 
   onCancel(): void {

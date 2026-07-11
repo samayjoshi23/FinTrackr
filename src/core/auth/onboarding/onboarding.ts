@@ -13,8 +13,8 @@ import { Router } from '@angular/router';
 import { Account, AccountCreateInput, AccountMember, AccountType } from '../../../shared/models/account.model';
 import { BudgetsService } from '../../../services/budgets.service';
 import { GoalsService } from '../../../services/goals.service';
-import { BudgetCreateInput } from '../../../shared/models/budget.model';
 import { Goal, GoalCreateInput } from '../../../shared/models/goal.model';
+import { Modal } from '../../../shared/components/modal/modal';
 import {
   Category,
   CategoryCreateInput,
@@ -29,7 +29,15 @@ import { UsersSearchFilterPipe } from '../../../shared/pipes/users-search-filter
 
 @Component({
   selector: 'app-onboarding',
-  imports: [CommonModule, FormsModule, Icon, DatePicker, SignedAmountPipe, UsersSearchFilterPipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    Icon,
+    DatePicker,
+    SignedAmountPipe,
+    UsersSearchFilterPipe,
+    Modal,
+  ],
   templateUrl: './onboarding.html',
   styleUrl: './onboarding.css',
 })
@@ -59,7 +67,8 @@ export class Onboarding {
     budget: {
       limit: '',
       month: '',
-      categoryUid: '',
+      /** categoryId → monthly limit for the per-category allocation modal. */
+      categoryBudgets: {} as Record<string, number>,
     },
     goal: {
       name: '',
@@ -89,6 +98,11 @@ export class Onboarding {
   });
 
   onboardingCategories = signal<Category[]>([]);
+
+  /** Per-category budget allocation modal. */
+  categoryBudgetModalOpen = signal(false);
+  /** Working copy of per-category limits while the modal is open (categoryId → amount). */
+  categoryBudgetDraft: Record<string, number | null> = {};
 
   /** True while a step save or final navigation runs. */
   isStepBusy = signal(false);
@@ -180,17 +194,13 @@ export class Onboarding {
   }
 
   private async hydrateBudgetAndGoalFromServer(): Promise<void> {
-    const budgets = await this.budgetsService.getBudgets();
-    const month = this.formModel.budget.month;
-    let b = budgets.find((x) => x.month === month);
-    if (!b && budgets.length === 1) b = budgets[0];
-    if (b) {
-      this.ids.update((s) => ({ ...s, budgetId: b.id }));
-      if (!this.formModel.budget.limit?.toString().trim()) {
-        this.formModel.budget.limit = String(b.limit);
+    const plan = await this.budgetsService.getBudgetPlan();
+    if (plan) {
+      if (!this.formModel.budget.limit?.toString().trim() && plan.monthlyBudget > 0) {
+        this.formModel.budget.limit = String(plan.monthlyBudget);
       }
-      if (!this.formModel.budget.categoryUid?.trim() && b.categoryId) {
-        this.formModel.budget.categoryUid = b.categoryId;
+      if (Object.keys(this.formModel.budget.categoryBudgets).length === 0) {
+        this.formModel.budget.categoryBudgets = { ...plan.categoryBudgets };
       }
     }
 
@@ -213,8 +223,55 @@ export class Onboarding {
     }
   }
 
-  selectBudgetCategory(uid: string) {
-    this.formModel.budget.categoryUid = uid;
+  /** Whole monthly budget entered on the budget step. */
+  monthlyBudgetAmount(): number {
+    return Number(this.formModel.budget.limit) || 0;
+  }
+
+  openCategoryBudgetModal(): void {
+    if (this.monthlyBudgetAmount() <= 0) {
+      this.notifier.error('Enter a monthly budget first.');
+      return;
+    }
+    const draft: Record<string, number | null> = {};
+    for (const c of this.onboardingCategories()) {
+      const existing = this.formModel.budget.categoryBudgets[c.uid];
+      draft[c.uid] = existing && existing > 0 ? existing : null;
+    }
+    this.categoryBudgetDraft = draft;
+    this.categoryBudgetModalOpen.set(true);
+  }
+
+  /** Σ of the draft per-category inputs. */
+  categoryBudgetTotal(): number {
+    return Object.values(this.categoryBudgetDraft).reduce<number>(
+      (acc, v) => acc + (Number(v) || 0),
+      0,
+    );
+  }
+
+  /** Monthly budget left to allocate (can go negative to warn the user). */
+  categoryBudgetRemaining(): number {
+    return this.monthlyBudgetAmount() - this.categoryBudgetTotal();
+  }
+
+  canSaveCategoryBudgets(): boolean {
+    return this.monthlyBudgetAmount() > 0 && this.categoryBudgetTotal() <= this.monthlyBudgetAmount();
+  }
+
+  saveCategoryBudgets(): void {
+    if (!this.canSaveCategoryBudgets()) return;
+    const map: Record<string, number> = {};
+    for (const [id, v] of Object.entries(this.categoryBudgetDraft)) {
+      const n = Number(v);
+      if (id && Number.isFinite(n) && n > 0) map[id] = n;
+    }
+    this.formModel.budget.categoryBudgets = map;
+    this.categoryBudgetModalOpen.set(false);
+  }
+
+  cancelCategoryBudgets(): void {
+    this.categoryBudgetModalOpen.set(false);
   }
 
   setAccountType(t: AccountType) {
@@ -348,17 +405,11 @@ export class Onboarding {
             console.error(err);
             return;
           }
-          const cats = this.onboardingCategories();
-          if (cats.length > 0 && !this.formModel.budget.categoryUid?.trim()) {
-            this.formModel.budget.categoryUid = cats[0].uid;
-          }
           break;
         }
         case 4: {
           const lim = this.formModel.budget.limit?.toString().trim();
-          const catUid = this.formModel.budget.categoryUid?.trim();
-          if (lim || catUid) {
-            if (!lim || !catUid) return;
+          if (lim) {
             const err = await this.withStepBusy(() => this.runStepCreateBudget());
             if (err) {
               console.error(err);
@@ -448,8 +499,11 @@ export class Onboarding {
       const cats = this.onboardingCategories();
       if (accountId && cats.length > 0) {
         const b = this.formModel.budget;
+        const monthlyBudget = Number(b.limit) || 0;
         const budgetMeta =
-          b.limit && b.categoryUid ? { categoryUid: b.categoryUid, limit: Number(b.limit) } : null;
+          monthlyBudget > 0
+            ? { monthlyBudget, categoryBudgets: b.categoryBudgets ?? {} }
+            : null;
         const account = await this.accountsService.getAccount(accountId).catch(() => null);
         const initialBalance = account?.initialBalance ?? Number(this.formModel.account.balance);
         await this.reportsService
@@ -586,41 +640,15 @@ export class Onboarding {
   }
 
   private async createOrUpdateFirstBudget() {
-    const budgetForm = this.rawForm.budget;
-    const cat = this.onboardingCategories().find((c) => c.uid === budgetForm.categoryUid);
-    const budgetData: BudgetCreateInput = {
-      limit: budgetForm.limit,
-      month: budgetForm.month,
-      accountId: this.ids().accountId,
-      name: cat?.name ?? 'Budget',
-      category: cat?.name ?? '',
-      categoryId: budgetForm.categoryUid?.trim() || undefined,
-    };
-
-    let budgetId = this.ids().budgetId;
-    if (!budgetId) {
-      const budgets = await this.budgetsService.getBudgets();
-      const month = budgetForm.month;
-      const catUid = budgetForm.categoryUid?.trim();
-      let match = budgets.find((b) => b.month === month && (!catUid || b.categoryId === catUid));
-      if (!match) match = budgets.find((b) => b.month === month);
-      if (!match && budgets.length === 1) match = budgets[0];
-      if (match) budgetId = match.id;
-    }
-
-    if (budgetId) {
-      await this.budgetsService.updateBudget(budgetId, {
-        limit: Number(budgetForm.limit),
-        month: budgetForm.month,
-        name: budgetData.name,
-        category: cat?.name ?? '',
-        categoryId: budgetForm.categoryUid?.trim() || undefined,
-      });
-      this.ids.update((s) => ({ ...s, budgetId }));
-    } else {
-      const budget = await this.budgetsService.createBudget(budgetData as BudgetCreateInput);
-      this.ids.update((s) => ({ ...s, budgetId: budget.id }));
-    }
+    const accountId = this.ids().accountId;
+    if (!accountId) return;
+    const monthlyBudget = Number(this.rawForm.budget.limit) || 0;
+    if (monthlyBudget <= 0) return;
+    await this.budgetsService.upsertBudgetPlan({
+      accountId,
+      monthlyBudget,
+      categoryBudgets: this.rawForm.budget.categoryBudgets ?? {},
+    });
   }
 
   private async createOrUpdateFirstGoal() {

@@ -186,6 +186,15 @@ export class SyncService {
         }
         created = true;
         break;
+      case 'budgetPlans':
+        if (pre) {
+          await this.budgetsService.applyPendingBudgetPlanCreate(pre.id, pre.rest);
+          await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+        } else {
+          return false;
+        }
+        created = true;
+        break;
       case 'goals':
         if (pre) {
           await this.goalsService.applyPendingGoalCreate(pre.id, pre.rest as unknown as GoalCreateInput);
@@ -299,6 +308,13 @@ export class SyncService {
         );
         await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
         break;
+      case 'budgetPlans':
+        await this.budgetsService.applyPendingBudgetPlanUpdate(
+          entry.docId,
+          entry.payload as Record<string, unknown>,
+        );
+        await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+        break;
       case 'goals':
         await this.goalsService.updateGoal(
           entry.docId,
@@ -405,6 +421,7 @@ export class SyncService {
     await this.cache.clear('transactions');
     await this.cache.clear('recurring-transactions');
     await this.cache.clear('budgets');
+    await this.cache.clear('budgetPlans').catch(() => {});
     await this.cache.clear('goals');
     await this.cache.clear('categories');
     await this.cache.clear('groups');

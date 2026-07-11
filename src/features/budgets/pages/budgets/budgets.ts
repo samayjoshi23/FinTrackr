@@ -9,7 +9,7 @@ import { TransactionsService } from '../../../../services/transactions.service';
 import { CategoriesService } from '../../../../services/categories.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
-import { Budget } from '../../../../shared/models/budget.model';
+import { BudgetPlan } from '../../../../shared/models/budget.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { Category } from '../../../categories/types';
 import { transactionEventDate } from '../../../../core/date';
@@ -37,7 +37,7 @@ export class Budgets {
 
   currency = signal<string>('INR');
   loading = signal(true);
-  budgets = signal<Budget[]>([]);
+  budgetPlan = signal<BudgetPlan | null>(null);
   transactions = signal<TransactionRecord[]>([]);
   categories = signal<Category[]>([]);
 
@@ -52,13 +52,23 @@ export class Budgets {
   deletingCard = signal<CategoryBudgetCardModel | null>(null);
   deleting = signal(false);
 
-  monthLabel = computed(() => {
-    const monthFromBudgets = this.budgets()
-      .map((b) => (b.month ?? '').trim())
-      .filter(Boolean);
-    const first = monthFromBudgets[0];
-    if (first) return first;
-    return new Date().toLocaleString('en-US', { month: 'long' });
+  /** True once a budget plan with an overall monthly budget exists. */
+  readonly hasBudget = computed(() => (this.budgetPlan()?.monthlyBudget ?? 0) > 0);
+
+  /** Always the current calendar month — the plan is recurring and applies to every month. */
+  monthLabel = computed(() => new Date().toLocaleString('en-US', { month: 'long' }));
+
+  /** Current-month expense spent, keyed by lowercased category name. */
+  private readonly monthSpendByCategory = computed(() => {
+    const month = this.monthLabel();
+    const map = new Map<string, number>();
+    for (const t of this.transactions()) {
+      if (t.type !== 'expense') continue;
+      if (!this.isInMonth(transactionEventDate(t), month)) continue;
+      const cat = (t.category ?? '').trim().toLowerCase() || 'uncategorized';
+      map.set(cat, (map.get(cat) ?? 0) + (Number(t.amount ?? 0) || 0));
+    }
+    return map;
   });
 
   readonly summary = computed<SummaryCardModel>(() => {
@@ -69,15 +79,13 @@ export class Budgets {
       return acc + (Number(t.amount ?? 0) || 0);
     }, 0);
 
-    const totalLimit = this.budgets()
-      .filter((b) => this.isBudgetMonth(b.month, month))
-      .reduce((acc, b) => acc + Number(b.limit ?? 0), 0);
+    const totalLimit = this.budgetPlan()?.monthlyBudget ?? 0;
     const remaining = totalLimit - monthSpent;
     const remainingDisplay = Math.max(0, remaining);
     const overBudgetAmount = remaining < 0 ? -remaining : 0;
 
     const daysLeft = this.daysLeftInMonth(new Date());
-    return {
+    let summary =  {
       monthLabel: month,
       totalLimit,
       totalSpent: monthSpent,
@@ -86,6 +94,9 @@ export class Budgets {
       overBudgetAmount,
       daysLeft,
     };
+
+    console.log('Budget summary:', summary);
+    return summary;
   });
 
   readonly summaryUsagePercent = computed(() => {
@@ -103,48 +114,50 @@ export class Budgets {
   });
 
   readonly categoryCards = computed<CategoryBudgetCardModel[]>(() => {
-    const month = this.monthLabel();
-    const totalsByCategory = new Map<string, { spent: number; limit: number; budgetId: string }>();
+    const plan = this.budgetPlan();
+    if (!plan) return [];
 
-    for (const b of this.budgets().filter((b) => this.isBudgetMonth(b.month, month))) {
-      const cat = (b.category ?? '').trim() || 'Uncategorized';
-      if (!totalsByCategory.has(cat)) {
-        totalsByCategory.set(cat, { spent: 0, limit: 0, budgetId: b.id });
-      }
-      totalsByCategory.get(cat)!.limit += Number(b.limit ?? 0);
-    }
-
-    for (const t of this.transactions()) {
-      if (t.type !== 'expense') continue;
-      if (!this.isInMonth(transactionEventDate(t), month)) continue;
-      const cat = (t.category ?? '').trim() || 'Uncategorized';
-      const row = totalsByCategory.get(cat);
-      if (!row) continue;
-      row.spent += Number(t.amount ?? 0) || 0;
-    }
-
-    const iconByCategory = new Map<string, string>();
-    for (const c of this.categories()) {
-      iconByCategory.set(c.name, c.icon);
-    }
-
-    return Array.from(totalsByCategory.entries()).map(([cat, data]) => {
-      const limit = data.limit;
-      const spent = data.spent;
+    const categories = this.categories();
+    const catById = new Map(categories.map((c) => [c.uid, c]));
+    const spendByName = this.monthSpendByCategory();
+    const toCard = (
+      category: string,
+      categoryId: string,
+      icon: string,
+      spent: number,
+      limit: number,
+      isOther: boolean,
+    ): CategoryBudgetCardModel => {
       const percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
       const status: ProgressStatus = spent <= limit ? 'under' : 'over';
       const overAmount = spent > limit ? spent - limit : 0;
-      return {
-        category: cat,
-        budgetId: data.budgetId,
-        icon: iconByCategory.get(cat) ?? 'tags',
-        spent,
-        limit,
-        percent,
-        status,
-        overAmount,
-      };
-    });
+      return { category, categoryId, isOther, icon, spent, limit, percent, status, overAmount };
+    };
+
+    // Per-category cards, sourced from the single plan.
+    const cards: CategoryBudgetCardModel[] = [];
+    let budgetedLimitTotal = 0;
+    let budgetedSpendTotal = 0;
+    for (const [categoryId, rawLimit] of Object.entries(plan.categoryBudgets)) {
+      const limit = Number(rawLimit ?? 0);
+      if (!(limit > 0)) continue;
+      const cat = catById.get(categoryId);
+      const name = cat?.name ?? 'Category';
+      const spent = spendByName.get(name.trim().toLowerCase()) ?? 0;
+      budgetedLimitTotal += limit;
+      budgetedSpendTotal += spent;
+      cards.push(toCard(name, categoryId, cat?.icon ?? 'tags', spent, limit, false));
+    }
+
+    // "Other": leftover allowance + all spend not attributed to a budgeted category.
+    const otherLimit = Math.max(0, (plan.monthlyBudget ?? 0) - budgetedLimitTotal);
+    const totalMonthSpend = this.summary().totalSpent;
+    const otherSpent = Math.max(0, totalMonthSpend - budgetedSpendTotal);
+    if (otherLimit > 0 || otherSpent > 0) {
+      cards.push(toCard('Other', '', 'other', otherSpent, otherLimit, true));
+    }
+
+    return cards;
   });
 
   async ngOnInit() {
@@ -155,17 +168,17 @@ export class Budgets {
       this.currency.set(account.currency ?? 'INR');
 
       try {
-        const [budgets, txs, cats] = await Promise.all([
-          this.budgetsService.getBudgets(),
+        const [plan, txs, cats] = await Promise.all([
+          this.budgetsService.getBudgetPlan(),
           this.transactionsService.getTransactions(),
           this.categoriesService.getCategories(),
         ]);
-        this.budgets.set(budgets ?? []);
+        this.budgetPlan.set(plan ?? null);
         this.transactions.set(txs ?? []);
         this.categories.set(cats ?? []);
       } catch (e) {
         console.error(e);
-        this.budgets.set([]);
+        this.budgetPlan.set(null);
         this.transactions.set([]);
         this.categories.set([]);
       }
@@ -184,6 +197,11 @@ export class Budgets {
   }
 
   onNewBudget() {
+    this.router.navigateByUrl('/user/budgets/new');
+  }
+
+  /** Edit opens the single plan editor (whole budget + per-category limits). */
+  onEditPlan() {
     this.router.navigateByUrl('/user/budgets/new');
   }
 
@@ -210,37 +228,46 @@ export class Budgets {
     });
   }
 
-  onEditBudget(event: Event, card: CategoryBudgetCardModel): void {
+  onEditBudget(event: Event): void {
     event.stopPropagation();
-    this.router.navigateByUrl(`/user/budgets/edit/${card.budgetId}`);
+    this.onEditPlan();
   }
 
   onDeleteRequest(event: Event, card: CategoryBudgetCardModel): void {
     event.stopPropagation();
+    if (card.isOther) return; // derived bucket — nothing to delete
     this.deletingCard.set(card);
     this.deletePromptOpen.set(true);
   }
 
+  /** Removing a category budget clears its limit from the plan; "Other" absorbs the leftover. */
   async onDeleteConfirmed(agreed: boolean): Promise<void> {
     if (!agreed) {
       this.deletingCard.set(null);
       return;
     }
     const card = this.deletingCard();
-    if (!card) return;
+    const plan = this.budgetPlan();
+    if (!card || !plan) return;
 
     this.deleting.set(true);
     try {
-      await this.budgetsService.deleteBudget(card.budgetId);
+      const categoryBudgets = { ...plan.categoryBudgets };
+      delete categoryBudgets[card.categoryId];
+      const updated = await this.budgetsService.upsertBudgetPlan({
+        accountId: plan.accountId,
+        monthlyBudget: plan.monthlyBudget,
+        categoryBudgets,
+      });
       await this.reportsService.rebuildCurrentMonthReport();
-      this.budgets.update((list) => list.filter((b) => b.id !== card.budgetId));
+      this.budgetPlan.set(updated);
       if (this.expandedCategory() === card.category) {
         this.expandedCategory.set(null);
       }
-      this.notifier.success('Budget deleted.');
+      this.notifier.success('Category budget removed.');
     } catch (e) {
       console.error(e);
-      this.notifier.error('Could not delete budget.');
+      this.notifier.error('Could not update budget.');
     } finally {
       this.deleting.set(false);
       this.deletingCard.set(null);
@@ -255,12 +282,6 @@ export class Budgets {
     if (!date) return false;
     const m = date.toLocaleString('en-US', { month: 'long' });
     return m.toLowerCase() === (monthLabel ?? '').toLowerCase();
-  }
-
-  private isBudgetMonth(budgetMonth: string | undefined, monthLabel: string): boolean {
-    const bm = (budgetMonth ?? '').trim();
-    if (!bm) return true;
-    return bm.toLowerCase() === (monthLabel ?? '').toLowerCase();
   }
 
   private daysLeftInMonth(date: Date): number {

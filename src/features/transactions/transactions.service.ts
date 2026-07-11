@@ -164,10 +164,12 @@ export class TransactionsService {
   }
 
   async deleteTransaction(transactionId: string): Promise<void> {
+    console.log('In Service: Deleting transaction', transactionId);
     await this.offlineCrud.remove('transactions', transactionId, async () => {
       const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
       const existing = await getDoc(transactionRef);
       if (!existing.exists() || existing.id !== transactionId) {
+        console.log('Transaction not found or access denied for deletion', transactionId);
         throw new Error('Transaction not found or access denied.');
       }
       await deleteDoc(transactionRef);

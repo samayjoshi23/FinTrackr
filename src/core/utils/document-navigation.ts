@@ -24,7 +24,7 @@ export function shouldShowDocumentBootLoader(): boolean {
 
 export function documentBootLoaderMessage(): string {
   const t = getDocumentNavType();
-  if (t === 'reload') return 'Reloading LogMyMudra...';
-  if (t === 'navigate') return 'Starting LogMyMudra...';
+  if (t === 'reload') return 'Reloading FinTrackr...';
+  if (t === 'navigate') return 'Starting FinTrackr...';
   return '';
 }

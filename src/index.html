@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>LogMyMudra</title>
+    <title>FinTrackr</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96" />
@@ -10,7 +10,7 @@
     <link rel="shortcut icon" href="favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="apple-mobile-web-app-title" content="LogMyMudra" />
+    <meta name="apple-mobile-web-app-title" content="FinTrackr" />
     <meta name="theme-color" content="#059669" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -120,7 +120,7 @@
       })();
     </script>
     <app-root>
-      <div id="fintrackr-boot" role="status" aria-live="polite" aria-label="LogMyMudra">
+      <div id="fintrackr-boot" role="status" aria-live="polite" aria-label="FinTrackr">
         <div class="fintrackr-boot__inner">
           <div class="fintrackr-boot__mark" aria-hidden="true">
             <img
@@ -132,7 +132,7 @@
             />
           </div>
           <div>
-            <p class="fintrackr-boot__title">LogMyMudra</p>
+            <p class="fintrackr-boot__title">FinTrackr</p>
             <p class="fintrackr-boot__sub" id="fintrackr-boot-sub"></p>
           </div>
           <div class="fintrackr-boot__spinner" aria-hidden="true"></div>
@@ -150,11 +150,11 @@
           var sub = document.getElementById('fintrackr-boot-sub');
           if (!root || !sub) return;
           if (type === 'reload') {
-            sub.textContent = 'Reloading LogMyMudra...';
-            root.setAttribute('aria-label', 'Reloading LogMyMudra');
+            sub.textContent = 'Reloading FinTrackr...';
+            root.setAttribute('aria-label', 'Reloading FinTrackr');
           } else if (type === 'navigate') {
-            sub.textContent = 'Starting LogMyMudra...';
-            root.setAttribute('aria-label', 'Starting LogMyMudra');
+            sub.textContent = 'Starting FinTrackr...';
+            root.setAttribute('aria-label', 'Starting FinTrackr');
           } else {
             root.style.display = 'none';
             root.setAttribute('aria-hidden', 'true');

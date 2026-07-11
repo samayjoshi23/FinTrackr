@@ -1,5 +1,5 @@
 /**
- * LogMyMudra Cloud Functions entry point.
+ * FinTrackr Cloud Functions entry point.
  *
  * Functions exported here:
  *   - onNotificationCreate   : Firestore trigger → send FCM push on new notification

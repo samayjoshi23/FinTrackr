@@ -12,12 +12,6 @@ export const quickActions = [
     themeClass: 'button-violet',
   },
   {
-    label: 'Categories',
-    icon: 'tags',
-    link: 'user/categories',
-    themeClass: 'button-yellow',
-  },
-  {
     label: 'Reports',
     icon: 'bar-graph',
     link: 'user/reports',

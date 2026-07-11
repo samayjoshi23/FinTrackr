@@ -19,6 +19,7 @@ import {
 const FIRESTORE_COLLECTION_BY_STORE: Record<string, string> = {
   transactions: 'transactions',
   budgets: 'budgets',
+  budgetPlans: 'budgetPlans',
   goals: 'goals',
   categories: 'categories',
   accounts: 'accounts',
@@ -364,7 +365,9 @@ export class OfflineCrudService {
     firestoreFn: () => Promise<void>,
     extraPayload?: Record<string, unknown>,
   ): Promise<void> {
+    console.log('OfflineCrudService: remove', storeName, docId, extraPayload);
     await this.cache.delete(storeName, docId);
+    console.log('OfflineCrudService: removed from cache, now attempting Firestore delete', storeName, docId);
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -377,14 +380,19 @@ export class OfflineCrudService {
       this.notifier.show('Deleted offline. Will sync when connected.', NotifierSeverity.WARNING);
     };
 
+    console.log('OfflineCrudService: checking network status for Firestore delete', storeName, docId);
+
     if (!this.network.isOnline()) {
       await enqueuePending();
+      console.log('OfflineCrudService: offline, queued delete for sync', storeName, docId);
       return;
     }
 
     try {
       await firestoreFn();
-    } catch {
+      console.log('OfflineCrudService: successfully deleted from Firestore', storeName, docId);
+    } catch (e: Error | unknown) {
+      console.log('OfflineCrudService: failed to delete from Firestore', storeName, docId, e);
       await enqueuePending();
     }
   }

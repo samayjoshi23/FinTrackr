@@ -77,10 +77,10 @@ export const routes: Routes = [
           import('./../features/budgets/pages/new-budget/new-budget').then((m) => m.NewBudget),
       },
       {
+        // Budgets are now a single plan per account; editing happens in the plan editor.
         path: 'budgets/edit/:id',
-        data: { browserBackTarget: '/user/budgets' },
-        loadComponent: () =>
-          import('./../features/budgets/pages/edit-budget/edit-budget').then((m) => m.EditBudget),
+        redirectTo: 'budgets/new',
+        pathMatch: 'full',
       },
       {
         path: 'goals',
@@ -93,7 +93,7 @@ export const routes: Routes = [
       },
       {
         path: 'categories',
-        data: { browserBackTarget: '/user/dashboard' },
+        data: { browserBackTarget: '/user/settings' },
         loadComponent: () =>
           import('./../features/categories/pages/categories/categories').then((m) => m.Categories),
       },

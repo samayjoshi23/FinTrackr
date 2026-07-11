@@ -3,7 +3,7 @@ import { DBConfig } from 'ngx-indexed-db';
 export const indexedDbConfig: DBConfig = {
   name: 'FinTrackrDB',
   /** Bump when adding object stores or indexes so existing DBs run upgrade (e.g. `notifications`). */
-  version: 6,
+  version: 7,
   objectStoresMeta: [
     {
       store: 'accounts',
@@ -38,6 +38,14 @@ export const indexedDbConfig: DBConfig = {
         { name: 'ownerId', keypath: 'ownerId', options: { unique: false } },
         { name: 'accountId', keypath: 'accountId', options: { unique: false } },
         { name: 'month', keypath: 'month', options: { unique: false } },
+      ],
+    },
+    {
+      store: 'budgetPlans',
+      storeConfig: { keyPath: 'id', autoIncrement: false },
+      storeSchema: [
+        { name: 'ownerId', keypath: 'ownerId', options: { unique: false } },
+        { name: 'accountId', keypath: 'accountId', options: { unique: false } },
       ],
     },
     {

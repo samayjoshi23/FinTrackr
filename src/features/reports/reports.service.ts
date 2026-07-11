@@ -19,7 +19,7 @@ import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.servi
 import { NetworkService } from '../../core/offline/network.service';
 import { date, transactionEventDate } from '../../core/date';
 import { TransactionRecord } from '../../shared/models/transaction.model';
-import { Budget } from '../../shared/models/budget.model';
+import { Budget, BudgetPlan } from '../../shared/models/budget.model';
 import { Category } from '../categories/types';
 import {
   MonthlyReport,
@@ -97,9 +97,9 @@ export class ReportsService {
    * Firestore revalidation runs in the background. Monthly report docs are refreshed the same way.
    */
   async getReportViewData(period: ReportTimePeriod): Promise<ReportViewData> {
-    const [categories, budgets, transactions] = await Promise.all([
+    const [categories, plan, transactions] = await Promise.all([
       this.categoriesService.getCategories(),
-      this.budgetsService.getBudgets(),
+      this.budgetsService.getBudgetPlan(),
       this.transactionsService.getTransactions(),
     ]);
 
@@ -107,7 +107,7 @@ export class ReportsService {
       categories.map((c: Category) => [c.name.toLowerCase(), c.icon]),
     );
 
-    return this.buildViewData(transactions, budgets, iconMap, period);
+    return this.buildViewData(transactions, plan, categories, iconMap, period);
   }
 
   /**
@@ -235,7 +235,7 @@ export class ReportsService {
   async createOnboardingStarterMonthlyReport(
     accountId: string,
     categories: Array<{ uid: string; name: string }>,
-    budgetForCategory?: { categoryUid: string; limit: number } | null,
+    budget?: { monthlyBudget: number; categoryBudgets: Record<string, number> } | null,
     initialBalance?: number,
   ): Promise<void> {
     if (!accountId || categories.length === 0) return;
@@ -244,14 +244,31 @@ export class ReportsService {
     const existing = await this.findReportForMonthInCacheOnly(accountId, monthKey);
     if (existing) return;
 
+    const categoryBudgets = budget?.categoryBudgets ?? {};
+    const monthlyBudget = budget?.monthlyBudget ?? 0;
+
     const categoryBreakdown: Record<string, CategoryBreakdownEntry> = {};
+    let budgetedLimitTotal = 0;
     for (const c of categories) {
-      const hasBudget =
-        budgetForCategory && budgetForCategory.categoryUid === c.uid && budgetForCategory.limit > 0;
+      const lim = Number(categoryBudgets[c.uid] ?? 0);
+      const hasBudget = lim > 0;
+      if (hasBudget) budgetedLimitTotal += lim;
       categoryBreakdown[monthlyReportCategoryKey(c.uid)] = {
         name: c.name,
         amount: 0,
-        budget: hasBudget ? budgetForCategory.limit : null,
+        budget: hasBudget ? lim : null,
+        used: 0,
+        overspent: false,
+      };
+    }
+
+    // Seed the derived "Other" allowance so reports reflect it from day one.
+    const otherLimit = Math.max(0, monthlyBudget - budgetedLimitTotal);
+    if (otherLimit > 0) {
+      categoryBreakdown[monthlyReportCategoryKey('other')] = {
+        name: 'Other',
+        amount: 0,
+        budget: otherLimit,
         used: 0,
         overspent: false,
       };
@@ -296,9 +313,9 @@ export class ReportsService {
     if (!accountId) return;
     const existing = await this.findReportForMonth(accountId, monthKey);
 
-    const [transactions, budgets, categories] = await Promise.all([
+    const [transactions, plan, categories] = await Promise.all([
       this.transactionsService.getTransactions(),
-      this.budgetsService.getBudgets(),
+      this.budgetsService.getBudgetPlan(),
       this.categoriesService.getCategories(),
     ]);
 
@@ -306,7 +323,7 @@ export class ReportsService {
       accountId,
       monthKey,
       transactions,
-      budgets,
+      plan,
       categories,
     );
 
@@ -338,7 +355,7 @@ export class ReportsService {
     accountId: string,
     monthKey: string,
     transactions: TransactionRecord[],
-    budgets: Budget[],
+    plan: BudgetPlan | null,
     categories: Category[],
   ): MonthlyReportCreateInput | MonthlyReportUpdateInput {
     const monthTransactions = this.filterTransactionsForMonth(transactions, monthKey);
@@ -348,18 +365,17 @@ export class ReportsService {
       byLowerName,
     );
 
-    const budgetByCategory = this.aggregateBudgetsByCategoryForMonth(
-      monthKey,
-      budgets,
-      byLowerName,
-    );
-    const totalBudget = [...budgetByCategory.values()].reduce((a, b) => a + b, 0);
-    const totalBudgetUsed = totalBudget > 0 ? Math.round((totalExpense / totalBudget) * 100) : 0;
+    // Budget limits come from the single recurring plan (categoryId → limit).
+    const budgetByCategory = this.planCategoryBudgets(plan);
+    const monthlyBudget = plan?.monthlyBudget ?? 0;
+    const totalBudgetUsed =
+      monthlyBudget > 0 ? Math.round((totalExpense / monthlyBudget) * 100) : 0;
 
     const categoryBreakdown = this.buildCategoryBreakdown(
       expenseByCategory,
       budgetByCategory,
       categories,
+      monthlyBudget,
     );
 
     return {
@@ -371,6 +387,17 @@ export class ReportsService {
       totalBudgetUsed,
       categoryBreakdown,
     };
+  }
+
+  /** Plan's per-category limits as a categoryId → limit map (empty when no plan). */
+  private planCategoryBudgets(plan: BudgetPlan | null): Map<string, number> {
+    const map = new Map<string, number>();
+    if (!plan) return map;
+    for (const [id, limit] of Object.entries(plan.categoryBudgets)) {
+      const n = Number(limit ?? 0);
+      if (id && n > 0) map.set(id, n);
+    }
+    return map;
   }
 
   private filterTransactionsForMonth(
@@ -447,49 +474,11 @@ export class ReportsService {
     return { id: `unmapped_${this.stableNameHash(lower)}`, displayName: raw };
   }
 
-  private monthLongNameFromMonthKey(monthKey: string): string {
-    const parts = monthKey.split('-');
-    const y = Number(parts[0]);
-    const m = Number(parts[1]);
-    if (!y || !m) return '';
-    return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long' });
-  }
-
-  /** Budget rows that apply to this report month (unset month = all months). */
-  private filterBudgetsForMonth(monthKey: string, budgets: Budget[]): Budget[] {
-    const longName = this.monthLongNameFromMonthKey(monthKey);
-    return budgets.filter((b) => {
-      const bm = (b.month ?? '').trim();
-      if (!bm) return true;
-      const bml = bm.toLowerCase();
-      return bml === longName.toLowerCase() || bm === monthKey || bm.startsWith(`${monthKey}-`);
-    });
-  }
-
-  private aggregateBudgetsByCategoryForMonth(
-    monthKey: string,
-    budgets: Budget[],
-    byLowerName: Map<string, Category>,
-  ): Map<string, number> {
-    const map = new Map<string, number>();
-    for (const b of this.filterBudgetsForMonth(monthKey, budgets)) {
-      let id: string;
-      const catId = b.categoryId?.trim();
-      if (catId) {
-        id = catId;
-      } else {
-        const catName = (b.category ?? '').trim() || 'Uncategorized';
-        id = this.resolveExpenseCategory(catName, byLowerName).id;
-      }
-      map.set(id, (map.get(id) ?? 0) + Number(b.limit ?? 0));
-    }
-    return map;
-  }
-
   private buildCategoryBreakdown(
     expenseByCategory: Map<string, { amount: number; displayName: string }>,
     budgetByCategory: Map<string, number>,
     categories: Category[],
+    monthlyBudget: number,
   ): Record<string, CategoryBreakdownEntry> {
     const byId = new Map<string, Category>();
     for (const c of categories) byId.set(c.uid, c);
@@ -500,7 +489,11 @@ export class ReportsService {
     for (const c of categories) ids.add(c.uid);
 
     const breakdown: Record<string, CategoryBreakdownEntry> = {};
+    let budgetedLimitTotal = 0;
+    let budgetedSpendTotal = 0;
+
     for (const id of ids) {
+      if (id === 'other') continue; // handled below as the derived bucket
       const exp = expenseByCategory.get(id);
       const amount = exp?.amount ?? 0;
       const budget = budgetByCategory.has(id) ? budgetByCategory.get(id)! : null;
@@ -508,12 +501,25 @@ export class ReportsService {
       const name = cat?.name ?? exp?.displayName ?? 'Other';
       const used = budget !== null && budget > 0 ? Math.round((amount / budget) * 100) : 0;
       const overspent = budget !== null && budget > 0 && amount > budget;
-      breakdown[monthlyReportCategoryKey(id)] = {
-        name,
-        amount,
+      if (budget !== null && budget > 0) {
+        budgetedLimitTotal += budget;
+        budgetedSpendTotal += amount;
+      }
+      breakdown[monthlyReportCategoryKey(id)] = { name, amount, budget, used, overspent };
+    }
+
+    // "Other": leftover monthly allowance + all spend not attributed to a budgeted category.
+    const otherLimit = Math.max(0, monthlyBudget - budgetedLimitTotal);
+    const totalExpense = [...expenseByCategory.values()].reduce((a, e) => a + e.amount, 0);
+    const otherAmount = Math.max(0, totalExpense - budgetedSpendTotal);
+    if (otherLimit > 0 || otherAmount > 0) {
+      const budget = otherLimit > 0 ? otherLimit : null;
+      breakdown[monthlyReportCategoryKey('other')] = {
+        name: 'Other',
+        amount: otherAmount,
         budget,
-        used,
-        overspent,
+        used: budget && budget > 0 ? Math.round((otherAmount / budget) * 100) : 0,
+        overspent: !!budget && budget > 0 && otherAmount > budget,
       };
     }
     return breakdown;
@@ -523,7 +529,8 @@ export class ReportsService {
 
   private buildViewData(
     transactions: TransactionRecord[],
-    budgets: Budget[],
+    plan: BudgetPlan | null,
+    categories: Category[],
     iconMap: Map<string, string>,
     period: ReportTimePeriod,
   ): ReportViewData {
@@ -537,7 +544,7 @@ export class ReportsService {
       barData,
       pieData: this.computePieData(filtered),
       savingsTrend: this.computeSavingsTrend(transactions, period),
-      budgetCards: this.computeBudgetCards(transactions, budgets, iconMap),
+      budgetCards: this.computeBudgetCards(transactions, plan, categories, iconMap),
       topCategories: this.computeTopCategories(filtered, iconMap),
       xAxisLabels,
     };
@@ -757,40 +764,59 @@ export class ReportsService {
 
   private computeBudgetCards(
     transactions: TransactionRecord[],
-    budgets: Budget[],
+    plan: BudgetPlan | null,
+    categories: Category[],
     iconMap: Map<string, string>,
   ): BudgetTrackingCard[] {
+    if (!plan) return [];
     const currentMonth = this.toMonthKey(date().toDate());
-    const currentMonthLabel = date().toDate().toLocaleString('en-US', { month: 'long' });
+    const catById = new Map(categories.map((c) => [c.uid, c]));
 
-    const relevantBudgets = budgets.filter((b) => {
-      const bm = (b.month ?? '').trim();
-      return !bm || bm.toLowerCase() === currentMonthLabel.toLowerCase();
-    });
-
+    // Current-month spend keyed by lowercased category name.
     const spentMap = new Map<string, number>();
     for (const t of transactions) {
       if (t.type !== 'expense') continue;
       const ev = transactionEventDate(t);
       if (!ev || this.toMonthKey(ev) !== currentMonth) continue;
-      const cat = (t.category ?? '').trim() || 'Uncategorized';
+      const cat = (t.category ?? '').trim().toLowerCase() || 'uncategorized';
       spentMap.set(cat, (spentMap.get(cat) ?? 0) + Number(t.amount ?? 0));
     }
 
-    return relevantBudgets.map((b) => {
-      const cat = (b.category ?? '').trim() || 'Uncategorized';
-      const amount = spentMap.get(cat) ?? 0;
-      const budget = b.limit;
-      const used = budget > 0 ? Math.round((amount / budget) * 100) : 0;
-      return {
-        category: cat,
-        icon: iconMap.get(cat.toLowerCase()) ?? 'tags',
+    const cards: BudgetTrackingCard[] = [];
+    let budgetedLimitTotal = 0;
+    let budgetedSpendTotal = 0;
+    for (const [categoryId, rawLimit] of Object.entries(plan.categoryBudgets)) {
+      const budget = Number(rawLimit ?? 0);
+      if (!(budget > 0)) continue;
+      const name = catById.get(categoryId)?.name ?? 'Category';
+      const amount = spentMap.get(name.trim().toLowerCase()) ?? 0;
+      budgetedLimitTotal += budget;
+      budgetedSpendTotal += amount;
+      cards.push({
+        category: name,
+        icon: iconMap.get(name.toLowerCase()) ?? 'tags',
         amount,
         budget,
-        used,
+        used: budget > 0 ? Math.round((amount / budget) * 100) : 0,
         overspent: amount > budget,
-      };
-    });
+      });
+    }
+
+    // "Other": leftover allowance + non-budgeted spend.
+    const otherBudget = Math.max(0, (plan.monthlyBudget ?? 0) - budgetedLimitTotal);
+    const totalMonthSpend = [...spentMap.values()].reduce((a, b) => a + b, 0);
+    const otherAmount = Math.max(0, totalMonthSpend - budgetedSpendTotal);
+    if (otherBudget > 0 || otherAmount > 0) {
+      cards.push({
+        category: 'Other',
+        icon: 'other',
+        amount: otherAmount,
+        budget: otherBudget,
+        used: otherBudget > 0 ? Math.round((otherAmount / otherBudget) * 100) : 0,
+        overspent: otherBudget > 0 && otherAmount > otherBudget,
+      });
+    }
+    return cards;
   }
 
   // ─── Top spending categories ──────────────────────────────────────────────

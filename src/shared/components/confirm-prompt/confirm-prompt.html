@@ -28,10 +28,17 @@
       </button>
       <button
         type="button"
-        class="flex-1 py-2.5 rounded-xl text-sm font-medium {{ confirmButtonClass() }}"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium {{ confirmButtonClass() }} disabled:opacity-60 flex items-center justify-center gap-2"
+        [disabled]="isLoading()"
         (click)="onConfirm()"
       >
-        {{ confirmText() }}
+        @if (isLoading()) 
+        {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+          <span>{{ loadingText() }}</span>
+        } @else {
+          <span>{{ confirmText() }}</span>
+        }
       </button>
     </div>
   </div>

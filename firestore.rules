@@ -3,7 +3,7 @@ rules_version = '2';
 //
 // Collections covered:
 //   users (+ notifications, devices), accounts, transactions, recurring-transactions,
-//   budgets, goals, categories, monthlyReports
+//   budgets, budgetPlans, goals, categories, monthlyReports
 // Cloud Functions use the Admin SDK and bypass these rules.
 
 service cloud.firestore {
@@ -99,6 +99,15 @@ service cloud.firestore {
 
     // ─── Budgets / goals / categories (account-scoped) ──────────────────────
     match /budgets/{budgetId} {
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow update: if canAccessAccount(resource.data.accountId)
+        && request.resource.data.accountId == resource.data.accountId;
+      allow delete: if canAccessAccount(resource.data.accountId);
+    }
+
+    // Single recurring budget plan per account (doc id == accountId).
+    match /budgetPlans/{accountId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
