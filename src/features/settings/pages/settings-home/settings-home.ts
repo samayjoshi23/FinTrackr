@@ -13,7 +13,6 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import { Account } from '../../../../shared/models/account.model';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 import { GENERAL_SETTINGS } from '../../types';
-import { CdkConnectedOverlay } from "@angular/cdk/overlay";
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -21,7 +20,7 @@ const THEME_KEY = 'fintrackr-theme';
 
 @Component({
   selector: 'app-settings-home',
-  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule, SignedAmountPipe, CdkConnectedOverlay],
+  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule, SignedAmountPipe],
   templateUrl: './settings-home.html',
   styleUrl: './settings-home.css',
 })

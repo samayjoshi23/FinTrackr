@@ -7,7 +7,7 @@
  *   - scheduledDailyNotifications : Cron (daily 09:00 IST) → generate system notifications
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifyGroupExpense = exports.recordTransactionForUser = exports.recordGroupSettlement = exports.respondGroupInvite = exports.sendGroupInvite = exports.respondAccountInvite = exports.onAccountUpdated = exports.onAccountCreated = exports.scheduledDailyNotifications = exports.onNotificationCreate = void 0;
+exports.onUserProfileWrite = exports.notifyGroupExpense = exports.recordTransactionForUser = exports.recordGroupSettlement = exports.respondGroupInvite = exports.sendGroupInvite = exports.respondAccountInvite = exports.onAccountUpdated = exports.onAccountCreated = exports.scheduledDailyNotifications = exports.onNotificationCreate = void 0;
 const app_1 = require("firebase-admin/app");
 // Initialize once at cold start
 (0, app_1.initializeApp)();
@@ -26,4 +26,6 @@ var group_transactions_1 = require("./group-transactions");
 Object.defineProperty(exports, "recordGroupSettlement", { enumerable: true, get: function () { return group_transactions_1.recordGroupSettlement; } });
 Object.defineProperty(exports, "recordTransactionForUser", { enumerable: true, get: function () { return group_transactions_1.recordTransactionForUser; } });
 Object.defineProperty(exports, "notifyGroupExpense", { enumerable: true, get: function () { return group_transactions_1.notifyGroupExpense; } });
+var user_directory_1 = require("./user-directory");
+Object.defineProperty(exports, "onUserProfileWrite", { enumerable: true, get: function () { return user_directory_1.onUserProfileWrite; } });
 //# sourceMappingURL=index.js.map
