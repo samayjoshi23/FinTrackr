@@ -27,6 +27,7 @@ import {
   DEFAULT_CATEGORIES,
 } from '../../../categories/types';
 import { currencies, budgetSuggestionCards } from '../../../../core/auth/onboarding/types';
+import { AuthService } from '../../../../core/auth/auth.service';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 import { UsersSearchFilterPipe } from '../../../../shared/pipes/users-search-filter.pipe';
 
@@ -83,6 +84,7 @@ const CREATE_ACCOUNT_PAGES: {
   styleUrl: './create-account.css',
 })
 export class CreateAccount {
+  private readonly authService = inject(AuthService);
   private readonly accountsService = inject(AccountsService);
   private readonly categoriesService = inject(CategoriesService);
   private readonly budgetsService = inject(BudgetsService);
@@ -146,7 +148,7 @@ export class CreateAccount {
   private ownerUid = '';
 
   ngOnInit() {
-    const profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    const profile = this.authService.getCachedProfile() as UserProfile | null;
     this.userProfile.set(profile);
     this.ownerUid = (profile?.['uid'] as string) ?? '';
     this.formModel.budget.month = new Date().toLocaleString('en-US', { month: 'long' });
@@ -224,7 +226,6 @@ export class CreateAccount {
       this.usersLookup.resetDirectory();
       return;
     }
-    void this.usersLookup.loadUsersDirectory();
   }
 
   removeInvitedMember(uid: string) {
@@ -233,7 +234,7 @@ export class CreateAccount {
 
   onMemberSearchChange(): void {
     const q = this.memberSearchQuery.trim();
-    if (q.length >= 2) void this.usersLookup.loadUsersDirectory();
+    void this.usersLookup.searchByEmail(q);
   }
 
   pickMember(hit: UserLookupHit, ev: Event): void {

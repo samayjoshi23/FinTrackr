@@ -15,6 +15,49 @@ import { recomputeMonthlyReportForAccount } from './monthly-report-sync';
 
 const TRANSACTIONS_COLLECTION = 'transactions';
 
+// Guard limits for amount validation — reject clearly-invalid numbers early
+// so a compromised client can't submit NaN, Infinity, or absurd values.
+const MAX_AMOUNT = 1e9;
+const AMOUNT_TOLERANCE = 0.01;
+
+// ─── Authorization helpers ────────────────────────────────────────────────────
+
+/**
+ * Read a group doc and confirm both `callerUid` and `otherUid` are members
+ * (creator counts as a member). Throws `permission-denied` if not.
+ * Returns the group data on success.
+ */
+async function requireGroupMembership(
+  db: FirebaseFirestore.Firestore,
+  groupId: string,
+  callerUid: string,
+  otherUid: string,
+): Promise<FirebaseFirestore.DocumentData> {
+  const snap = await db.collection('groups').doc(groupId).get();
+  if (!snap.exists) {
+    throw new HttpsError('not-found', `Group ${groupId} not found.`);
+  }
+  const data = snap.data() ?? {};
+  const active: string[] = Array.isArray(data['activeMemberIds']) ? data['activeMemberIds'] : [];
+  const creator = data['creatorId'] as string | undefined;
+  const isMember = (uid: string) => uid === creator || active.includes(uid);
+  if (!isMember(callerUid)) {
+    throw new HttpsError('permission-denied', 'Caller is not a member of this group.');
+  }
+  if (!isMember(otherUid)) {
+    throw new HttpsError('permission-denied', 'Target user is not a member of this group.');
+  }
+  return data;
+}
+
+function requireFiniteAmount(amount: unknown): number {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0 || n > MAX_AMOUNT) {
+    throw new HttpsError('invalid-argument', 'Amount must be a positive finite number.');
+  }
+  return n;
+}
+
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 async function getAccountForUser(db: FirebaseFirestore.Firestore, userId: string): Promise<{
@@ -103,15 +146,42 @@ export const recordGroupSettlement = onCall(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
+  const callerUid = request.auth.uid;
 
   const data = request.data as RecordGroupSettlementPayload;
-  const { groupId, settlementId, creditorId, debtorId, debtorName, amount, description, category, source } = data;
+  const { groupId, settlementId, creditorId, debtorId, debtorName, description, category, source } = data;
 
-  if (!groupId || !settlementId || !creditorId || !debtorId || !amount) {
+  if (!groupId || !settlementId || !creditorId || !debtorId) {
     throw new HttpsError('invalid-argument', 'Missing required fields.');
   }
+  const amount = requireFiniteAmount(data.amount);
 
   const db = getFirestore();
+
+  // ─── Authorization ──────────────────────────────────────────────────────
+  // 1. Caller must be the debtor (they are settling their own debt).
+  if (callerUid !== debtorId) {
+    throw new HttpsError('permission-denied', 'Only the debtor can record this settlement.');
+  }
+  // 2. Both parties must be active members of the group.
+  await requireGroupMembership(db, groupId, callerUid, creditorId);
+  // 3. The settlement record must exist under the group with matching parties
+  //    and amount — prevents forging arbitrary transfers.
+  const settlementSnap = await db
+    .collection('groups').doc(groupId)
+    .collection('settlements').doc(settlementId)
+    .get();
+  if (!settlementSnap.exists) {
+    throw new HttpsError('not-found', 'Settlement record not found.');
+  }
+  const settlement = settlementSnap.data() ?? {};
+  if (
+    settlement['fromId'] !== debtorId ||
+    settlement['toId'] !== creditorId ||
+    Math.abs(Number(settlement['amount'] ?? 0) - amount) > AMOUNT_TOLERANCE
+  ) {
+    throw new HttpsError('invalid-argument', 'Settlement payload does not match the stored record.');
+  }
 
   // Find the creditor's primary account
   const accountSnap = await db
@@ -135,7 +205,8 @@ export const recordGroupSettlement = onCall(async (request) => {
     recordId: settlementId,
   };
 
-  // Create income transaction for creditor
+  // Create income transaction for creditor — `paidBy` is the debtor
+  // (authoritative: we already verified callerUid === debtorId above).
   await createTransactionForUser(db, {
     accountId: creditorAccountId,
     amount,
@@ -143,7 +214,7 @@ export const recordGroupSettlement = onCall(async (request) => {
     category: category || 'Other',
     type: 'income',
     source: source || 'UPI',
-    paidBy: debtorId,
+    paidBy: callerUid,
     linkedObject,
     date: todayDateString(),
   });
@@ -222,24 +293,75 @@ interface RecordTransactionPayload {
 }
 
 /**
- * Generic callable: creates a transaction under any user's account using Admin SDK.
- * Used for cross-user writes (e.g. creditor settling on behalf of debtor — Case 2).
+ * Cross-user transaction write via Admin SDK.
  *
- * Only callable by authenticated users; caller must pass their own UID as `paidBy`.
+ * Used ONLY when a group flow needs to post a transaction into another user's
+ * account (e.g. the group creator settling on behalf of a member — Case 2 of
+ * the settlement flow). Same-user writes must go direct to Firestore under
+ * that user's rules.
+ *
+ * Guards:
+ *   1. Caller must be authenticated.
+ *   2. Payload MUST reference a real group entity via `linkedObject`
+ *      (`group-expense` or `group-settlement`). No orphaned cross-user writes.
+ *   3. Caller AND target must both be active members of the referenced group.
+ *   4. The linked source doc must exist and its stored amount must match the
+ *      call's amount (within a rounding tolerance).
+ *   5. `paidBy` is derived from the auth token — client-supplied values are
+ *      ignored so audit attribution can never be forged.
  */
 export const recordTransactionForUser = onCall(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
+  const callerUid = request.auth.uid;
 
   const data = request.data as RecordTransactionPayload;
-  const { targetUid, amount, description, category, type, source, paidBy, linkedObject, updateReport } = data;
+  const { targetUid, description, category, type, source, linkedObject, updateReport } = data;
 
-  if (!targetUid || !amount || !type) {
-    throw new HttpsError('invalid-argument', 'targetUid, amount, and type are required.');
+  if (!targetUid || !type) {
+    throw new HttpsError('invalid-argument', 'targetUid and type are required.');
+  }
+  if (type !== 'income' && type !== 'expense') {
+    throw new HttpsError('invalid-argument', "type must be 'income' or 'expense'.");
+  }
+  const amount = requireFiniteAmount(data.amount);
+
+  // ─── Authorization ──────────────────────────────────────────────────────
+  // Every legitimate cross-user write ties back to a group expense or
+  // settlement; require the linkedObject up front so the call has an
+  // authoritative source doc we can re-read and verify against.
+  if (
+    !linkedObject ||
+    (linkedObject.type !== 'group-expense' && linkedObject.type !== 'group-settlement') ||
+    !linkedObject.id ||
+    !linkedObject.recordId
+  ) {
+    throw new HttpsError(
+      'invalid-argument',
+      'linkedObject must reference a group-expense or group-settlement.',
+    );
   }
 
   const db = getFirestore();
+  const groupId = linkedObject.id;
+
+  // Caller and target must both be members of the referenced group.
+  await requireGroupMembership(db, groupId, callerUid, targetUid);
+
+  // Verify the source doc exists and its amount matches — prevents a caller
+  // picking any real record id and inflating the transaction amount.
+  const sourceRef =
+    linkedObject.type === 'group-expense'
+      ? db.collection('groups').doc(groupId).collection('expenses').doc(linkedObject.recordId)
+      : db.collection('groups').doc(groupId).collection('settlements').doc(linkedObject.recordId);
+  const sourceSnap = await sourceRef.get();
+  if (!sourceSnap.exists) {
+    throw new HttpsError('not-found', 'Linked record not found under this group.');
+  }
+  if (Math.abs(Number(sourceSnap.data()?.['amount'] ?? 0) - amount) > AMOUNT_TOLERANCE) {
+    throw new HttpsError('invalid-argument', 'Amount does not match the linked record.');
+  }
 
   // Resolve account: prefer provided accountId, else find primary for targetUid
   let accountId = data.accountId ?? '';
@@ -258,7 +380,8 @@ export const recordTransactionForUser = onCall(async (request) => {
     category,
     type,
     source,
-    paidBy,
+    // paidBy is always the authenticated caller — never trust the client.
+    paidBy: callerUid,
     linkedObject,
     date: todayDateString(),
   });
@@ -292,21 +415,49 @@ interface NotifyGroupExpensePayload {
   description: string;
   amount: number;
   paidByName: string;
-  memberIds: string[];
+  /** @deprecated — no longer trusted; recipients are derived server-side. */
+  memberIds?: string[];
 }
 
 /**
- * Sends a notification to all group members (except the payer) about a new expense.
+ * Sends a notification to all group members (except the caller) about a new
+ * expense. `memberIds` from the payload is IGNORED — recipients come from the
+ * group doc server-side, so a caller cannot spam arbitrary uids with push
+ * notifications.
  */
 export const notifyGroupExpense = onCall(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
+  const callerUid = request.auth.uid;
 
   const data = request.data as NotifyGroupExpensePayload;
-  const { groupId, expenseId, description, amount, paidByName, memberIds } = data;
+  const { groupId, expenseId, description, amount, paidByName } = data;
 
-  if (!groupId || !memberIds?.length) {
+  if (!groupId) {
+    return { ok: true, skipped: true };
+  }
+
+  const db = getFirestore();
+
+  // Recipients: active members of the group, minus the caller.
+  const groupSnap = await db.collection('groups').doc(groupId).get();
+  if (!groupSnap.exists) {
+    throw new HttpsError('not-found', 'Group not found.');
+  }
+  const groupData = groupSnap.data() ?? {};
+  const active: string[] = Array.isArray(groupData['activeMemberIds'])
+    ? groupData['activeMemberIds']
+    : [];
+  const creator = groupData['creatorId'] as string | undefined;
+  // Caller must be a member to notify the group at all.
+  if (callerUid !== creator && !active.includes(callerUid)) {
+    throw new HttpsError('permission-denied', 'Caller is not a member of this group.');
+  }
+  const recipients = Array.from(new Set([...active, ...(creator ? [creator] : [])])).filter(
+    (uid) => uid && uid !== callerUid,
+  );
+  if (recipients.length === 0) {
     return { ok: true, skipped: true };
   }
 
@@ -317,12 +468,12 @@ export const notifyGroupExpense = onCall(async (request) => {
   }).format(amount);
 
   await Promise.allSettled(
-    memberIds.map((uid) =>
+    recipients.map((uid) =>
       createNotification(uid, {
         type: 'PAYMENT_REQUEST',
         title: 'New group expense',
         body: `${paidByName} added "${description}" for ${formatted}.`,
-        senderId: request.auth!.uid,
+        senderId: callerUid,
         receiverId: uid,
         accountId: null,
         entityType: 'group-expense',

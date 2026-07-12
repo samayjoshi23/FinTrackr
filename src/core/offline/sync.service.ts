@@ -1,9 +1,11 @@
-import { Injectable, inject, effect } from '@angular/core';
+import { Injectable, inject, effect, signal } from '@angular/core';
 import { NetworkService } from './network.service';
 import { SyncQueueService } from './sync-queue.service';
 import { IndexedDbCacheService } from './indexed-db-cache.service';
+import { RevalidationTrackerService } from './revalidation-tracker.service';
 import { NotifierService } from '../../shared/components/notifier/notifier.service';
 import { SyncQueueEntry } from './sync-queue.model';
+import { consolidateQueue } from './sync-queue-consolidator';
 
 import { AccountsService } from '../../services/accounts.service';
 import { TransactionsService } from '../../services/transactions.service';
@@ -39,6 +41,7 @@ export class SyncService {
   private readonly network = inject(NetworkService);
   private readonly syncQueue = inject(SyncQueueService);
   private readonly cache = inject(IndexedDbCacheService);
+  private readonly tracker = inject(RevalidationTrackerService);
   private readonly notifier = inject(NotifierService);
 
   private readonly accountsService = inject(AccountsService);
@@ -54,9 +57,25 @@ export class SyncService {
 
   private syncing = false;
 
+  /**
+   * Queue entries that exhausted their retries. Surfaced in the shell as a
+   * warning banner with retry/discard actions so offline changes can never be
+   * lost silently.
+   */
+  readonly failedEntries = signal<SyncQueueEntry[]>([]);
+
+  /**
+   * Months ('YYYY-MM') whose report must be rebuilt after this sync pass.
+   * Collected while processing entries so N synced transactions trigger ONE
+   * report rebuild per distinct month instead of one per entry (each rebuild
+   * re-reads transactions + budgets + categories).
+   */
+  private readonly pendingReportMonths = new Set<string>();
+
   constructor() {
-    // Reset any interrupted entries on startup
-    this.syncQueue.resetInterruptedEntries();
+    // Reset any interrupted entries on startup, then surface any stranded
+    // failures from previous sessions.
+    void this.syncQueue.resetInterruptedEntries().then(() => this.refreshFailedEntries());
 
     // Watch for online status changes and trigger sync
     effect(() => {
@@ -81,27 +100,62 @@ export class SyncService {
 
       this.notifier.show('Syncing offline changes...');
 
+      // Collapse redundant offline ops (N edits of one doc → 1 write). Chains that
+      // net out to nothing (create → delete, no side effects) vanish from the output;
+      // dequeue those originals up front — there is nothing to send for them.
+      const merged = consolidateQueue(pending);
+      const survivorIds = new Set(merged.flatMap((e) => e.sourceIds));
+      for (const entry of pending) {
+        if (!survivorIds.has(entry.id)) {
+          await this.syncQueue.dequeue(entry.id);
+        }
+      }
+
       let successCount = 0;
       let failCount = 0;
 
-      for (const entry of pending) {
+      for (const entry of merged) {
         try {
-          await this.syncQueue.markInProgress(entry.id);
+          for (const id of entry.sourceIds) {
+            await this.syncQueue.markInProgress(id);
+          }
           const success = await this.processEntry(entry);
           if (success) {
-            await this.syncQueue.dequeue(entry.id);
+            // Dequeue every original the consolidated entry absorbed — only after
+            // the server write succeeded, so a crash mid-sync loses nothing.
+            for (const id of entry.sourceIds) {
+              await this.syncQueue.dequeue(id);
+            }
+            // Server now holds canonical data (timestamps, ids) — force the next
+            // read of this store to revalidate.
+            this.tracker.markStale(entry.storeName);
             successCount++;
           } else {
             failCount++;
           }
         } catch (error) {
-          const retryCount = await this.syncQueue.incrementRetry(entry.id);
-          if (retryCount >= MAX_RETRIES) {
-            const msg = error instanceof Error ? error.message : 'Unknown error';
-            await this.syncQueue.markFailed(entry.id, msg);
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          // Originals of a consolidated entry retry in lockstep; when they exhaust
+          // MAX_RETRIES the whole group is marked failed (counted once).
+          let groupFailed = false;
+          for (const id of entry.sourceIds) {
+            const retryCount = await this.syncQueue.incrementRetry(id);
+            if (retryCount >= MAX_RETRIES) {
+              await this.syncQueue.markFailed(id, msg);
+              groupFailed = true;
+            }
+          }
+          if (groupFailed) {
             failCount++;
           }
         }
+      }
+
+      // One report rebuild per distinct affected month, after the whole pass.
+      if (this.pendingReportMonths.size > 0) {
+        const months = [...this.pendingReportMonths];
+        this.pendingReportMonths.clear();
+        await this.reportsService.rebuildReportsForMonths(months);
       }
 
       if (failCount === 0 && successCount > 0) {
@@ -111,7 +165,34 @@ export class SyncService {
       }
     } finally {
       this.syncing = false;
+      await this.refreshFailedEntries();
     }
+  }
+
+  /** Re-read failed entries from the queue into the banner signal. */
+  async refreshFailedEntries(): Promise<void> {
+    this.failedEntries.set(await this.syncQueue.getFailedEntries());
+  }
+
+  /** Requeue every failed entry and kick a sync pass immediately. */
+  async retryAllFailed(): Promise<void> {
+    const failed = this.failedEntries();
+    for (const entry of failed) {
+      await this.syncQueue.retryFailed(entry.id);
+    }
+    await this.refreshFailedEntries();
+    if (this.network.isOnline()) {
+      await this.syncAll();
+    }
+  }
+
+  /** Permanently discard every failed entry (user-confirmed). */
+  async discardAllFailed(): Promise<void> {
+    const failed = this.failedEntries();
+    for (const entry of failed) {
+      await this.syncQueue.discardFailed(entry.id);
+    }
+    await this.refreshFailedEntries();
   }
 
   private async processEntry(entry: SyncQueueEntry): Promise<boolean> {
@@ -173,7 +254,7 @@ export class SyncService {
           );
         }
         if (syncedRow) {
-          await this.reportsService.updateReportForTransaction(syncedRow).catch(() => {});
+          this.pendingReportMonths.add(this.reportsService.monthKeyForTransaction(syncedRow));
         }
         created = true;
         break;
@@ -189,7 +270,7 @@ export class SyncService {
       case 'budgetPlans':
         if (pre) {
           await this.budgetsService.applyPendingBudgetPlanCreate(pre.id, pre.rest);
-          await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+          this.pendingReportMonths.add(this.reportsService.currentMonthKey());
         } else {
           return false;
         }
@@ -298,7 +379,7 @@ export class SyncService {
         );
         {
           const row = await this.transactionsService.getTransaction(entry.docId);
-          if (row) await this.reportsService.updateReportForTransaction(row).catch(() => {});
+          if (row) this.pendingReportMonths.add(this.reportsService.monthKeyForTransaction(row));
         }
         break;
       case 'budgets':
@@ -306,14 +387,14 @@ export class SyncService {
           entry.docId,
           entry.payload as unknown as BudgetUpdateInput,
         );
-        await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+        this.pendingReportMonths.add(this.reportsService.currentMonthKey());
         break;
       case 'budgetPlans':
         await this.budgetsService.applyPendingBudgetPlanUpdate(
           entry.docId,
           entry.payload as Record<string, unknown>,
         );
-        await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+        this.pendingReportMonths.add(this.reportsService.currentMonthKey());
         break;
       case 'goals':
         await this.goalsService.updateGoal(
@@ -378,7 +459,9 @@ export class SyncService {
           const beforeDelete = await this.transactionsService.getTransaction(entry.docId);
           await this.transactionsService.deleteTransaction(entry.docId);
           if (beforeDelete) {
-            await this.reportsService.updateReportForTransaction(beforeDelete).catch(() => {});
+            this.pendingReportMonths.add(
+              this.reportsService.monthKeyForTransaction(beforeDelete),
+            );
           }
           break;
         }
@@ -416,6 +499,9 @@ export class SyncService {
 
   /** Clear all cached data and sync queue (call on logout). */
   async clearAllData(): Promise<void> {
+    this.tracker.reset();
+    this.accountsService.clearSessionCache();
+    this.categoriesService.clearSessionCache();
     await this.syncQueue.clearAll();
     await this.cache.clear('accounts');
     await this.cache.clear('transactions');

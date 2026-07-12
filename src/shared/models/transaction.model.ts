@@ -32,14 +32,6 @@ export interface TransactionRecord {
   createdAt: Date | null;
   updatedAt: Date | null;
   _pendingSync?: boolean;
-  /** @deprecated Use linkedObject.type === 'recurring' instead. Kept for backward-compat reads. */
-  isRecurring?: boolean | null;
-  /** @deprecated Use linkedObject.recordId instead. Kept for backward-compat reads. */
-  recurringTransactionId?: string | null;
-  /** @deprecated No longer stored on transactions. */
-  recurringFrequency?: string | null;
-  /** @deprecated No longer stored on transactions. */
-  nextPaymentDate?: Date | null;
 }
 
 export interface TransactionCreateInput {
@@ -56,14 +48,6 @@ export interface TransactionCreateInput {
   date?: string; // 'YYYY-MM-DD'
   /** Link to source entity (group expense/settlement or recurring schedule). */
   linkedObject?: LinkedObject | null;
-  /** @deprecated Use linkedObject instead. Kept for backward-compat writes during migration. */
-  isRecurring?: boolean | null;
-  /** @deprecated Use linkedObject.recordId instead. */
-  recurringTransactionId?: string | null;
-  /** @deprecated No longer stored on new transactions; kept for backward-compat service writes. */
-  recurringFrequency?: string | null;
-  /** @deprecated No longer stored on new transactions; kept for backward-compat service writes. */
-  nextPaymentDate?: Date | null;
 }
 
 /** Recurring schedule stored under `recurring-transactions/{id}` */

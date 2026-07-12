@@ -1,10 +1,23 @@
 rules_version = '2';
 // Deploy: `firebase deploy --only firestore`
 //
+// Security model:
+//   1. Server writes bypass rules (Cloud Functions use Admin SDK) — invites,
+//      cross-user transactions, notifications are minted server-side.
+//   2. Client reads/writes go through these rules. Every mutable doc uses the
+//      universal update-guard pattern:
+//          allow update: if <role predicate>
+//                        && onlyUpdatingAllowedFields([...changeable...])
+//                        && <immutable field equality assertions>
+//   3. Group multi-write flows preserved: any active member can create their
+//      own expense/settlement under a group, but only the author (or the group
+//      creator) can edit or delete it, and only a whitelist of flag fields is
+//      mutable on settlements (audit-trail integrity).
+//
 // Collections covered:
-//   users (+ notifications, devices), accounts, transactions, recurring-transactions,
-//   budgets, budgetPlans, goals, categories, monthlyReports
-// Cloud Functions use the Admin SDK and bypass these rules.
+//   users (+ notifications, devices, cron-markers), user-directory, accounts,
+//   transactions, recurring-transactions, monthlyReports, budgets, budgetPlans,
+//   goals, categories, groups (+ expenses, settlements).
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -13,7 +26,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Account access supports owner and accepted active members.
+    // Only unchanged if EVERY changed key is in the allowlist.
+    function onlyUpdatingAllowedFields(allowed) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(allowed);
+    }
+
+    // Same-value assertion for a single field (immutability check on update).
+    function unchanged(field) {
+      return !(field in request.resource.data)
+        ? !(field in resource.data)
+        : (field in resource.data) && request.resource.data[field] == resource.data[field];
+    }
+
+    // ─── Account access helpers ─────────────────────────────────────────────
     function canAccessAccount(accountId) {
       let account = get(/databases/$(database)/documents/accounts/$(accountId)).data;
       return isSignedIn() && (
@@ -34,13 +60,22 @@ service cloud.firestore {
       return isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // ─── User profile & subcollections ───────────────────────────────────────
+    // ─── User profile & subcollections ──────────────────────────────────────
     match /users/{userId} {
-      // Public read for invite / directory search from local devices.
-      allow read: if true;
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      // Self-only. Directory-style lookups (email → uid for invites) go
+      // through the denormalized /user-directory collection below.
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && onlyUpdatingAllowedFields([
+          'displayName', 'photoURL', 'email', 'provider',
+          'isOnboarded', 'updatedAt', 'createdAt', 'date'
+        ]);
+      allow delete: if false; // account deletion goes through a callable
 
-      // Notifications: created by Cloud Functions only; client may read / update status / delete.
+      // Notifications: created by Cloud Functions only; client may read /
+      // mark status / delete.
       match /notifications/{notificationId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
         allow update: if isSignedIn()
@@ -49,69 +84,104 @@ service cloud.firestore {
         allow delete: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // FCM devices: user manages their own.
       match /devices/{deviceId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isSignedIn() && request.auth.uid == userId;
       }
 
-      // Written only by scheduled functions (idempotency markers). No client access.
+      // Written only by scheduled functions (idempotency markers). No client.
       match /cron-markers/{markerId} {
         allow read, write: if false;
       }
     }
 
-    // ─── Accounts ────────────────────────────────────────────────────────────
+    // ─── User directory (denormalized, hashed-email lookup) ────────────────
+    // Mirror of users/{uid} maintained by the onUserProfileWrite trigger.
+    // Exposes only { uid, displayName, photoURL, emailHash } — no email PII.
+    // Enumeration blocked by the hash requirement (attacker needs the exact
+    // email to build the hash; can't range-query on hash).
+    match /user-directory/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ─── Accounts ───────────────────────────────────────────────────────────
+    // Owner has full CRUD on their own account with a strict allowlist.
+    // Members can READ but CANNOT WRITE — membership changes (add/remove) go
+    // through respondAccountInvite (Admin SDK). This closes the member-DoS
+    // finding (any member flipping isActive) and the ownership-transfer gap.
     match /accounts/{accountId} {
       allow read: if canAccessExistingAccount() || accountId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isAccountOwner() || (
-        canAccessExistingAccount() &&
-        onlyUpdatingAllowedFields(['isSelected', 'isActive', 'updatedAt'])
-      );
+      allow update: if isAccountOwner()
+        && onlyUpdatingAllowedFields([
+          'name', 'balance', 'currency', 'isSelected', 'isActive',
+          'members', 'accountType', 'updatedAt', 'date'
+        ])
+        && unchanged('ownerId')
+        && unchanged('memberIds')
+        && unchanged('activeMemberIds')
+        && unchanged('createdAt')
+        && unchanged('initialBalance');
       allow delete: if isAccountOwner() || accountId == request.auth.uid;
     }
 
-    // ─── Transactions (scoped by accountId; no ownerId field on document) ────
+    // ─── Transactions (scoped by accountId; no ownerId field) ──────────────
     match /transactions/{transactionId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('uid')
+        && unchanged('createdAt');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
-    // ─── Recurring transactions (same account scoping as transactions) ───────
+    // ─── Recurring transactions (same account scoping) ─────────────────────
     match /recurring-transactions/{recurringId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('uid')
+        && unchanged('createdAt');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
-    // ─── Monthly reports (monthlyReports — keyed by accountId in app queries) ─
+    // ─── Monthly reports (accountId in doc) ─────────────────────────────────
     match /monthlyReports/{reportId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('month')
+        && unchanged('uid')
+        && unchanged('createdAt')
+        && unchanged('initialBalance');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
-    // ─── Budgets / goals / categories (account-scoped) ──────────────────────
+    // ─── Budgets / budgetPlans / goals / categories (account-scoped) ───────
     match /budgets/{budgetId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('ownerId')
+        && unchanged('createdAt');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
     // Single recurring budget plan per account (doc id == accountId).
     match /budgetPlans/{accountId} {
       allow read: if canAccessAccount(resource.data.accountId);
-      allow create: if canAccessAccount(request.resource.data.accountId);
+      allow create: if canAccessAccount(request.resource.data.accountId)
+        && request.resource.data.accountId == accountId;
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('ownerId')
+        && unchanged('createdAt');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
@@ -119,7 +189,9 @@ service cloud.firestore {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('ownerId')
+        && unchanged('createdAt');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
@@ -127,11 +199,13 @@ service cloud.firestore {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
-        && request.resource.data.accountId == resource.data.accountId;
+        && unchanged('accountId')
+        && unchanged('ownerId')
+        && unchanged('createdAt');
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
-    // ─── Groups ───────────────────────────────────────────────────────────────
+    // ─── Groups ─────────────────────────────────────────────────────────────
     function canReadGroupData(groupData) {
       return isSignedIn() && (
         groupData.creatorId == request.auth.uid ||
@@ -153,30 +227,72 @@ service cloud.firestore {
     }
 
     match /groups/{groupId} {
-      // Temporary compatibility: legacy group docs may not yet have memberIds.
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update: if isSignedIn() && (
-        resource.data.creatorId == request.auth.uid ||
-        isGroupMember(groupId)
-      );
+      // Members-only read (was: any signed-in user).
+      allow read: if canReadGroupData(resource.data);
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid;
+      // Only the creator can update the group doc's basic fields.
+      // memberIds / activeMemberIds / members / creatorId can NEVER change
+      // via a client write — those come from Cloud Functions on invite flows.
+      allow update: if isSignedIn()
+        && resource.data.creatorId == request.auth.uid
+        && onlyUpdatingAllowedFields(['name', 'currency', 'icon', 'updatedAt'])
+        && unchanged('creatorId')
+        && unchanged('members')
+        && unchanged('memberIds')
+        && unchanged('activeMemberIds')
+        && unchanged('createdAt');
       allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
 
+      // ─── Group expenses (author-scoped writes) ───────────────────────────
+      // Any active member can create an expense they authored (createdBy must
+      // equal caller). Only the author (or the group creator, for moderation)
+      // can update or delete. groupId / createdBy / createdAt are immutable.
       match /expenses/{expenseId} {
-        allow read: if isSignedIn();
-        allow write: if isGroupCreator(groupId) || isGroupMember(groupId);
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.groupId == groupId;
+        allow update: if (
+            resource.data.createdBy == request.auth.uid ||
+            isGroupCreator(groupId)
+          )
+          && onlyUpdatingAllowedFields([
+            'description', 'amount', 'currency', 'category', 'source',
+            'paidById', 'paidByName', 'paidByIds', 'paidByNames',
+            'splits', 'splitMode', 'splitAmong', 'members',
+            'isSettled', 'settledAt', 'date', 'updatedAt'
+          ])
+          && unchanged('groupId')
+          && unchanged('createdBy')
+          && unchanged('createdAt');
+        allow delete: if resource.data.createdBy == request.auth.uid
+          || isGroupCreator(groupId);
       }
 
+      // ─── Group settlements (near-immutable audit records) ────────────────
+      // Any active member can create a settlement they authored. After
+      // creation, only 'isSettled' / 'settledAt' / 'isVerified' / 'updatedAt'
+      // can change, and only by the author or the recipient (toId).
+      // Amounts, parties, group linkage are frozen. Delete is denied entirely.
       match /settlements/{settlementId} {
-        allow read: if isSignedIn();
-        allow write: if isGroupCreator(groupId) || isGroupMember(groupId);
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.groupId == groupId;
+        allow update: if (
+            resource.data.createdBy == request.auth.uid ||
+            resource.data.toId == request.auth.uid
+          )
+          && onlyUpdatingAllowedFields(['isSettled', 'settledAt', 'isVerified', 'updatedAt'])
+          && unchanged('amount')
+          && unchanged('fromId')
+          && unchanged('toId')
+          && unchanged('groupId')
+          && unchanged('createdBy')
+          && unchanged('createdAt');
+        allow delete: if false;
       }
-    }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-    function onlyUpdatingAllowedFields(allowed) {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly(allowed);
     }
   }
 }

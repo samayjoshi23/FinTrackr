@@ -81,6 +81,33 @@ export class SyncQueueService {
     return pending.some((e) => e.storeName === storeName);
   }
 
+  /** Entries that exhausted their retries — excluded from normal flushes. */
+  async getFailedEntries(): Promise<SyncQueueEntry[]> {
+    const all = await this.cache.getAll<SyncQueueEntry>(STORE);
+    return all.filter((e) => e.status === 'failed').sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  /** Requeue a failed entry: back to `pending` with a fresh retry budget. */
+  async retryFailed(entryId: string): Promise<void> {
+    const entry = await this.cache.getByKey<SyncQueueEntry>(STORE, entryId);
+    if (entry && entry.status === 'failed') {
+      entry.status = 'pending';
+      entry.retryCount = 0;
+      entry.errorMessage = undefined;
+      await this.cache.put(STORE, entry);
+      await this.updatePendingCount();
+    }
+  }
+
+  /** Permanently drop a failed entry the user chose not to retry. */
+  async discardFailed(entryId: string): Promise<void> {
+    const entry = await this.cache.getByKey<SyncQueueEntry>(STORE, entryId);
+    if (entry && entry.status === 'failed') {
+      await this.cache.delete(STORE, entryId);
+      await this.updatePendingCount();
+    }
+  }
+
   async clearAll(): Promise<void> {
     await this.cache.clear(STORE);
     this.network.pendingSyncCount.set(0);

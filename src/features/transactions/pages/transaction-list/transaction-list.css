@@ -19,3 +19,9 @@
 .tx-list-search-input:focus {
   box-shadow: none !important;
 }
+
+/* Virtualized list viewport: fills the remaining page height so only ~30 rows stay live */
+.tx-scroll-viewport {
+  flex: 1;
+  min-height: 20rem;
+}

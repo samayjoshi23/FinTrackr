@@ -3,7 +3,7 @@
   <div class="flex items-center justify-between shrink-0">
     <div class="flex items-center gap-2">
       <div
-        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        class="h-9 w-9 rounded-full button-secondary"
         (click)="onBack()"
       >
         <ico name="left-arrow" size="sm"></ico>
@@ -13,7 +13,7 @@
     @if (!createExpanded()) {
       <div
         type="button"
-        class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
+        class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
         (click)="toggleCreatePanel()"
         [attr.aria-expanded]="createExpanded()"
         aria-label="Create group"
@@ -144,9 +144,9 @@
                         class="w-full flex items-center gap-3 px-3 py-2.5 text-left bg-secondary-light"
                         (click)="pickMember(hit, $event)"
                       >
-                        @if (hit.photoURL) {
+                        @if (hit.photoURL | safePhotoUrl; as safeUrl) {
                           <img
-                            [src]="hit.photoURL"
+                            [src]="safeUrl"
                             alt=""
                             class="h-9 w-9 rounded-full object-cover shrink-0"
                             referrerpolicy="no-referrer"
@@ -182,9 +182,9 @@
             <div class="flex flex-col gap-2 mt-1 border-t border-[var(--color-border)]">
               @for (m of invitedMembers(); track m.uid) {
                 <div class="p-2.5 flex items-center gap-3 border-b border-[var(--color-border)]">
-                  @if (m.photoURL) {
+                  @if (m.photoURL | safePhotoUrl; as safeUrl) {
                     <img
-                      [src]="m.photoURL"
+                      [src]="safeUrl"
                       alt=""
                       class="h-8 w-8 rounded-full object-cover shrink-0"
                       referrerpolicy="no-referrer"
@@ -216,7 +216,7 @@
 
         <button
           type="button"
-          class="button-primary rounded-xl w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
+          class="button-primary rounded-xl w-full py-3 text-sm font-semibold"
           [disabled]="creating()"
           (click)="submitNewGroup()"
         >
@@ -235,7 +235,7 @@
     @if (groupItems().length === 0) {
       <div class="flex flex-col items-center justify-center gap-4 py-20">
         <div
-          class="h-16 w-16 rounded-2xl button-secondary flex items-center justify-center text-primary"
+          class="h-16 w-16 rounded-2xl button-secondary text-primary"
         >
           <ico name="users" size="xl"></ico>
         </div>
@@ -257,7 +257,7 @@
       <div class="flex flex-col gap-3 pb-24">
         @for (item of groupItems(); track item.group.id) {
           <div
-            class="card rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity"
+            class="card clickable rounded-2xl p-4 flex items-center gap-3 active:opacity-80"
             (click)="openGroup(item.group.id)"
           >
             <div class="h-10 w-10 rounded-xl flex items-center justify-center bg-secondary-light">

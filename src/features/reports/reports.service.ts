@@ -32,6 +32,7 @@ import {
   MonthlyReportCreateInput,
   MonthlyReportUpdateInput,
   monthlyReportCategoryKey,
+  BudgetHistoryMonth,
 } from '../../shared/models/report.model';
 import { OfflineCrudService } from '../../core/offline/offline-crud.service';
 import { AccountsService } from '../accounts/accounts.service';
@@ -53,7 +54,28 @@ const CATEGORY_COLORS = [
   '#ffe5b4', // pastel peach
 ];
 
+/**
+ * Color for the i-th category: the curated palette for the first 10, then
+ * procedurally generated hues so category 11+ stays visually distinct instead
+ * of cycling back to color 1.
+ */
+function categoryColor(i: number): string {
+  if (i < CATEGORY_COLORS.length) return CATEGORY_COLORS[i];
+  // Golden-angle hue stepping — spreads any number of extra hues evenly.
+  const hue = Math.round((i * 137.508) % 360);
+  return `hsl(${hue}, 65%, 55%)`;
+}
+
 // ─── Public surface returned to the Reports component ────────────────────────
+
+/**
+ * A transaction mutation expressed as before/after state, so the monthly report
+ * can be patched by delta instead of re-aggregating every transaction.
+ */
+export type ReportTxDelta =
+  | { kind: 'create'; tx: TransactionRecord }
+  | { kind: 'update'; before: TransactionRecord; after: TransactionRecord }
+  | { kind: 'delete'; tx: TransactionRecord };
 
 export interface ReportViewData {
   summary: ReportSummary;
@@ -127,6 +149,144 @@ export class ReportsService {
   }
 
   /**
+   * O(1) alternative to {@link updateReportForTransaction}: applies only the
+   * monetary delta of one transaction mutation to the cached month report instead
+   * of re-reading and re-aggregating every transaction. Falls back to the full
+   * rebuild when the month's report is not in cache. An update that moves a
+   * transaction across months decomposes into a removal from the old month and an
+   * addition to the new one.
+   */
+  async applyTransactionDelta(delta: ReportTxDelta): Promise<void> {
+    const accountId = await this.resolveAccountKey();
+    if (!accountId) return;
+
+    // Signed contributions grouped by affected month.
+    const byMonth = new Map<string, Array<{ tx: TransactionRecord; sign: 1 | -1 }>>();
+    const contribute = (tx: TransactionRecord, sign: 1 | -1) => {
+      const month = this.toMonthKey(transactionEventDate(tx) ?? new Date());
+      const list = byMonth.get(month) ?? [];
+      list.push({ tx, sign });
+      byMonth.set(month, list);
+    };
+    if (delta.kind === 'create') {
+      contribute(delta.tx, 1);
+    } else if (delta.kind === 'delete') {
+      contribute(delta.tx, -1);
+    } else {
+      contribute(delta.before, -1);
+      contribute(delta.after, 1);
+    }
+
+    for (const [month, contributions] of byMonth) {
+      await this.patchMonthReportByDelta(accountId, month, contributions);
+    }
+  }
+
+  /** Apply signed transaction contributions to one month's cached report. */
+  private async patchMonthReportByDelta(
+    accountId: string,
+    month: string,
+    contributions: Array<{ tx: TransactionRecord; sign: 1 | -1 }>,
+  ): Promise<void> {
+    const report = await this.findReportForMonthInCacheOnly(accountId, month);
+    if (!report) {
+      // No cached report to patch — the full rebuild is the authoritative fallback.
+      await this.createOrUpdateMonthlyReport(month).catch(() => {});
+      return;
+    }
+
+    // Both are cache-first (and categories/accounts are session-memoized) — cheap.
+    const [plan, categories] = await Promise.all([
+      this.budgetsService.getBudgetPlan(),
+      this.categoriesService.getCategories(),
+    ]);
+    const byLowerName = this.categoriesByLowerName(categories);
+    // Freeze rule: a past-dated transaction edit must not restamp the month's budget
+    // limits from today's plan — use the snapshot's own frozen limits for past months.
+    const { budgetByCategory, monthlyBudget } = this.resolveBudgetSource(month, report, plan);
+    const otherKey = monthlyReportCategoryKey('other');
+
+    let totalIncome = Number(report.totalIncome ?? 0);
+    let totalExpense = Number(report.totalExpense ?? 0);
+    const breakdown: Record<string, CategoryBreakdownEntry> = {};
+    for (const [key, entry] of Object.entries(report.categoryBreakdown ?? {})) {
+      breakdown[key] = { ...entry };
+    }
+
+    for (const { tx, sign } of contributions) {
+      const amt = Number(tx.amount ?? 0) * sign;
+      if (tx.type === 'income') {
+        totalIncome += amt;
+        continue;
+      }
+      totalExpense += amt;
+      const { id, displayName } = this.resolveExpenseCategory(
+        (tx.category ?? '').trim(),
+        byLowerName,
+      );
+      // Spend on 'other' only affects the derived bucket, recomputed below.
+      if (id === 'other') continue;
+      const key = monthlyReportCategoryKey(id);
+      const existing = breakdown[key];
+      const budget = budgetByCategory.has(id)
+        ? budgetByCategory.get(id)!
+        : (existing?.budget ?? null);
+      const amount = Math.max(0, (existing?.amount ?? 0) + amt);
+      const used = budget !== null && budget > 0 ? Math.round((amount / budget) * 100) : 0;
+      breakdown[key] = {
+        name: existing?.name ?? displayName,
+        amount,
+        budget,
+        used,
+        overspent: budget !== null && budget > 0 && amount > budget,
+      };
+    }
+
+    totalIncome = Math.max(0, totalIncome);
+    totalExpense = Math.max(0, totalExpense);
+
+    // Recompute the derived "Other" bucket exactly as the full rebuild does:
+    // leftover monthly allowance + all spend not attributed to a budgeted category.
+    let budgetedLimitTotal = 0;
+    let budgetedSpendTotal = 0;
+    for (const [key, entry] of Object.entries(breakdown)) {
+      if (key === otherKey) continue;
+      if (entry.budget !== null && entry.budget > 0) {
+        budgetedLimitTotal += entry.budget;
+        budgetedSpendTotal += entry.amount;
+      }
+    }
+    const otherLimit = Math.max(0, monthlyBudget - budgetedLimitTotal);
+    const otherAmount = Math.max(0, totalExpense - budgetedSpendTotal);
+    if (otherLimit > 0 || otherAmount > 0 || breakdown[otherKey]) {
+      const budget = otherLimit > 0 ? otherLimit : null;
+      breakdown[otherKey] = {
+        name: 'Other',
+        amount: otherAmount,
+        budget,
+        used: budget && budget > 0 ? Math.round((otherAmount / budget) * 100) : 0,
+        overspent: !!budget && budget > 0 && otherAmount > budget,
+      };
+    }
+
+    await this.updateReport(report.uid, {
+      totalIncome,
+      totalExpense,
+      savings: totalIncome - totalExpense,
+      totalBudgetUsed: monthlyBudget > 0 ? Math.round((totalExpense / monthlyBudget) * 100) : 0,
+      totalBudget: monthlyBudget,
+      categoryBreakdown: breakdown,
+      updatedAt: new Date(),
+    });
+
+    // Keep the dashboard signal current when we just patched the current month.
+    if (month === this.toMonthKey(date().toDate())) {
+      const refreshed = await this.findReportForMonthInCacheOnly(accountId, month);
+      if (refreshed) this.dashboardMonthReport.set(refreshed);
+    }
+  }
+
+  /**
    * Returns the current month's report from IndexedDB when present, or builds it once from
    * transactions/budgets/categories when missing and online. Does not recompute on every read:
    * {@link updateReportForTransaction}, {@link rebuildCurrentMonthReport}, and onboarding
@@ -166,6 +326,115 @@ export class ReportsService {
   async rebuildCurrentMonthReport(): Promise<void> {
     const month = this.toMonthKey(date().toDate());
     await this.createOrUpdateMonthlyReport(month);
+  }
+
+  /** Month key ('YYYY-MM') the transaction's event date falls in. */
+  monthKeyForTransaction(tx: TransactionRecord): string {
+    return this.toMonthKey(transactionEventDate(tx) ?? new Date());
+  }
+
+  /** Current calendar month key ('YYYY-MM'). */
+  currentMonthKey(): string {
+    return this.toMonthKey(date().toDate());
+  }
+
+  /**
+   * Rebuild each given month exactly once. Used by the sync worker to batch what
+   * used to be one full rebuild per queue entry into one per distinct month.
+   */
+  async rebuildReportsForMonths(months: Iterable<string>): Promise<void> {
+    for (const month of new Set(months)) {
+      await this.createOrUpdateMonthlyReport(month).catch(() => {
+        /* non-fatal — reports are derived data and self-heal on next rebuild */
+      });
+    }
+  }
+
+  /**
+   * Rebuild the current month plus any already-materialized future months after a
+   * budget-plan edit, so the change flows forward. Past months are never touched
+   * (the freeze rule preserves their stamped limits even if they were rebuilt).
+   */
+  async rebuildCurrentAndFutureReports(): Promise<void> {
+    const accountId = await this.resolveAccountKey();
+    if (!accountId) {
+      await this.rebuildCurrentMonthReport().catch(() => {});
+      return;
+    }
+    const current = this.currentMonthKey();
+    const rows = await this.cache.getAllByIndex<MonthlyReport>(STORE, 'accountId', accountId);
+    const months = new Set<string>([current]);
+    for (const r of rows) if (r.month > current) months.add(r.month);
+    await this.rebuildReportsForMonths(months);
+  }
+
+  /** Public: this account's report for a month (cache-first, Firestore fallback). */
+  async getReportForMonth(accountId: string, month: string): Promise<MonthlyReport | null> {
+    return this.findReportForMonth(accountId, month);
+  }
+
+  /**
+   * All of an account's monthly reports (newest first). Cache-first; when online and
+   * the cache is empty, backfills once from Firestore so history is complete.
+   * Powers the Budgets month switcher and the Reports budget-history section.
+   */
+  async getReportsForAccount(accountId: string): Promise<MonthlyReport[]> {
+    const cached = await this.cache.getAllByIndex<MonthlyReport>(STORE, 'accountId', accountId);
+    if (cached.length > 0 || !this.network.isOnline()) {
+      return [...cached].sort((a, b) => b.month.localeCompare(a.month));
+    }
+    try {
+      const snap = await getDocs(
+        query(collection(this.firestore, COLLECTION), where('accountId', '==', accountId)),
+      );
+      const rows = snap.docs.map((d) => this.mapReport(d.id, d.data() as Record<string, unknown>));
+      await this.cache.putAll(STORE, rows);
+      return rows.sort((a, b) => b.month.localeCompare(a.month));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Zero-based budget performance per month, newest first, derived from snapshots.
+   * `unbudgeted = income − allocated` (negative ⇒ over-allocated).
+   */
+  async getBudgetHistory(accountId: string): Promise<BudgetHistoryMonth[]> {
+    const reports = await this.getReportsForAccount(accountId);
+    return reports.map((r) => this.toBudgetHistoryMonth(r));
+  }
+
+  private toBudgetHistoryMonth(r: MonthlyReport): BudgetHistoryMonth {
+    const totalBudget = this.frozenMonthlyBudget(r);
+    const cards: BudgetTrackingCard[] = Object.values(r.categoryBreakdown ?? {})
+      .map((e) => ({
+        category: e.name,
+        icon: 'tags',
+        amount: e.amount,
+        budget: e.budget,
+        used: e.used,
+        overspent: e.overspent,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+    return {
+      month: r.month,
+      label: this.monthKeyLabel(r.month),
+      totalIncome: r.totalIncome ?? 0,
+      totalExpense: r.totalExpense ?? 0,
+      savings: r.savings ?? 0,
+      totalBudget,
+      unbudgeted: (r.totalIncome ?? 0) - totalBudget,
+      totalBudgetUsed: r.totalBudgetUsed ?? 0,
+      overspentCount: cards.filter((c) => c.overspent).length,
+      categories: cards,
+    };
+  }
+
+  /** 'YYYY-MM' → 'Jul 2026'. */
+  private monthKeyLabel(monthKey: string): string {
+    const [y, m] = monthKey.split('-').map((n) => parseInt(n, 10));
+    if (!y || !m) return monthKey;
+    return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
   }
 
   /**
@@ -283,6 +552,7 @@ export class ReportsService {
       totalExpense: 0,
       savings: 0,
       totalBudgetUsed: 0,
+      totalBudget: monthlyBudget,
       categoryBreakdown,
       recurrings: { totalIncome: 0, totalExpense: 0, spentOn: [] },
       isFinalized: false,
@@ -325,6 +595,7 @@ export class ReportsService {
       transactions,
       plan,
       categories,
+      existing,
     );
 
     const report: MonthlyReportCreateInput | MonthlyReportUpdateInput = existing
@@ -357,6 +628,7 @@ export class ReportsService {
     transactions: TransactionRecord[],
     plan: BudgetPlan | null,
     categories: Category[],
+    existing: MonthlyReport | null,
   ): MonthlyReportCreateInput | MonthlyReportUpdateInput {
     const monthTransactions = this.filterTransactionsForMonth(transactions, monthKey);
     const byLowerName = this.categoriesByLowerName(categories);
@@ -365,9 +637,9 @@ export class ReportsService {
       byLowerName,
     );
 
-    // Budget limits come from the single recurring plan (categoryId → limit).
-    const budgetByCategory = this.planCategoryBudgets(plan);
-    const monthlyBudget = plan?.monthlyBudget ?? 0;
+    // Freeze rule: past months keep the budget limits stamped when they were live;
+    // current/future months derive from the recurring plan (so plan edits flow through).
+    const { budgetByCategory, monthlyBudget } = this.resolveBudgetSource(monthKey, existing, plan);
     const totalBudgetUsed =
       monthlyBudget > 0 ? Math.round((totalExpense / monthlyBudget) * 100) : 0;
 
@@ -385,8 +657,56 @@ export class ReportsService {
       totalExpense,
       savings: totalIncome - totalExpense,
       totalBudgetUsed,
+      totalBudget: monthlyBudget,
       categoryBreakdown,
     };
+  }
+
+  /**
+   * Budget limits + total for a month, honoring the freeze rule.
+   *   - Past month with a stored snapshot → frozen limits from that snapshot.
+   *   - Current / future month (or no snapshot) → the live recurring plan.
+   */
+  private resolveBudgetSource(
+    monthKey: string,
+    existing: MonthlyReport | null,
+    plan: BudgetPlan | null,
+  ): { budgetByCategory: Map<string, number>; monthlyBudget: number } {
+    if (monthKey < this.currentMonthKey() && existing) {
+      return {
+        budgetByCategory: this.frozenBudgetsFromReport(existing),
+        monthlyBudget: this.frozenMonthlyBudget(existing),
+      };
+    }
+    return {
+      budgetByCategory: this.planCategoryBudgets(plan),
+      monthlyBudget: plan?.monthlyBudget ?? 0,
+    };
+  }
+
+  /** Per-category budget limits (raw categoryId → limit) frozen in a report snapshot. */
+  private frozenBudgetsFromReport(report: MonthlyReport): Map<string, number> {
+    const map = new Map<string, number>();
+    const otherKey = monthlyReportCategoryKey('other');
+    for (const [key, entry] of Object.entries(report.categoryBreakdown ?? {})) {
+      if (key === otherKey) continue;
+      if (entry.budget !== null && entry.budget > 0) {
+        map.set(key.replace(/^cat_/, ''), entry.budget);
+      }
+    }
+    return map;
+  }
+
+  /** The month's frozen total budget: the stamped `totalBudget`, or reconstructed from limits. */
+  private frozenMonthlyBudget(report: MonthlyReport): number {
+    if (typeof report.totalBudget === 'number' && report.totalBudget > 0) {
+      return report.totalBudget;
+    }
+    let sum = 0;
+    for (const entry of Object.values(report.categoryBreakdown ?? {})) {
+      if (entry.budget !== null && entry.budget > 0) sum += entry.budget;
+    }
+    return sum;
   }
 
   /** Plan's per-category limits as a categoryId → limit map (empty when no plan). */
@@ -711,7 +1031,7 @@ export class ReportsService {
       .map(([category, amount], i) => ({
         category,
         amount,
-        color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+        color: categoryColor(i),
       }));
   }
 
@@ -837,7 +1157,7 @@ export class ReportsService {
       .map(([category, amount], i) => ({
         category,
         amount,
-        color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+        color: categoryColor(i),
         icon: iconMap.get(category.toLowerCase()) ?? 'tags',
       }));
   }

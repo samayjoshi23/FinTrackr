@@ -83,7 +83,7 @@
       <div class="flex gap-1 rounded-xl overflow-hidden bg-[var(--color-bg-elevated)] p-1">
         <button
           type="button"
-          class="flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2 cursor-pointer"
+          class="flex-1 py-1.5 rounded-lg"
           [class.button-primary]="splitMode() === 'equal'"
           [class.button-secondary]="splitMode() !== 'equal'"
           (click)="onSplitModeChange('equal')"
@@ -92,7 +92,7 @@
         </button>
         <button
           type="button"
-          class="flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2 cursor-pointer"
+          class="flex-1 py-1.5 rounded-lg"
           [class.button-primary]="splitMode() === 'custom'"
           [class.button-secondary]="splitMode() !== 'custom'"
           (click)="onSplitModeChange('custom')"
@@ -166,7 +166,7 @@
       </button>
       <button
         type="button"
-        class="flex-1 py-2.5 rounded-xl text-sm font-semibold button-primary flex items-center justify-center gap-2"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold button-primary"
         [disabled]="saving()"
         (click)="submit()"
       >

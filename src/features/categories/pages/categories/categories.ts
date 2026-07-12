@@ -65,7 +65,9 @@ export class Categories {
     this.deleting.set(true);
     try {
       await this.categoriesService.deleteCategory(cat.uid);
-      await this.reportsService.rebuildCurrentMonthReport();
+      // Category deletes remove the phantom budget line from the plan and can
+      // affect any materialized future month too, not just the current one.
+      await this.reportsService.rebuildCurrentAndFutureReports();
       this.categories.update((list) => list.filter((c) => c.uid !== cat.uid));
       this.notifier.success('Category deleted.');
     } catch (e) {

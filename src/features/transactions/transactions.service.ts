@@ -74,14 +74,7 @@ export class TransactionsService {
           type: data.type,
           ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
           ...(data.linkedObject != null ? { linkedObject: data.linkedObject } : {}),
-          ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
-          ...(data.recurringFrequency != null && String(data.recurringFrequency).trim()
-            ? { recurringFrequency: String(data.recurringFrequency).trim() }
-            : {}),
-          ...(data.recurringTransactionId != null
-            ? { recurringTransactionId: data.recurringTransactionId }
-            : {}),
-          ...(data.nextPaymentDate != null ? { nextPaymentDate: data.nextPaymentDate } : {}),
+          ...(data.linkedObject?.type !== undefined ? { isRecurring: data.linkedObject.type === 'recurring' } : {}),
           date: data.date ?? day,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -104,14 +97,7 @@ export class TransactionsService {
         type: data.type,
         ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
         ...(data.linkedObject != null ? { linkedObject: data.linkedObject } : {}),
-        ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
-        ...(data.recurringFrequency != null && String(data.recurringFrequency).trim()
-          ? { recurringFrequency: String(data.recurringFrequency).trim() }
-          : {}),
-        ...(data.recurringTransactionId != null
-          ? { recurringTransactionId: data.recurringTransactionId }
-          : {}),
-        ...(data.nextPaymentDate != null ? { nextPaymentDate: data.nextPaymentDate } : {}),
+        ...(data.linkedObject?.type !== undefined ? { isRecurring: data.linkedObject.type === 'recurring' } : {}),
         date: data.date ?? day,
       },
       options?.syncRemoteInBackground ? { syncRemoteInBackground: true } : undefined,
@@ -164,12 +150,10 @@ export class TransactionsService {
   }
 
   async deleteTransaction(transactionId: string): Promise<void> {
-    console.log('In Service: Deleting transaction', transactionId);
     await this.offlineCrud.remove('transactions', transactionId, async () => {
       const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
       const existing = await getDoc(transactionRef);
       if (!existing.exists() || existing.id !== transactionId) {
-        console.log('Transaction not found or access denied for deletion', transactionId);
         throw new Error('Transaction not found or access denied.');
       }
       await deleteDoc(transactionRef);
@@ -192,14 +176,10 @@ export class TransactionsService {
       icon: data.icon ?? null,
       type: data.type,
       ...(data.source !== undefined ? { source: data.source?.trim() ?? '' } : {}),
-      ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {}),
-      ...(data.recurringFrequency != null && String(data.recurringFrequency).trim()
-        ? { recurringFrequency: String(data.recurringFrequency).trim() }
+      ...(data.linkedObject?.type !== undefined ? { isRecurring: data.linkedObject.type === 'recurring' } : {}),
+      ...(data.linkedObject?.recordId != null
+        ? { recurringTransactionId: data.linkedObject.recordId }
         : {}),
-      ...(data.recurringTransactionId != null
-        ? { recurringTransactionId: data.recurringTransactionId }
-        : {}),
-      ...(data.nextPaymentDate != null ? { nextPaymentDate: data.nextPaymentDate } : {}),
       date: day,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -349,7 +329,7 @@ export class TransactionsService {
   async getTransactionsForRecurring(recurringTransactionId: string): Promise<TransactionRecord[]> {
     const all = await this.getTransactions();
     return all
-      .filter((t) => t.recurringTransactionId === recurringTransactionId)
+      .filter((t) => t.linkedObject?.type === 'recurring' && t.linkedObject?.recordId === recurringTransactionId)
       .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
   }
 

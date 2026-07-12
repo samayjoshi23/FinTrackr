@@ -43,7 +43,7 @@
           </button>
           <button
             type="button"
-            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-primary flex items-center justify-center gap-2 disabled:opacity-60 gap-2"
+            class="flex-1 py-2.5 rounded-xl text-sm font-medium button-primary disabled:opacity-60 gap-2"
             [disabled]="saving()"
             (click)="onEditSave(tx)"
           >
@@ -72,14 +72,14 @@
             @if (!isLinkedToRecurring(tx) && !isLinkedToGroup(tx)) {
               <div
                 type="button"
-                class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
+                class="h-8 w-8 rounded-lg text-secondary button-yellow"
                 (click)="onEditStart(tx)"
               >
                 <ico name="pencil" size="sm"></ico>
               </div>
               <div
                 type="button"
-                class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-red"
+                class="h-8 w-8 rounded-lg text-secondary button-red"
                 (click)="onDeleteRequested()"
               >
                 <ico name="trash" size="sm"></ico>
@@ -87,10 +87,10 @@
             } @else {
               <div
                 type="button"
-                class="rounded-lg flex items-center justify-center button-primary gap-1 px-2 py-1"
+                class="rounded-lg button-primary px-2 py-1"
                 (click)="goToLinkedObject(tx)"
               >
-                <span class="text-xs">
+                <span class="text-xs cursor-pointer">
                   @if (isLinkedToRecurring(tx)) {
                     View linked recurring transaction
                   } @else {
@@ -158,14 +158,6 @@
             <div class="flex justify-between gap-4">
               <dt class="text-secondary shrink-0">Last updated</dt>
               <dd class="min-w-0 text-right font-medium">{{ tx.updatedAt | date: 'medium' }}</dd>
-            </div>
-          }
-          @if (tx.nextPaymentDate) {
-            <div class="flex justify-between gap-4">
-              <dt class="text-secondary shrink-0">Next payment</dt>
-              <dd class="min-w-0 text-right font-medium">
-                {{ tx.nextPaymentDate | date: 'mediumDate' }}
-              </dd>
             </div>
           }
         </dl>

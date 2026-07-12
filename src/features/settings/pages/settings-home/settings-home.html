@@ -1,7 +1,7 @@
 <div class="container-layout p-4 md:p-5">
   <div class="flex items-center gap-2">
     <div
-      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      class="h-9 w-9 rounded-full button-secondary"
       (click)="goBack()"
     >
       <ico name="left-arrow" size="sm"></ico>
@@ -167,60 +167,22 @@
     <!-- General -->
     <div class="flex flex-col gap-2">
       <h2 class="text-sm title-font font-medium">General</h2>
-      <div
-        routerLink="/user/categories"
-        class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
-      >
-        <div class="rounded-xl flex items-center justify-center shrink-0">
-          <ico name="tags" size="md" class="text-secondary"></ico>
+
+      @for (setting of generalSettingsList(); track setting.id) {
+        <div
+          [routerLink]="setting.route"
+          class="card clickable rounded-2xl p-4 flex items-center gap-3 no-underline"
+        >
+          <div class="rounded-xl flex items-center justify-center shrink-0">
+            <ico [name]="setting.icon" size="md" class="text-secondary"></ico>
+          </div>
+          <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+            <span class="text-sm font-semibold">{{ setting.title }}</span>
+            <span class="text-xs text-secondary font-light">{{ setting.description }}</span>
+          </div>
+          <ico name="chevron-right" size="sm" class="text-secondary"></ico>
         </div>
-        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <span class="text-sm font-semibold">Categories</span>
-          <span class="text-xs text-secondary font-light">Manage your spending categories</span>
-        </div>
-        <ico name="chevron-right" size="sm" class="text-secondary"></ico>
-      </div>
-      <div
-        routerLink="/user/settings/notifications"
-        class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
-      >
-        <div class="rounded-xl flex items-center justify-center shrink-0">
-          <ico name="sliders" size="md" class="text-secondary"></ico>
-        </div>
-        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <span class="text-sm font-semibold">Notification settings</span>
-          <span class="text-xs text-secondary font-light"
-            >Expense alerts, budgets, bills, and more</span
-          >
-        </div>
-        <ico name="chevron-right" size="sm" class="text-secondary"></ico>
-      </div>
-      <div
-        routerLink="/user/settings/privacy"
-        class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
-      >
-        <div class="rounded-xl flex items-center justify-center shrink-0">
-          <ico name="lock" size="md" class="text-secondary"></ico>
-        </div>
-        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <span class="text-sm font-semibold">Privacy & Security</span>
-          <span class="text-xs text-secondary font-light">Password, biometric settings</span>
-        </div>
-        <ico name="chevron-right" size="sm" class="text-secondary"></ico>
-      </div>
-      <div
-        routerLink="/user/settings/about"
-        class="card rounded-2xl p-4 flex items-center gap-3 no-underline"
-      >
-        <div class="rounded-xl flex items-center justify-center shrink-0">
-          <ico name="info-circle" size="md" class="text-secondary"></ico>
-        </div>
-        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <span class="text-sm font-semibold">About</span>
-          <span class="text-xs text-secondary font-light">App version, developer, feedback</span>
-        </div>
-        <ico name="chevron-right" size="sm" class="text-secondary"></ico>
-      </div>
+      }
     </div>
 
     <!-- Log out button -->

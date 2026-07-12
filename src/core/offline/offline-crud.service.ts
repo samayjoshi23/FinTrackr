@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Firestore, collection, doc } from '@angular/fire/firestore';
 import { NetworkService } from './network.service';
 import { IndexedDbCacheService } from './indexed-db-cache.service';
+import { RevalidationTrackerService, RevalIndexFilter } from './revalidation-tracker.service';
 import { SyncQueueService } from './sync-queue.service';
 import { NotifierService } from '../../shared/components/notifier/notifier.service';
 import { NotifierSeverity } from '../../shared/components/notifier/types';
@@ -33,6 +34,7 @@ export class OfflineCrudService {
   private readonly firestore = inject(Firestore);
   private readonly network = inject(NetworkService);
   private readonly cache = inject(IndexedDbCacheService);
+  private readonly tracker = inject(RevalidationTrackerService);
   private readonly syncQueue = inject(SyncQueueService);
   private readonly notifier = inject(NotifierService);
 
@@ -55,9 +57,11 @@ export class OfflineCrudService {
     const cached = await this.readFromCache<T>(storeName, indexFilter);
 
     if (cached.length > 0) {
-      // Return cached data immediately; refresh in background for next visit
+      // Return cached data immediately; refresh in background for next visit —
+      // but only when the cached slice has outlived its TTL (skips redundant
+      // Firestore reads on every navigation).
       if (this.network.isOnline()) {
-        this.revalidateAll(storeName, firestoreFn, indexFilter);
+        void this.maybeRevalidateAll(storeName, firestoreFn, indexFilter);
       }
       return cached;
     }
@@ -76,6 +80,7 @@ export class OfflineCrudService {
     try {
       const results = await firestoreFn();
       await this.replaceCache(storeName, results, indexFilter);
+      await this.tracker.markFresh(storeName, indexFilter);
       return results;
     } catch {
       return [];
@@ -98,7 +103,7 @@ export class OfflineCrudService {
 
     if (cached.length > 0) {
       if (this.network.isOnline()) {
-        this.revalidateAll('transactions', firestoreFn, indexFilter);
+        void this.maybeRevalidateAll('transactions', firestoreFn, indexFilter);
       }
       const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(cached, filter));
       const { items, total, hasMore } = paginateTransactionRows(pipeline, offset, limit);
@@ -117,6 +122,7 @@ export class OfflineCrudService {
     try {
       const results = await firestoreFn();
       await this.replaceCache('transactions', results, indexFilter);
+      await this.tracker.markFresh('transactions', indexFilter);
       const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(results, filter));
       const { items, total, hasMore } = paginateTransactionRows(pipeline, offset, limit);
       return { items, total, hasMore };
@@ -136,8 +142,8 @@ export class OfflineCrudService {
     const cached = await this.cache.getByKey<T>(storeName, key);
 
     if (cached) {
-      // Return cached doc immediately; refresh in background
-      if (this.network.isOnline()) {
+      // Return cached doc immediately; refresh in background unless still fresh
+      if (this.network.isOnline() && !this.tracker.isDocFresh(storeName, key)) {
         this.revalidateOne(storeName, key, firestoreFn);
       }
       return cached;
@@ -152,6 +158,7 @@ export class OfflineCrudService {
       const result = await firestoreFn();
       if (result) {
         await this.cache.put(storeName, result);
+        this.tracker.markDocFresh(storeName, key);
       }
       return result;
     } catch {
@@ -191,6 +198,7 @@ export class OfflineCrudService {
     }
 
     await this.cache.put(storeName, optimistic);
+    this.tracker.markStale(storeName);
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -258,6 +266,7 @@ export class OfflineCrudService {
     } as unknown as T;
 
     await this.cache.put(storeName, optimistic);
+    this.tracker.markStale(storeName);
 
     const postSyncCallables = options?.postSyncCallablesBuilder?.(assignedId);
 
@@ -325,6 +334,7 @@ export class OfflineCrudService {
       _pendingSync: true,
     } as unknown as T;
     await this.cache.put(storeName, updated);
+    this.tracker.markStale(storeName);
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -365,9 +375,8 @@ export class OfflineCrudService {
     firestoreFn: () => Promise<void>,
     extraPayload?: Record<string, unknown>,
   ): Promise<void> {
-    console.log('OfflineCrudService: remove', storeName, docId, extraPayload);
     await this.cache.delete(storeName, docId);
-    console.log('OfflineCrudService: removed from cache, now attempting Firestore delete', storeName, docId);
+    this.tracker.markStale(storeName);
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -380,33 +389,41 @@ export class OfflineCrudService {
       this.notifier.show('Deleted offline. Will sync when connected.', NotifierSeverity.WARNING);
     };
 
-    console.log('OfflineCrudService: checking network status for Firestore delete', storeName, docId);
-
     if (!this.network.isOnline()) {
       await enqueuePending();
-      console.log('OfflineCrudService: offline, queued delete for sync', storeName, docId);
       return;
     }
 
     try {
       await firestoreFn();
-      console.log('OfflineCrudService: successfully deleted from Firestore', storeName, docId);
     } catch (e: Error | unknown) {
-      console.log('OfflineCrudService: failed to delete from Firestore', storeName, docId, e);
       await enqueuePending();
     }
   }
 
   // ─── Background revalidation ──────────────────────────────────
 
+  /** Fire-and-forget: revalidate only when the cached slice's TTL has expired. */
+  private async maybeRevalidateAll<T>(
+    storeName: string,
+    firestoreFn: () => Promise<T[]>,
+    indexFilter?: RevalIndexFilter,
+  ): Promise<void> {
+    if (await this.tracker.isFresh(storeName, indexFilter)) return;
+    this.revalidateAll(storeName, firestoreFn, indexFilter);
+  }
+
   /** Fire-and-forget: fetch from Firestore and update cache for next read. */
   private revalidateAll<T>(
     storeName: string,
     firestoreFn: () => Promise<T[]>,
-    indexFilter?: { indexName: string; value: IDBValidKey },
+    indexFilter?: RevalIndexFilter,
   ): void {
     firestoreFn()
-      .then((results) => this.replaceCache(storeName, results, indexFilter))
+      .then(async (results) => {
+        await this.replaceCache(storeName, results, indexFilter);
+        await this.tracker.markFresh(storeName, indexFilter);
+      })
       .catch(() => {
         /* silent — cached data already served */
       });
@@ -422,6 +439,7 @@ export class OfflineCrudService {
       .then((result) => {
         if (result) {
           this.cache.put(storeName, result);
+          this.tracker.markDocFresh(storeName, key);
         }
       })
       .catch(() => {

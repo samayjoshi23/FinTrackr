@@ -4,10 +4,12 @@
   --color-tertiary-inverse: rgb(0, 0, 0);
   --color-bg: var(--color-slate-50);
   --color-bg-elevated: rgb(236, 237, 243);
+  --color-bg-elevated-pressed: rgb(221, 222, 227);
   --color-text: var(--color-slate-900);
   --color-text-muted: var(--color-slate-400);
   --color-placeholder: var(--color-slate-500);
   --color-primary: var(--color-emerald-600);
+  --color-primary-pressed: var(--color-emerald-700);
   --color-secondary: var(--color-slate-500);
   --color-secondary-hover: var(--color-slate-600);
   --color-primary-hover: var(--color-emerald-600);
@@ -59,10 +61,12 @@
   --color-tertiary-inverse: rgb(255, 255, 255);
   --color-bg: var(--color-slate-950);
   --color-bg-elevated: rgb(23, 32, 48);
+  --color-bg-elevated-pressed: rgb(18, 25, 38);
   --color-text: var(--color-slate-50);
   --color-text-muted: var(--color-slate-400);
   --color-placeholder: var(--color-slate-500);
   --color-primary: var(--color-emerald-500);
+  --color-primary-pressed: var(--color-emerald-600);
   --color-primary-hover: var(--color-emerald-500);
   --color-secondary: var(--color-slate-400);
   --color-secondary-hover: var(--color-slate-600);
@@ -105,76 +109,169 @@
   --budget-fill-over: rgb(210, 51, 51);
 }
 
+button {
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
 /* ============= Other Colors ============= */
 
-/* Orange */
+/* ----- Orange ----- */
 .button-orange {
   background-color: color-mix(in srgb, var(--color-orange-400) 20%, transparent);
   color: var(--color-orange-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.button-orange:active {
+  background-color: color-mix(in srgb, var(--color-orange-400) 30%, transparent);
 }
 
 .theme-dark .button-orange {
   background-color: color-mix(in srgb, var(--color-orange-600) 30%, transparent);
   color: var(--color-orange-400);
 }
+.theme-dark .button-orange:active {
+  background-color: color-mix(in srgb, var(--color-orange-600) 40%, transparent);
+}
 
-/* Violet */
+/* ----- Violet ----- */
 .button-violet {
   background-color: color-mix(in srgb, var(--color-violet-400) 20%, transparent);
   color: var(--color-violet-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+.button-violet:active {
+  background-color: color-mix(in srgb, var(--color-violet-400) 30%, transparent);
+  transform: scale(0.97);
 }
 
 .theme-dark .button-violet {
   background-color: color-mix(in srgb, var(--color-violet-600) 30%, transparent);
   color: var(--color-violet-400);
 }
+.theme-dark .button-violet:active {
+  background-color: color-mix(in srgb, var(--color-violet-600) 40%, transparent);
+}
 
-/* Yellow */
+/* ----- Yellow ----- */
 .button-yellow {
   background-color: color-mix(in srgb, var(--color-yellow-400) 20%, transparent);
   color: var(--color-yellow-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+.button-yellow:active {
+  background-color: color-mix(in srgb, var(--color-yellow-400) 30%, transparent);
+  transform: scale(0.97);
 }
 
 .theme-dark .button-yellow {
   background-color: color-mix(in srgb, var(--color-yellow-600) 30%, transparent);
   color: var(--color-yellow-400);
 }
+.theme-dark .button-yellow:active {
+  background-color: color-mix(in srgb, var(--color-yellow-600) 40%, transparent);
+}
 
-/* Amber */
+/* ----- Amber ----- */
 .button-amber {
   background-color: color-mix(in srgb, var(--color-amber-400) 20%, transparent);
   color: var(--color-amber-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+.button-amber:active {
+  background-color: color-mix(in srgb, var(--color-amber-400) 30%, transparent);
+  transform: scale(0.97);
 }
 
 .theme-dark .button-amber {
   background-color: color-mix(in srgb, var(--color-amber-600) 30%, transparent);
   color: var(--color-amber-400);
 }
+.theme-dark .button-amber:active {
+  background-color: color-mix(in srgb, var(--color-amber-600) 40%, transparent);
+}
 
-/* Blue */
+/* ----- Blue ----- */
 .button-blue {
   background-color: color-mix(in srgb, var(--color-blue-400) 20%, transparent);
   color: var(--color-blue-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
 }
+.button-blue:active {
+  background-color: color-mix(in srgb, var(--color-blue-400) 30%, transparent);
+  transform: scale(0.97);
+}
+
 .theme-dark .button-blue {
   background-color: color-mix(in srgb, var(--color-blue-600) 30%, transparent);
   color: var(--color-blue-400);
 }
+.theme-dark .button-blue:active {
+  background-color: color-mix(in srgb, var(--color-blue-600) 40%, transparent);
+}
 
-/* Red */
+/* ----- Red ----- */
 .button-red {
   background-color: color-mix(in srgb, var(--color-red-400) 20%, transparent);
   color: var(--color-red-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+.button-red:active {
+  background-color: color-mix(in srgb, var(--color-red-400) 30%, transparent);
+  transform: scale(0.97);
 }
 
 .theme-dark .button-red {
   background-color: color-mix(in srgb, var(--color-red-600) 30%, transparent);
   color: var(--color-red-400);
 }
+.theme-dark .button-red:active {
+  background-color: color-mix(in srgb, var(--color-red-600) 40%, transparent);
+}
 
+/* ----- Primary ----- */
 .button-primary {
   background-color: var(--color-primary);
   color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+.button-primary:active {
+  background-color: var(--color-primary-pressed);
+  transform: scale(0.97);
 }
 
 .theme-dark .button-primary {
@@ -182,9 +279,20 @@
   color: var(--color-black);
 }
 
+/* ----- Secondary ----- */
 .button-secondary {
   background-color: var(--color-bg-elevated);
   color: var(--color-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+.button-secondary:active {
+  background-color: var(--color-bg-elevated-pressed);
+  transform: scale(0.97);
 }
 
 .theme-dark .button-secondary {

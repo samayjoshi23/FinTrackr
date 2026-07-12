@@ -46,36 +46,39 @@
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <label class="text-xs text-gray-400">Category budgets (optional)</label>
-          <button
+          <div
             type="button"
             class="text-xs text-primary flex items-center gap-1"
             (click)="onCreateNewCategory()"
           >
             <ico name="plus" size="sm"></ico>
-            New
-          </button>
+            New category
+          </div>
         </div>
 
         <div class="flex flex-col gap-2">
           @for (c of categories(); track c.uid) {
-            <div class="flex items-center gap-3">
-              <div
-                class="h-9 w-9 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
-              >
-                <ico [name]="c.icon" size="sm" class="text-primary"></ico>
+            @if (c.name != 'Other') {
+              <div class="field-wrapper before">
+                <span
+                  class="field-icon before bg-secondary-light rounded-lg flex items-center justify-center gap-2"
+                  [style]="{ height: '2.25rem', left: '0.25rem', top: '0.25rem' }"
+                >
+                  <ico [name]="c.icon" size="sm" class="text-primary"></ico>
+                  <p class="flex-1 text-sm pr-3">{{ c.name }}</p>
+                </span>
+                <div class="field-wrapper before w-28 shrink-0">
+                  <input
+                    type="number"
+                    class="w-full text-right"
+                    min="0"
+                    placeholder="0"
+                    [name]="'catBudget_' + c.uid"
+                    [(ngModel)]="categoryBudgets[c.uid]"
+                  />
+                </div>
               </div>
-              <p class="flex-1 text-sm truncate">{{ c.name }}</p>
-              <div class="field-wrapper before w-28 shrink-0">
-                <input
-                  type="number"
-                  class="w-full text-right"
-                  min="0"
-                  placeholder="0"
-                  [name]="'catBudget_' + c.uid"
-                  [(ngModel)]="categoryBudgets[c.uid]"
-                />
-              </div>
-            </div>
+            }
           }
         </div>
 
@@ -103,9 +106,12 @@
 
     <!-- Submit -->
     <div class="flex flex-col gap-2 mt-2">
+      <p class="text-[0.7rem] text-secondary font-light text-center px-2">
+        Changes apply to this month and future months. Past months stay as they were.
+      </p>
       <button
         type="submit"
-        class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 disabled:opacity-60"
+        class="button-primary rounded-xl py-3 w-full disabled:opacity-60"
         [disabled]="saving() || otherRemaining() < 0"
       >
         @if (saving()) {

@@ -374,7 +374,7 @@ export class AddGroupTransaction {
         });
 
         void this.reportsService
-          .updateReportForTransaction(txResponse)
+          .applyTransactionDelta({ kind: 'create', tx: txResponse })
           .catch((e) => console.error(e));
         void this.accountsService
           .adjustBalanceForTransaction(account.id || account.uid, amount, 'expense')
@@ -497,7 +497,7 @@ export class AddGroupTransaction {
         });
 
         void this.reportsService
-          .updateReportForTransaction(txResponse)
+          .applyTransactionDelta({ kind: 'create', tx: txResponse })
           .catch((e) => console.error(e));
         void this.accountsService
           .adjustBalanceForTransaction(account.id || account.uid, amount, 'expense')

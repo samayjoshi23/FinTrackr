@@ -2,7 +2,7 @@
   <!-- Header -->
   <header class="flex items-center gap-2">
     <div
-      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      class="h-9 w-9 rounded-full button-secondary"
       (click)="onBack()"
     >
       <ico name="left-arrow" size="sm"></ico>
@@ -232,7 +232,7 @@
     <div class="flex items-center justify-center">
       <button
         type="submit"
-        class="w-full button-primary rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+        class="w-full button-primary rounded-xl py-3 disabled:opacity-60"
         [disabled]="saving()"
       >
         @if (saving()) {

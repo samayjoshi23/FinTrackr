@@ -180,8 +180,6 @@ export class AddRecurringTransaction {
         source: this.source(),
         date: date().format('YYYY-MM-DD'),
         linkedObject,
-        isRecurring: true,
-        recurringTransactionId: recurringId,
       };
 
       const transactionResponse = await this.transactionsService.createTransaction(
@@ -199,7 +197,7 @@ export class AddRecurringTransaction {
       await this.accountsService.writeAccountToCache(updatedAccount);
 
       void this.reportsService
-        .updateReportForTransaction(transactionResponse)
+        .applyTransactionDelta({ kind: 'create', tx: transactionResponse })
         .catch((e) => console.error(e));
       void this.accountsService
         .adjustBalanceForTransaction(

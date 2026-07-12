@@ -118,7 +118,11 @@ export class TransactionDetailModal {
         tx.type as 'income' | 'expense',
       );
 
-      await this.reportsService.updateReportForTransaction({ ...tx, amount: newAmount });
+      await this.reportsService.applyTransactionDelta({
+        kind: 'update',
+        before: tx,
+        after: { ...tx, amount: newAmount },
+      });
 
       const updated: TransactionRecord = { ...tx, amount: newAmount, updatedAt: new Date() };
       this.transactionUpdated.emit({
@@ -147,7 +151,6 @@ export class TransactionDetailModal {
 
     this.deleting.set(true);
     try {
-      console.log('Deleting transaction', tx.uid);
       await this.transactionsService.deleteTransaction(tx.uid);
 
       // Reverse the transaction's effect on the account balance
@@ -158,9 +161,8 @@ export class TransactionDetailModal {
         reverseType as 'income' | 'expense',
       );
 
-      // Rebuild report (transaction already removed from cache before this call in practice,
-      // but rebuildCurrentMonthReport fetches fresh data anyway)
-      await this.reportsService.updateReportForTransaction(tx);
+      // Remove the deleted transaction's contribution from its month's report
+      await this.reportsService.applyTransactionDelta({ kind: 'delete', tx });
       this.transactionUpdated.emit({ transaction: null, action: RecordAction.DELETE });
       this.open.set(false);
       this.notifier.success('Transaction deleted.');
@@ -185,14 +187,14 @@ export class TransactionDetailModal {
       return;
     }
     // Backward-compat: fallback to recurringTransactionId
-    if (tx.recurringTransactionId) {
-      void this.router.navigateByUrl(`/user/recurring/view/${tx.recurringTransactionId}`);
+    if (tx.linkedObject?.type === 'recurring' || tx.linkedObject?.recordId) {
+      void this.router.navigateByUrl(`/user/recurring/view/${tx.linkedObject?.recordId}`);
       this.open.set(false);
     }
   }
 
   isLinkedToRecurring(tx: import('../../models/transaction.model').TransactionRecord): boolean {
-    return !!(tx.linkedObject?.type === 'recurring' || tx.recurringTransactionId);
+    return !!(tx.linkedObject?.type === 'recurring' || tx.linkedObject?.recordId);
   }
 
   isLinkedToGroup(tx: import('../../models/transaction.model').TransactionRecord): boolean {
@@ -203,10 +205,5 @@ export class TransactionDetailModal {
     if (tx.linkedObject?.type === 'group-expense') return 'View group expense';
     if (tx.linkedObject?.type === 'group-settlement') return 'View group settlement';
     return '';
-  }
-
-  /** @deprecated kept for template backward-compat */
-  goToRecurring(recurringTransactionId: string): void {
-    void this.router.navigateByUrl(`/user/recurring/view/${recurringTransactionId}`);
   }
 }

@@ -8,6 +8,7 @@ import {
   ReportTimePeriod,
   ReportChartMode,
   BudgetTrackingCard,
+  BudgetHistoryMonth,
   ReportSummary,
   CategoryPieDataPoint,
   SavingsTrendDataPoint,
@@ -20,6 +21,7 @@ import { ReportsCategoryPieChart } from '../../components/reports-category-pie-c
 import { ReportsSavingsTrendLineChart } from '../../components/reports-savings-trend-line-chart/reports-savings-trend-line-chart';
 import { ReportsTopCategories } from '../../components/reports-top-categories/reports-top-categories';
 import { ReportsBudgetTracking } from '../../components/reports-budget-tracking/reports-budget-tracking';
+import { ReportsBudgetHistory } from '../../components/reports-budget-history/reports-budget-history';
 import { ReportsSavingsRateCard } from '../../components/reports-savings-rate-card/reports-savings-rate-card';
 
 @Component({
@@ -33,6 +35,7 @@ import { ReportsSavingsRateCard } from '../../components/reports-savings-rate-ca
     ReportsSavingsTrendLineChart,
     ReportsTopCategories,
     ReportsBudgetTracking,
+    ReportsBudgetHistory,
     ReportsSavingsRateCard,
   ],
   templateUrl: './reports.html',
@@ -57,6 +60,7 @@ export class Reports implements OnInit {
   savingsTrend = signal<SavingsTrendDataPoint[]>([]);
   budgetCards = signal<BudgetTrackingCard[]>([]);
   topCategories = signal<{ category: string; amount: number; color: string; icon: string }[]>([]);
+  budgetHistory = signal<BudgetHistoryMonth[]>([]);
 
   /** Progress bars grow 0 → target after chart data loads. */
   progressBarsShown = signal(false);
@@ -74,6 +78,17 @@ export class Reports implements OnInit {
     const account = await this.accountsService.getSelectedAccount();
     this.currency.set(account?.currency ?? 'INR');
     await this.loadData();
+    void this.loadBudgetHistory(account?.uid ?? account?.id ?? '');
+  }
+
+  /** Budget-history rows are independent of the rolling-window period selector. */
+  private async loadBudgetHistory(accountKey: string): Promise<void> {
+    if (!accountKey) return;
+    try {
+      this.budgetHistory.set(await this.reportsService.getBudgetHistory(accountKey));
+    } catch (e) {
+      console.error('Failed to load budget history', e);
+    }
   }
 
   goBack() {

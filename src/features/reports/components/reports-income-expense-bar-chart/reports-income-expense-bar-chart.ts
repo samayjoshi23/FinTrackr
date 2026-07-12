@@ -9,7 +9,8 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import ApexCharts from 'apexcharts';
+import type ApexCharts from 'apexcharts';
+import { loadApexCharts } from '../../utils/apexcharts-loader';
 import { reportChartColors, reportChartIsDark } from '../../utils/reports-chart-theme';
 
 @Component({
@@ -26,6 +27,8 @@ export class ReportsIncomeExpenseBarChart implements AfterViewInit, OnChanges, O
   @Input({ required: true }) expense: number[] = [];
 
   private chart: ApexCharts | null = null;
+  /** Invalidates in-flight async renders when inputs change or on destroy. */
+  private syncToken = 0;
 
   ngAfterViewInit(): void {
     this.syncChart();
@@ -39,18 +42,24 @@ export class ReportsIncomeExpenseBarChart implements AfterViewInit, OnChanges, O
   }
 
   ngOnDestroy(): void {
+    this.syncToken++;
     this.chart?.destroy();
     this.chart = null;
   }
 
-  private syncChart(): void {
+  private async syncChart(): Promise<void> {
+    const token = ++this.syncToken;
     this.chart?.destroy();
     this.chart = null;
     const el = this.chartHost?.nativeElement;
     if (!el || this.labels.length === 0) return;
 
+    // ApexCharts is imported lazily on first render (kept out of the chunk parse cost).
+    const Charts = await loadApexCharts();
+    if (token !== this.syncToken) return; // superseded by a newer sync or destroy
+
     const c = reportChartColors();
-    this.chart = new ApexCharts(el, {
+    this.chart = new Charts(el, {
       chart: {
         type: 'bar',
         height: 220,

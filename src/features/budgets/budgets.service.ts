@@ -294,6 +294,24 @@ export class BudgetsService {
     );
   }
 
+  /**
+   * Removes a categoryId's entry from the current plan. No-op if the plan is
+   * missing or the id was not budgeted. Called after a category delete so its
+   * limit doesn't linger as a phantom card. Returns the updated plan (or null).
+   */
+  async removeCategoryFromPlan(categoryId: string): Promise<BudgetPlan | null> {
+    const plan = await this.getBudgetPlan();
+    if (!plan) return null;
+    if (!(categoryId in plan.categoryBudgets)) return plan;
+    const categoryBudgets = { ...plan.categoryBudgets };
+    delete categoryBudgets[categoryId];
+    return this.upsertBudgetPlan({
+      accountId: plan.accountId,
+      monthlyBudget: plan.monthlyBudget,
+      categoryBudgets,
+    });
+  }
+
   /** Sync-queue handler: applies a queued offline plan create to Firestore. */
   async applyPendingBudgetPlanCreate(docId: string, data: Record<string, unknown>): Promise<void> {
     const uid = this.requireUid();

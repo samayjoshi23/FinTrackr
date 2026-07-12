@@ -128,7 +128,8 @@ export class NewBudget {
         monthlyBudget,
         categoryBudgets,
       });
-      await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+      // Recurring plan edit applies to this month and every future month.
+      await this.reportsService.rebuildCurrentAndFutureReports().catch(() => {});
       this.router.navigateByUrl('/user/budgets', { replaceUrl: true });
     } catch (e) {
       console.error(e);

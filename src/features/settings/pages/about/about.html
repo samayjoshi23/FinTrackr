@@ -2,7 +2,7 @@
   <!-- Header -->
   <header class="flex items-center gap-2">
     <div
-      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      class="h-9 w-9 rounded-full button-secondary"
       (click)="onBack()"
     >
       <ico name="left-arrow" size="sm"></ico>
@@ -22,7 +22,7 @@
       </div>
       <div class="flex flex-col items-center gap-1">
         <h2 class="text-2xl font-bold title-font">
-          <span class="text-mauve-600">LogMy</span><span class="text-emerald-600">Mudra</span>
+          <span class="text-mauve-600">Fin</span><span class="text-emerald-600">Trackr</span>
         </h2>
         <span class="text-xs text-secondary bg-surface-alt px-2.5 py-0.5 rounded-full">
           v{{ appVersion }}
@@ -50,7 +50,7 @@
       <div class="flex gap-2 pt-1">
         <button
           type="button"
-          class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-sm font-medium hover:bg-surface-alt transition-colors"
+          class="py-2 rounded-xl text-sm font-medium button-primary w-100"
           (click)="openGitHub()"
         >
           <ico name="github" size="sm"></ico>
@@ -58,7 +58,7 @@
         </button>
         <button
           type="button"
-          class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-sm font-medium hover:bg-surface-alt transition-colors"
+          class="py-2 rounded-xl text-sm button-primary w-100"
           (click)="openPortfolio()"
         >
           <ico name="globe" size="sm"></ico>
@@ -130,7 +130,7 @@
 
         <button
           type="submit"
-          class="button-primary rounded-xl py-2.5 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          class="button-primary rounded-xl py-2.5 font-semibold text-sm disabled:opacity-60"
           [disabled]="submittingFeedback()"
         >
           @if (submittingFeedback()) {

@@ -14,6 +14,13 @@ export const environment = {
     /** Replace with your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging */
     vapidKey: 'UXwxIdVOOIigkTlbtfKQzzUTJhiqy-mXpYc5jBpeyD8',
   },
+  /**
+   * reCAPTCHA v3 site key for App Check. Replace with the value from Firebase
+   * Console → App Check → Register app → reCAPTCHA v3. Leave empty to skip
+   * App Check (unregistered clients won't be able to reach Firestore/Storage/
+   * Functions once enforcement is enabled in the console).
+   */
+  recaptchaSiteKey: '',
   notifier: {
     durationMs: NotifierDuration.SHORT,
     position: NotifierPosition.BOTTOM_CENTER,

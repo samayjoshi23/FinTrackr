@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { UsersSearchFilterPipe } from '../../../../shared/pipes/users-search-filter.pipe';
+import { SafePhotoUrlPipe } from '../../../../shared/pipes/safe-photo-url.pipe';
 import { GroupsService } from '../../groups.service';
 import { GroupExpensesService } from '../../group-expenses.service';
 import { GroupSettlementsService } from '../../group-settlements.service';
@@ -27,7 +28,7 @@ interface GroupListItem {
 
 @Component({
   selector: 'app-groups-list',
-  imports: [CommonModule, FormsModule, Icon, UsersSearchFilterPipe],
+  imports: [CommonModule, FormsModule, Icon, UsersSearchFilterPipe, SafePhotoUrlPipe],
   templateUrl: './groups-list.html',
   styleUrl: './groups-list.css',
 })
@@ -108,17 +109,16 @@ export class GroupsList implements OnInit {
   toggleCreatePanel(): void {
     const next = !this.createExpanded();
     this.createExpanded.set(next);
-    if (next) void this.usersLookup.loadUsersDirectory();
+    if (!next) this.usersLookup.resetDirectory();
   }
 
   openCreatePanel(): void {
     this.createExpanded.set(true);
-    void this.usersLookup.loadUsersDirectory();
   }
 
   onMemberSearchChange(): void {
     const q = this.memberSearchQuery.trim();
-    if (q.length >= 2) void this.usersLookup.loadUsersDirectory();
+    void this.usersLookup.searchByEmail(q);
   }
 
   pickMember(hit: UserLookupHit, ev: Event): void {
@@ -161,7 +161,7 @@ export class GroupsList implements OnInit {
         try {
           await this.inviteService.sendInvite(group.id, m.email);
         } catch (e) {
-          console.error('Failed to send invite to', m.email, e);
+          console.error('Failed to send group invite', e);
         }
       }
 

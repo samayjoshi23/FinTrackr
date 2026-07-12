@@ -141,7 +141,7 @@ export class AddTransaction {
 
       const accountDocId = account.id || account.uid;
       void this.reportsService
-        .updateReportForTransaction(transactionResponse)
+        .applyTransactionDelta({ kind: 'create', tx: transactionResponse })
         .catch((e) => console.error(e));
       void this.accountsService
         .adjustBalanceForTransaction(

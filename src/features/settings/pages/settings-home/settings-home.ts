@@ -12,6 +12,8 @@ import { TransactionsService } from '../../../../services/transactions.service';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import { Account } from '../../../../shared/models/account.model';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
+import { GENERAL_SETTINGS } from '../../types';
+import { CdkConnectedOverlay } from "@angular/cdk/overlay";
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -19,7 +21,7 @@ const THEME_KEY = 'fintrackr-theme';
 
 @Component({
   selector: 'app-settings-home',
-  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule, SignedAmountPipe],
+  imports: [CommonModule, RouterLink, Icon, Modal, FormsModule, SignedAmountPipe, CdkConnectedOverlay],
   templateUrl: './settings-home.html',
   styleUrl: './settings-home.css',
 })
@@ -34,6 +36,7 @@ export class SettingsHome {
   accounts = signal<Account[]>([]);
   currentAccount = signal<Account | null>(null);
   themeMode = signal<ThemePreference>('light');
+  generalSettingsList = signal(GENERAL_SETTINGS);
   totalTransactions = signal(0);
   totalBalance = signal(0);
   initials = signal('');
@@ -96,7 +99,7 @@ export class SettingsHome {
   }
 
   private refreshUserProfileFromStorage() {
-    const next = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    const next = this.authService.getCachedProfile() as UserProfile | null;
     this.userProfile.set(next ?? null);
     this.setInitials();
   }

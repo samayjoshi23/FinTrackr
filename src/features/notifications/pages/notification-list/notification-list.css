@@ -1,3 +1,9 @@
+/* Virtualized list viewport: fills the remaining page height */
+.notif-scroll-viewport {
+  flex: 1;
+  min-height: 20rem;
+}
+
 .notif-card {
   transition: background-color 0.15s ease;
 }

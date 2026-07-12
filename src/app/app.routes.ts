@@ -4,6 +4,7 @@ import { onboardingGuard } from '../core/guards/onboarding.guard';
 import { guestGuard } from '../core/guards/guest.guard';
 import { appEntryGuard } from '../core/guards/app-entry.guard';
 import { requireOnboardedGuard } from '../core/guards/require-onboarded.guard';
+import { requireVerifiedEmailGuard } from '../core/guards/require-verified-email.guard';
 
 export const routes: Routes = [
   {
@@ -34,9 +35,15 @@ export const routes: Routes = [
       import('./../core/auth/reset-password/reset-password').then((m) => m.ResetPassword),
   },
   {
+    path: 'verify-email',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./../core/auth/verify-email/verify-email').then((m) => m.VerifyEmail),
+  },
+  {
     path: 'user',
     loadComponent: () => import('./../features/features').then((m) => m.Features),
-    canActivate: [authGuard, requireOnboardedGuard],
+    canActivate: [authGuard, requireVerifiedEmailGuard, requireOnboardedGuard],
     children: [
       {
         path: '',

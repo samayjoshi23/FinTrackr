@@ -1,0 +1,127 @@
+@if (months.length > 0) {
+  <div class="flex flex-col gap-3">
+    <p class="text-sm title-font font-semibold">Budget History</p>
+
+    <div class="flex flex-col gap-2">
+      @for (m of months; track m.month) {
+        <div class="card rounded-2xl overflow-hidden">
+          <!-- Month row -->
+          <div
+            class="p-4 flex flex-col gap-2 cursor-pointer"
+            role="button"
+            tabindex="0"
+            (click)="toggle(m.month)"
+            (keydown.enter)="toggle(m.month)"
+            (keydown.space)="$event.preventDefault(); toggle(m.month)"
+          >
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-semibold title-font">{{ m.label }}</p>
+              <div class="flex items-center gap-2">
+                @if (m.overspentCount > 0) {
+                  <span class="text-[0.6rem] font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                    {{ m.overspentCount }} over
+                  </span>
+                }
+                <p
+                  class="text-sm font-semibold title-font"
+                  [class.text-green-600]="m.totalBudgetUsed <= 100"
+                  [class.text-red-500]="m.totalBudgetUsed > 100"
+                >
+                  {{ m.totalBudgetUsed }}%
+                </p>
+                <ico
+                  name="chevron-right"
+                  size="sm"
+                  class="text-secondary transition-transform duration-200"
+                  [class.rotate-90]="isExpanded(m.month)"
+                ></ico>
+              </div>
+            </div>
+
+            <!-- Income / Expense / Savings -->
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Income</p>
+                <p class="text-xs font-semibold title-font text-income">
+                  {{ m.totalIncome | signedAmount: null : currency : '1.0-0' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Spent</p>
+                <p class="text-xs font-semibold title-font text-expense">
+                  {{ m.totalExpense | signedAmount: null : currency : '1.0-0' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Saved</p>
+                <p
+                  class="text-xs font-semibold title-font"
+                  [class.text-income]="m.savings >= 0"
+                  [class.text-red-500]="m.savings < 0"
+                >
+                  {{ m.savings | signedAmount: null : currency : '1.0-0' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Zero-based: allocated vs income -->
+            <div class="flex justify-between text-[0.7rem] text-secondary font-light">
+              <span>
+                {{ m.totalBudget | signedAmount: null : currency : '1.0-0' }} allocated
+              </span>
+              <span [class.text-red-600]="m.unbudgeted < 0">
+                {{
+                  (m.unbudgeted < 0 ? -m.unbudgeted : m.unbudgeted)
+                    | signedAmount: null : currency : '1.0-0'
+                }}
+                {{ m.unbudgeted < 0 ? 'over-allocated' : 'unbudgeted' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Expanded per-category breakdown -->
+          @if (isExpanded(m.month)) {
+            <div class="px-4 pb-4 flex flex-col gap-3 border-t border-[var(--color-border)] pt-3">
+              @for (c of m.categories; track c.category) {
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium title-font">{{ c.category }}</p>
+                    <p
+                      class="text-xs font-semibold title-font"
+                      [class.text-green-600]="!c.overspent"
+                      [class.text-red-500]="c.overspent"
+                    >
+                      @if (c.budget != null && c.budget > 0) {
+                        {{ c.used }}%
+                      } @else {
+                        —
+                      }
+                    </p>
+                  </div>
+                  <div class="h-1.5 w-full rounded-full bg-secondary-light overflow-hidden">
+                    <div
+                      class="h-full rounded-full min-w-0"
+                      [class.bg-green-500]="!c.overspent"
+                      [class.bg-red-500]="c.overspent"
+                      [style.width.%]="c.used > 100 ? 100 : c.used"
+                    ></div>
+                  </div>
+                  <div class="flex justify-between text-[0.65rem] text-secondary font-light">
+                    <span>{{ c.amount | signedAmount: null : currency : '1.0-0' }} spent</span>
+                    <span>
+                      @if (c.budget != null && c.budget > 0) {
+                        {{ c.budget | signedAmount: null : currency : '1.0-0' }} limit
+                      } @else {
+                        No limit
+                      }
+                    </span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

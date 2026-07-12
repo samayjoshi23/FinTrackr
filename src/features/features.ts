@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Snackbar } from '../shared/components/snackbar/snackbar';
@@ -15,8 +15,38 @@ import { BrowserBackRedirectService } from '../core/navigation/browser-back-redi
 })
 export class Features {
   readonly networkService = inject(NetworkService);
-  // SyncService is injected to initialize it (triggers effect-based sync on online event)
-  private readonly syncService = inject(SyncService);
+  // Also initializes the effect-based sync on online events.
+  readonly syncService = inject(SyncService);
   /** Scoped to this shell; registers `popstate` + route-driven back targets. */
   private readonly _browserBackRedirect = inject(BrowserBackRedirectService);
+
+  /** Failed-sync banner state. */
+  readonly failedBannerDismissed = signal(false);
+  readonly failedListOpen = signal(false);
+  readonly confirmingDiscard = signal(false);
+  readonly failedActionBusy = signal(false);
+
+  async retryAllFailed(): Promise<void> {
+    this.failedActionBusy.set(true);
+    try {
+      await this.syncService.retryAllFailed();
+    } finally {
+      this.failedActionBusy.set(false);
+      this.confirmingDiscard.set(false);
+    }
+  }
+
+  async discardAllFailed(): Promise<void> {
+    if (!this.confirmingDiscard()) {
+      this.confirmingDiscard.set(true);
+      return;
+    }
+    this.failedActionBusy.set(true);
+    try {
+      await this.syncService.discardAllFailed();
+    } finally {
+      this.failedActionBusy.set(false);
+      this.confirmingDiscard.set(false);
+    }
+  }
 }

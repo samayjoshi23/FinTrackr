@@ -27,6 +27,7 @@ import { NotifierService } from '../../shared/components/notifier/notifier.servi
 import { OfflineCrudService } from '../../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.service';
 import { NetworkService } from '../../core/offline/network.service';
+import { REVALIDATION_TTL_MS } from '../../core/offline/revalidation-tracker.service';
 import { date, docCalendarDate } from '../../core/date';
 
 const ACCOUNTS_COLLECTION = 'accounts';
@@ -57,6 +58,18 @@ export class AccountsService {
   private readonly cache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
 
+  /**
+   * Session memo for the accounts list. `getSelectedAccount()` is called from nearly
+   * every page/service; without this each call re-reads IndexedDB (and can trigger a
+   * background Firestore revalidation). Invalidated on every account mutation.
+   */
+  private accountsMemo: { uid: string; accounts: Account[]; at: number } | null = null;
+
+  /** Drop the in-memory accounts memo (mutations + logout). */
+  clearSessionCache(): void {
+    this.accountsMemo = null;
+  }
+
   private accountDocRef(userId: string) {
     return doc(this.firestore, `${ACCOUNTS_COLLECTION}/${userId}`);
   }
@@ -85,6 +98,7 @@ export class AccountsService {
     const members = serializeMembersForWrite(data.members);
     const memberIndex = deriveAccountMemberIndexes(data.members);
 
+    this.clearSessionCache();
     return this.offlineCrud.create<Account>(
       'accounts',
       'id',
@@ -164,6 +178,7 @@ export class AccountsService {
     const account = await this.getAccountDirect(docId);
     if (!account) throw new Error('Failed to read account after pending create sync.');
     await this.cache.put('accounts', { ...account, _pendingSync: false });
+    this.clearSessionCache();
   }
 
   /**
@@ -201,6 +216,7 @@ export class AccountsService {
           cached.updatedAt = new Date();
           await this.cache.put('accounts', cached);
         }
+        this.clearSessionCache();
         return newBalance;
       } catch {
         // Fall through to offline handling
@@ -214,6 +230,7 @@ export class AccountsService {
       cached.updatedAt = new Date();
       cached._pendingSync = true;
       await this.cache.put('accounts', cached);
+      this.clearSessionCache();
       return cached.balance;
     }
     throw new Error('Account not found in cache.');
@@ -252,6 +269,7 @@ export class AccountsService {
       patchRecord,
       (cached ?? { id: accountId }) as unknown as Record<string, unknown>,
     );
+    this.clearSessionCache();
   }
 
   /**
@@ -268,6 +286,7 @@ export class AccountsService {
   /** Persist an account row to the local cache (e.g. optimistic balance after a local-first save). */
   async writeAccountToCache(account: Account): Promise<void> {
     await this.cache.put('accounts', account);
+    this.clearSessionCache();
   }
 
   /** Get the account doc by user id (defaults to current user). */
@@ -281,7 +300,14 @@ export class AccountsService {
   /** For now, this returns a single-element list because we store one account per uid. */
   async getAccounts(userId?: string): Promise<Account[]> {
     const uid = userId ?? this.requireUid();
-    return this.offlineCrud.fetchAll<Account>(
+
+    const memo = this.accountsMemo;
+    if (memo && memo.uid === uid && Date.now() - memo.at < REVALIDATION_TTL_MS['accounts']) {
+      // Return a copy so callers can't mutate the memoized array.
+      return [...memo.accounts];
+    }
+
+    const accounts = await this.offlineCrud.fetchAll<Account>(
       'accounts',
       async () => {
         const accountsSnap = await getDocs(
@@ -291,6 +317,8 @@ export class AccountsService {
       },
       { indexName: 'ownerId', value: uid },
     );
+    this.accountsMemo = { uid, accounts: [...accounts], at: Date.now() };
+    return accounts;
   }
 
   /**
@@ -357,6 +385,7 @@ export class AccountsService {
       }
       await deleteDoc(ref);
     });
+    this.clearSessionCache();
 
     await this.selectAccount(null);
   }
@@ -383,13 +412,13 @@ export class AccountsService {
   }
 
   private requireUid(): string {
-    const userProfile = JSON.parse(
-      localStorage.getItem('userProfile') ?? 'null',
-    ) as UserProfile | null;
-    if (!userProfile) {
+    // Resolve from Firebase Auth (authoritative, in-memory, survives cleared
+    // localStorage/IndexedDB caches) — consistent with every other feature service.
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) {
       throw new Error('You must be signed in to manage accounts.');
     }
-    return userProfile['uid'] as string;
+    return uid;
   }
 
   private mapAccount(id: string, data: unknown): Account {

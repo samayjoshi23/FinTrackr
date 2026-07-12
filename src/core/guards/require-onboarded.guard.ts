@@ -4,27 +4,18 @@ import { Auth } from '@angular/fire/auth';
 import { AuthService } from '../auth/auth.service';
 
 /**
- * Requires a completed onboarding (Firestore / cached `isOnboarded`).
- * Runs after {@link authGuard} on the `/user/**` shell.
+ * Requires a completed onboarding. Runs after {@link authGuard} on `/user/**`.
+ *
+ * Onboarding status comes from Firestore (via `AuthService.checkOnboardingStatus`),
+ * which itself falls back to the cached `userProfile.isOnboarded` when offline.
+ * The `localStorage` read only decides the "onboarded vs not" hop AFTER Firebase
+ * has confirmed the auth session — an attacker who plants a fake userProfile
+ * still needs a real Firebase session to reach this guard at all.
  */
 export const requireOnboardedGuard: CanActivateFn = () => {
   const auth = inject(Auth);
   const router = inject(Router);
   const authService = inject(AuthService);
-
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    const raw = localStorage.getItem('userProfile');
-    if (!raw) {
-      return router.createUrlTree(['/login']);
-    }
-    try {
-      const p = JSON.parse(raw) as Record<string, unknown>;
-      if (p['isOnboarded'] === true) return true;
-      return router.createUrlTree(['/onboarding']);
-    } catch {
-      return router.createUrlTree(['/onboarding']);
-    }
-  }
 
   return new Promise((resolve) => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {

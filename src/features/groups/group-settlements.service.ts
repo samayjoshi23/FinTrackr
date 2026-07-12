@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
 import {
   collection,
   doc,
@@ -47,8 +48,16 @@ function toSettlement(id: string, data: GroupSettlementDocument): GroupSettlemen
 @Injectable({ providedIn: 'root' })
 export class GroupSettlementsService {
   private readonly firestore = inject(Firestore);
+  private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
+
+  /** Anchor for security-rules authorship checks on settlement writes. */
+  private requireUid(): string {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) throw new Error('You must be signed in to record settlements.');
+    return uid;
+  }
 
   /** Cache-first: serve IDB immediately, revalidate from Firestore in background when online. */
   async getSettlements(groupId: string): Promise<GroupSettlement[]> {
@@ -73,6 +82,7 @@ export class GroupSettlementsService {
       onSuccess?: (settlementId: string, settlement: GroupSettlement) => void;
     },
   ): Promise<GroupSettlement> {
+    const uid = this.requireUid();
     const payload: Record<string, unknown> = {
       groupId: input.groupId,
       fromId: input.fromId,
@@ -82,6 +92,8 @@ export class GroupSettlementsService {
       amount: input.amount,
       currency: input.currency,
       note: input.note ?? '',
+      // Authorship anchor for the rules' allow update predicate.
+      createdBy: uid,
     };
 
     return this.offlineCrud.createWithPath<GroupSettlement>(
@@ -114,6 +126,7 @@ export class GroupSettlementsService {
     docId: string,
     data: GroupSettlementCreateInput,
   ): Promise<void> {
+    const uid = this.requireUid();
     const ref = doc(this.firestore, settlementsPath(data.groupId), docId);
     await setDoc(ref, {
       groupId: data.groupId,
@@ -124,6 +137,7 @@ export class GroupSettlementsService {
       amount: data.amount,
       currency: data.currency,
       note: data.note ?? '',
+      createdBy: uid,
       settledAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     });

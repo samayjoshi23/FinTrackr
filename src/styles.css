@@ -56,6 +56,17 @@ body {
 .bg-primary-light {
   background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
+.bg-primary-light.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.bg-primary-light.clickable:active {
+  background-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  transform: scale(0.95);
+}
 
 .bg-primary-soft {
   background-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
@@ -79,6 +90,16 @@ body {
 
 .card {
   background-color: var(--color-bg-elevated);
+}
+
+.card.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.card.clickable:active {
+  background-color: var(--color-bg-elevated-pressed);
+  transform: scale(0.98);
 }
 
 .selected-card {
@@ -209,6 +230,5 @@ router-outlet + * > * > *:nth-child(n + 6) {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding-bottom: 2rem;
   background-color: var(--color-bg);
 }

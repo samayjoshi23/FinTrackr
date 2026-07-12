@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
 import {
   collection,
   doc,
@@ -48,8 +49,16 @@ function toExpense(id: string, data: GroupExpenseDocument): GroupExpense {
 @Injectable({ providedIn: 'root' })
 export class GroupExpensesService {
   private readonly firestore = inject(Firestore);
+  private readonly auth = inject(Auth);
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
+
+  /** Anchor for security-rules authorship checks on group subcollection writes. */
+  private requireUid(): string {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) throw new Error('You must be signed in to manage group expenses.');
+    return uid;
+  }
 
   /** Cache-first: serve IDB immediately, revalidate from Firestore in background when online. */
   async getExpenses(groupId: string): Promise<GroupExpense[]> {
@@ -74,6 +83,7 @@ export class GroupExpensesService {
       onSuccess?: (expenseId: string, expense: GroupExpense) => void;
     },
   ): Promise<GroupExpense> {
+    const uid = this.requireUid();
     const payload: Record<string, unknown> = {
       groupId: input.groupId,
       description: input.description.trim(),
@@ -85,6 +95,8 @@ export class GroupExpensesService {
       ...(input.paidByNames ? { paidByNames: input.paidByNames } : {}),
       splits: input.splits,
       date: input.date,
+      // Authorship anchor for the rules' allow update / delete predicates.
+      createdBy: uid,
     };
 
     return this.offlineCrud.createWithPath<GroupExpense>(
@@ -159,6 +171,7 @@ export class GroupExpensesService {
     docId: string,
     data: GroupExpenseCreateInput,
   ): Promise<void> {
+    const uid = this.requireUid();
     const ref = doc(this.firestore, expensesPath(data.groupId), docId);
     await setDoc(ref, {
       groupId: data.groupId,
@@ -171,6 +184,7 @@ export class GroupExpensesService {
       ...(data.paidByNames ? { paidByNames: data.paidByNames } : {}),
       splits: data.splits,
       date: data.date,
+      createdBy: uid,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

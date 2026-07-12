@@ -34,12 +34,6 @@
     ],
     "headers": [
       {
-        "source": "/firebase-messaging-sw.js",
-        "headers": [
-          { "key": "Service-Worker-Allowed", "value": "/" }
-        ]
-      },
-      {
         "source": "/manifest.webmanifest",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }

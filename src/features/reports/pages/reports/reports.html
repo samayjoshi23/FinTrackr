@@ -2,7 +2,7 @@
   <!-- Header -->
   <div class="flex items-center gap-2">
     <div
-      class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+      class="h-9 w-9 rounded-full button-secondary"
       (click)="goBack()"
     >
       <ico name="left-arrow" size="sm"></ico>
@@ -127,6 +127,8 @@
       [currency]="currency()"
       [barsShown]="progressBarsShown()"
     />
+
+    <app-reports-budget-history [months]="budgetHistory()" [currency]="currency()" />
 
     <app-reports-savings-rate-card
       [summary]="summary()"

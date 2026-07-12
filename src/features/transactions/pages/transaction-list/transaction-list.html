@@ -1,10 +1,7 @@
-<div class="container-layout p-4 md:p-5">
+<div class="container-layout p-4 pb-0 md:p-5">
   <header class="flex flex-col gap-3">
     <div class="flex items-center gap-2">
-      <div
-        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
-        (click)="onBack()"
-      >
+      <div class="h-9 w-9 rounded-full button-secondary" (click)="onBack()">
         <ico name="left-arrow" size="sm"></ico>
       </div>
       <h1 class="text-xl font-semibold title-font">Transactions</h1>
@@ -105,8 +102,8 @@
     </div>
   }
 
-  <!-- List -->
-  <div class="flex flex-col gap-2">
+  <!-- List (virtualized: ~30 live DOM rows regardless of loaded pages) -->
+  <div class="flex flex-col gap-2 flex-1 min-h-0">
     @if (loading()) {
       <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>
     } @else if (displayedTransactions().length === 0) {
@@ -120,40 +117,42 @@
           Showing {{ displayedTransactions().length }} of {{ totalFiltered() }}
         </p>
       }
-      @for (t of displayedTransactions(); track t.uid) {
-        <div
-          class="flex cursor-pointer items-center justify-between gap-2 rounded-2xl p-4 card transition-opacity hover:opacity-90"
-          role="button"
-          tabindex="0"
-          (click)="openTransactionDetail(t)"
-          (keydown.enter)="openTransactionDetail(t)"
-          (keydown.space)="$event.preventDefault(); openTransactionDetail(t)"
-        >
-          <div class="flex items-center gap-4">
-            <div class="flex items-center justify-center">
-              <ico [name]="iconForRow(t)" size="md" class="text-secondary"></ico>
-            </div>
-            <div class="flex flex-col min-w-0">
-              <p class="text-sm flex items-center gap-2 title-font font-medium">
-                @if (t.isRecurring) {
-                  <ico name="arrow-refresh" class="text-violet-500" size="sm"></ico>
-                }
-                <span class="truncate">{{ t.description }}</span>
-              </p>
-              <p class="text-xs text-secondary truncate">
-                {{ sourceLabel(t) }} · {{ t.createdAt | date: 'MMM d, yyyy' }}
-              </p>
-            </div>
-          </div>
-          <p
-            class="text-sm title-font font-medium shrink-0 tabular-nums"
-            [class.text-income]="t.type === 'income'"
-            [class.text-expense]="t.type !== 'income'"
+      <cdk-virtual-scroll-viewport itemSize="80" class="tx-scroll-viewport">
+        <div *cdkVirtualFor="let t of displayedTransactions(); trackBy: trackByUid" class="pb-2">
+          <div
+            class="flex cursor-pointer items-center justify-between gap-2 rounded-2xl p-4 card clickable transition-opacity hover:opacity-80"
+            role="button"
+            tabindex="0"
+            (click)="openTransactionDetail(t)"
+            (keydown.enter)="openTransactionDetail(t)"
+            (keydown.space)="$event.preventDefault(); openTransactionDetail(t)"
           >
-            {{ t.amount | signedAmount: t.type : currency() }}
-          </p>
+            <div class="flex items-center gap-4">
+              <div class="flex items-center justify-center">
+                <ico [name]="iconForRow(t)" size="md" class="text-secondary"></ico>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <p class="text-sm flex items-center gap-2 title-font font-medium">
+                  @if (t.linkedObject?.type === 'recurring') {
+                    <ico name="arrow-refresh" class="text-violet-500" size="sm"></ico>
+                  }
+                  <span class="truncate">{{ t.description }}</span>
+                </p>
+                <p class="text-xs text-secondary truncate">
+                  {{ sourceLabel(t) }} · {{ t.createdAt | date: 'MMM d, yyyy' }}
+                </p>
+              </div>
+            </div>
+            <p
+              class="text-sm title-font font-medium shrink-0 tabular-nums"
+              [class.text-income]="t.type === 'income'"
+              [class.text-expense]="t.type !== 'income'"
+            >
+              {{ t.amount | signedAmount: t.type : currency() }}
+            </p>
+          </div>
         </div>
-      }
+      </cdk-virtual-scroll-viewport>
       @if (hasMore() && !loading()) {
         <button
           type="button"
@@ -165,14 +164,13 @@
         </button>
       }
     }
+    <app-transaction-detail-modal
+      [(open)]="txDetailOpen"
+      [transaction]="selectedTransaction()"
+      [currency]="currency()"
+      (transactionUpdated)="onTransactionUpdated($event)"
+    />
   </div>
-
-  <app-transaction-detail-modal
-    [(open)]="txDetailOpen"
-    [transaction]="selectedTransaction()"
-    [currency]="currency()"
-    (transactionUpdated)="onTransactionUpdated($event)"
-  />
 </div>
 
 <ng-template #loadingTpl>

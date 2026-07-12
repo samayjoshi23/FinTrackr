@@ -202,7 +202,9 @@
                 role="listbox"
               >
                 @if (usersLookup.directoryLoading()) {
-                  <div class="px-3 py-4 flex items-center justify-center gap-2 text-secondary text-sm">
+                  <div
+                    class="px-3 py-4 flex items-center justify-center gap-2 text-secondary text-sm"
+                  >
                     <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
                     Searching…
                   </div>
@@ -217,11 +219,15 @@
                       class="member-search-row w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-bg-elevated)]"
                       (click)="pickMember(hit, $event)"
                     >
-                      <div class="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary">
+                      <div
+                        class="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary"
+                      >
                         {{ (hit.displayName || hit.email).slice(0, 1).toUpperCase() }}
                       </div>
                       <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium truncate">{{ hit.displayName || hit.email }}</p>
+                        <p class="text-sm font-medium truncate">
+                          {{ hit.displayName || hit.email }}
+                        </p>
                         <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
                       </div>
                       <ico name="user-group" size="sm" class="text-primary shrink-0"></ico>
@@ -239,8 +245,12 @@
               <span class="text-xs text-gray-400">Invited ({{ invitedMembers().length }})</span>
               <div class="flex flex-col gap-2">
                 @for (m of invitedMembers(); track m.uid) {
-                  <div class="rounded-xl p-2.5 flex items-center gap-3 bg-[var(--color-bg-elevated)]">
-                    <div class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary">
+                  <div
+                    class="rounded-xl p-2.5 flex items-center gap-3 bg-[var(--color-bg-elevated)]"
+                  >
+                    <div
+                      class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary"
+                    >
                       {{ (m.displayName || m.email).slice(0, 1).toUpperCase() }}
                     </div>
                     <div class="flex-1 min-w-0">
@@ -436,25 +446,27 @@
 
     <div class="flex flex-col gap-2 max-h-[45vh] overflow-y-auto p-2">
       @for (c of onboardingCategories(); track c.uid) {
-        <div class="field-wrapper before">
-            <span 
+        @if (c.name !== 'Other') {
+          <div class="field-wrapper before">
+            <span
               class="field-icon before bg-secondary-light rounded-lg flex items-center justify-center gap-2"
-              [style]="{ height: '2rem', left: '0.25rem', top: '0.25rem'}"
+              [style]="{ height: '2.25rem', left: '0.25rem', top: '0.25rem' }"
             >
               <ico [name]="c.icon" size="sm" class="text-primary"></ico>
               <p class="flex-1 text-sm pr-3">{{ c.name }}</p>
             </span>
-          <div class="field-wrapper before w-28 shrink-0">
-            <input
-              type="number"
-              class="w-full text-right"
-              min="0"
-              placeholder="0"
-              [name]="'catBudget_' + c.uid"
-              [(ngModel)]="categoryBudgetDraft[c.uid]"
-            />
+            <div class="field-wrapper before w-28 shrink-0">
+              <input
+                type="number"
+                class="w-full text-right"
+                min="0"
+                placeholder="0"
+                [name]="'catBudget_' + c.uid"
+                [(ngModel)]="categoryBudgetDraft[c.uid]"
+              />
+            </div>
           </div>
-        </div>
+        }
       }
     </div>
 
@@ -467,11 +479,10 @@
       </div>
       <div class="flex justify-between">
         <span class="text-secondary">Remaining (Other)</span>
-        <span
-          class="title-font font-medium"
-          [class.text-red-600]="categoryBudgetRemaining() < 0"
-        >
-          {{ categoryBudgetRemaining() | signedAmount: null : formModel.account.currency : '1.0-0' }}
+        <span class="title-font font-medium" [class.text-red-600]="categoryBudgetRemaining() < 0">
+          {{
+            categoryBudgetRemaining() | signedAmount: null : formModel.account.currency : '1.0-0'
+          }}
         </span>
       </div>
       @if (categoryBudgetRemaining() < 0) {

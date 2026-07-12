@@ -9,6 +9,13 @@ export interface SummaryCardModel {
   /** Spend above totalLimit; 0 when within budget. */
   overBudgetAmount: number;
   daysLeft: number;
+  // ─── Zero-based budgeting ───────────────────────────────
+  /** Total income for the month (the allocation pool). */
+  income: number;
+  /** Income minus allocated budget; negative ⇒ over-allocated. */
+  unbudgeted: number;
+  /** True when viewing a past month (read-only snapshot). */
+  isReadOnly: boolean;
 }
 
 export interface CategoryBudgetCardModel {

@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
@@ -13,7 +14,7 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 
 @Component({
   selector: 'app-notification-list',
-  imports: [CommonModule, Icon],
+  imports: [CommonModule, Icon, ScrollingModule],
   templateUrl: './notification-list.html',
   styleUrl: './notification-list.css',
 })
@@ -28,6 +29,9 @@ export class NotificationList implements OnInit {
 
   readonly accounts = signal<Account[]>([]);
   readonly userId = signal<string>('');
+
+  /** trackBy for *cdkVirtualFor. */
+  readonly trackById = (_: number, n: AppNotification) => n.id;
 
   async ngOnInit(): Promise<void> {
     // Notification listener is started globally by AuthService — no need to
@@ -68,9 +72,9 @@ export class NotificationList implements OnInit {
     if (n.status === 'UNREAD') {
       void this.notifService.markAsRead(n.id);
     }
-    const deepLink = n.actionData?.deepLink;
-    if (deepLink) {
-      void this.router.navigateByUrl(deepLink);
+    const target = safeDeepLink(n.actionData?.deepLink);
+    if (target) {
+      void this.router.navigateByUrl(target);
     }
   }
 
@@ -80,12 +84,12 @@ export class NotificationList implements OnInit {
 
     switch (action) {
       case 'PAY': {
-        const link = n.actionData?.deepLink;
+        const link = safeDeepLink(n.actionData?.deepLink);
         if (link) void this.router.navigateByUrl(link);
         break;
       }
       case 'MARK_PAID': {
-        const link = n.actionData?.deepLink;
+        const link = safeDeepLink(n.actionData?.deepLink);
         if (link) void this.router.navigateByUrl(link);
         break;
       }
@@ -219,4 +223,21 @@ export class NotificationList implements OnInit {
     if (h < 48) return `${h}h ago`;
     return `${Math.floor(h / 24)}d ago`;
   }
+}
+
+/**
+ * Validate a notification's deep link before routing. Notification docs are
+ * written by Cloud Functions today, but rules could not-yet-detect a malformed
+ * or malicious value — enforce that any target starts with `/user/` (an
+ * absolute in-app path) and does not begin with `//` (protocol-relative URL
+ * that some routers treat as external). Returns null when the link should be
+ * ignored.
+ */
+function safeDeepLink(link: unknown): string | null {
+  if (typeof link !== 'string') return null;
+  const trimmed = link.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('//')) return null;
+  if (!trimmed.startsWith('/user/')) return null;
+  return trimmed;
 }

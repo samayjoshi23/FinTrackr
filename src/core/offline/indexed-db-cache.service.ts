@@ -1,49 +1,110 @@
 import { Injectable, inject } from '@angular/core';
 import { NgxIndexedDBService } from 'ngx-indexed-db';
 import { firstValueFrom } from 'rxjs';
+import { IndexedDbRecoveryService } from './indexed-db-recovery.service';
 
 const DATE_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'lastPaymentDate', 'nextPaymentDate', 'readAt'];
 
+/**
+ * Thin, **fault-tolerant** wrapper over IndexedDB.
+ *
+ * IndexedDB can fail or be unavailable for reasons outside our control: the user
+ * cleared site data, a schema upgrade was interrupted, private-browsing quotas,
+ * a corrupt/blocked database, or an observable that completes without emitting.
+ * None of those should crash the app. So:
+ *   - **Reads** degrade to an empty result (treated as a cache miss upstream, which
+ *     makes the offline-crud layer fall back to Firestore and repopulate the cache).
+ *   - **Writes** are best-effort — a failure is logged and swallowed so the caller's
+ *     flow (optimistic UI, sync queue) continues.
+ */
 @Injectable({ providedIn: 'root' })
 export class IndexedDbCacheService {
   private readonly db = inject(NgxIndexedDBService);
+  private readonly recovery = inject(IndexedDbRecoveryService);
 
   async getAll<T>(storeName: string): Promise<T[]> {
-    const items = await firstValueFrom(this.db.getAll<Record<string, unknown>>(storeName));
-    return items.map((item) => this.deserializeDates<T>(item));
+    try {
+      const items = await firstValueFrom(this.db.getAll<Record<string, unknown>>(storeName));
+      return (items ?? []).map((item) => this.deserializeDates<T>(item));
+    } catch (err) {
+      this.warn('getAll', storeName, err);
+      return [];
+    }
   }
 
   async getAllByIndex<T>(storeName: string, indexName: string, value: IDBValidKey): Promise<T[]> {
-    const items = await firstValueFrom(
-      this.db.getAllByIndex<Record<string, unknown>>(storeName, indexName, IDBKeyRange.only(value))
-    );
-    return items.map((item) => this.deserializeDates<T>(item));
+    try {
+      const items = await firstValueFrom(
+        this.db.getAllByIndex<Record<string, unknown>>(storeName, indexName, IDBKeyRange.only(value))
+      );
+      return (items ?? []).map((item) => this.deserializeDates<T>(item));
+    } catch (err) {
+      this.warn('getAllByIndex', `${storeName}.${indexName}`, err);
+      return [];
+    }
   }
 
   async getByKey<T>(storeName: string, key: string | number): Promise<T | undefined> {
-    const item = await firstValueFrom(this.db.getByID<Record<string, unknown>>(storeName, key));
-    return item ? this.deserializeDates<T>(item) : undefined;
+    try {
+      const item = await firstValueFrom(this.db.getByID<Record<string, unknown>>(storeName, key));
+      return item ? this.deserializeDates<T>(item) : undefined;
+    } catch (err) {
+      this.warn('getByKey', storeName, err);
+      return undefined;
+    }
   }
 
   async put<T>(storeName: string, value: T): Promise<T> {
-    const serialized = this.serializeDates(value as Record<string, unknown>);
-    await firstValueFrom(this.db.update(storeName, serialized));
+    try {
+      const serialized = this.serializeDates(value as Record<string, unknown>);
+      await firstValueFrom(this.db.update(storeName, serialized));
+    } catch (err) {
+      this.warn('put', storeName, err);
+    }
+    // Always return the value: callers rely on it for optimistic UI even if the
+    // local write failed (the change is still queued/sent to Firestore).
     return value;
   }
 
   async putAll<T>(storeName: string, values: T[]): Promise<void> {
     if (values.length === 0) return;
-    const serialized = values.map((v) => this.serializeDates(v as Record<string, unknown>));
-    await firstValueFrom(this.db.bulkPut(storeName, serialized));
+    try {
+      const serialized = values.map((v) => this.serializeDates(v as Record<string, unknown>));
+      await firstValueFrom(this.db.bulkPut(storeName, serialized));
+    } catch (err) {
+      this.warn('putAll', storeName, err);
+    }
   }
 
   async delete(storeName: string, key: string | number): Promise<void> {
-    console.log('IndexedDbCacheService: delete', storeName, key);
-    await firstValueFrom(this.db.deleteByKey(storeName, key));
+    try {
+      await firstValueFrom(this.db.deleteByKey(storeName, key));
+    } catch (err) {
+      this.warn('delete', storeName, err);
+    }
   }
 
   async clear(storeName: string): Promise<void> {
-    await firstValueFrom(this.db.clear(storeName));
+    try {
+      await firstValueFrom(this.db.clear(storeName));
+    } catch (err) {
+      this.warn('clear', storeName, err);
+    }
+  }
+
+  /**
+   * Non-fatal IndexedDB diagnostics — never throws to the caller.
+   *
+   * If the failure looks structural (wrong version / missing store), hand it to the
+   * recovery service, which will delete + reload to rebuild a clean DB (guarded by a
+   * cooldown so it can't loop). The startup probe catches most of these before the
+   * session begins; this is the safety net for faults that surface mid-session.
+   */
+  private warn(op: string, target: string, err: unknown): void {
+    console.warn(`IndexedDbCacheService: ${op}(${target}) failed — falling back gracefully`, err);
+    if (this.recovery.isStructuralFault(err)) {
+      void this.recovery.recover(`${op}(${target}): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private serializeDates(obj: Record<string, unknown>): Record<string, unknown> {

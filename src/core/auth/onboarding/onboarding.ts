@@ -122,9 +122,7 @@ export class Onboarding {
   }
 
   ngOnInit() {
-    this.userProfile.set(
-      JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null,
-    );
+    this.userProfile.set(this.authService.getCachedProfile() as UserProfile | null);
     this.ownerUid = (this.userProfile()?.['uid'] as string) ?? '';
     this.formModel.user.fullName = String(this.userProfile()?.['displayName'] ?? '');
     this.formModel.user.profilePicture = String(this.userProfile()?.['photoURL'] ?? '');
@@ -282,7 +280,6 @@ export class Onboarding {
       this.usersLookup.resetDirectory();
       return;
     }
-    void this.usersLookup.loadUsersDirectory();
   }
 
   removeInvitedMember(uid: string) {
@@ -291,7 +288,7 @@ export class Onboarding {
 
   onMemberSearchChange(): void {
     const q = this.memberSearchQuery.trim();
-    if (q.length >= 2) void this.usersLookup.loadUsersDirectory();
+    void this.usersLookup.searchByEmail(q);
   }
 
   pickMember(hit: UserLookupHit, ev: Event): void {
@@ -535,7 +532,7 @@ export class Onboarding {
   }
 
   private async updateUserProfile() {
-    const profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    const profile = this.authService.getCachedProfile() as UserProfile | null;
     if (!profile?.['uid']) void this.router.navigateByUrl('/login', { replaceUrl: true });
     this.userProfile.set({
       ...this.userProfile(),
@@ -617,17 +614,19 @@ export class Onboarding {
     const key = (n: string) => n.trim().toLowerCase();
     const byName = new Map(existing.map((c) => [key(c.name), c]));
 
-    for (const tmpl of DEFAULT_CATEGORIES) {
-      const k = key(tmpl.name);
-      if (byName.has(k)) continue;
-      const input: CategoryCreateInput = {
-        accountId,
-        name: tmpl.name,
-        description: tmpl.description ?? '',
-        icon: tmpl.icon,
-      };
-      const row = await this.categoriesService.createCategory(input, uid);
-      byName.set(k, row);
+    // Seed every missing template in ONE batched Firestore commit (instead of a
+    // sequential setDoc + read-back per category).
+    const missing: CategoryCreateInput[] = DEFAULT_CATEGORIES.filter(
+      (tmpl) => !byName.has(key(tmpl.name)),
+    ).map((tmpl) => ({
+      accountId,
+      name: tmpl.name,
+      description: tmpl.description ?? '',
+      icon: tmpl.icon,
+    }));
+    const created = await this.categoriesService.seedDefaultCategoriesBatch(missing, uid);
+    for (const row of created) {
+      byName.set(key(row.name), row);
     }
 
     const ordered: Category[] = [];

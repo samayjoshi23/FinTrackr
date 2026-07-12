@@ -16,6 +16,7 @@ import { TransactionDetailModal } from '../../../shared/components/transaction-d
 import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
 import { RecordAction, RecordActionType } from '../../../shared/enums/recordActions.enum';
 import { NotificationService } from '../../../features/notifications/notification.service';
+import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -29,6 +30,7 @@ export class Dashboard {
   private readonly reportsService = inject(ReportsService);
   private readonly router = inject(Router);
   private readonly notifier = inject(NotifierService);
+  private readonly authService = inject(AuthService);
   readonly notificationService = inject(NotificationService);
 
   constructor() {
@@ -76,7 +78,7 @@ export class Dashboard {
   );
 
   async ngOnInit() {
-    let profile = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as UserProfile | null;
+    const profile = this.authService.getCachedProfile() as UserProfile | null;
     this.userProfile.set(profile ?? null);
     this.setUserInitials();
     this.setGreetingMessage();

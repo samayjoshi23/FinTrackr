@@ -3,39 +3,75 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-2">
       <div
-        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        class="h-9 w-9 rounded-full button-secondary"
         (click)="goBack()"
       >
         <ico name="left-arrow" size="sm"></ico>
       </div>
       <h1 class="text-xl font-semibold title-font">Budgets</h1>
     </div>
-    <div
-      class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
-      (click)="onNewBudget()"
-      aria-label="New budget"
-    >
-      <ico name="plus" size="md"></ico>
-    </div>
+    @if (isCurrentMonth()) {
+      <div
+        class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
+        (click)="onNewBudget()"
+        aria-label="New budget"
+      >
+        <ico name="plus" size="md"></ico>
+      </div>
+    }
   </div>
 
-  @if (loading()) {
+  <!-- Month switcher -->
+  <div class="flex items-center justify-between card rounded-2xl px-2 py-1.5">
+    <button
+      type="button"
+      class="h-8 w-8 flex items-center justify-center rounded-full button-secondary disabled:opacity-30"
+      [disabled]="!canGoPrev()"
+      (click)="goPrevMonth()"
+      aria-label="Previous month"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </button>
+    <div class="flex items-center gap-2">
+      <p class="text-sm font-semibold title-font">{{ monthLabel() }}</p>
+      @if (!isCurrentMonth()) {
+        <span class="text-[0.6rem] font-medium px-1.5 py-0.5 rounded-full bg-secondary-light text-secondary">
+          Read only
+        </span>
+      }
+    </div>
+    <button
+      type="button"
+      class="h-8 w-8 flex items-center justify-center rounded-full button-secondary disabled:opacity-30"
+      [disabled]="!canGoNext()"
+      (click)="goNextMonth()"
+      aria-label="Next month"
+    >
+      <ico name="chevron-right" size="sm"></ico>
+    </button>
+  </div>
+
+  @if (loading() || historyLoading()) {
     <ng-container *ngTemplateOutlet="loadingTpl"></ng-container>
   } @else if (!hasBudget()) {
-    <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
-      <p class="text-sm font-light">No budget set yet</p>
-      <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
-        Set your monthly budget
-      </button>
-    </div>
+    @if (isCurrentMonth()) {
+      <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
+        <p class="text-sm font-light">No budget set yet</p>
+        <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
+          Set your monthly budget
+        </button>
+      </div>
+    } @else {
+      <div class="card-light rounded-2xl p-4 flex flex-col items-center gap-2 text-center">
+        <ico name="notes" size="lg" class="text-secondary"></ico>
+        <p class="text-sm font-light text-secondary">No budget data for this month.</p>
+      </div>
+    }
   } @else {
-    <!-- Summary -->
+    <!-- Summary (zero-based) -->
     <div class="card-light rounded-2xl p-4 flex flex-col gap-3 min-h-35">
       <div class="flex items-end justify-between">
         <p class="text-xs font-light text-secondary">{{ summary().monthLabel }} Budget</p>
-        <div class="flex items-center gap-2">
-          <p class="text-xs font-light"></p>
-        </div>
       </div>
 
       <div class="flex items-center gap-3">
@@ -49,6 +85,43 @@
         </div>
       </div>
 
+      <!-- Zero-based allocation strip: income → allocated → unbudgeted -->
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="rounded-xl bg-secondary-light/60 py-2">
+          <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Income</p>
+          <p class="text-sm font-semibold title-font">
+            {{ summary().income | signedAmount: null : currency() : '1.0-0' }}
+          </p>
+        </div>
+        <div class="rounded-xl bg-secondary-light/60 py-2">
+          <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Allocated</p>
+          <p class="text-sm font-semibold title-font">
+            {{ summary().totalLimit | signedAmount: null : currency() : '1.0-0' }}
+          </p>
+        </div>
+        <div class="rounded-xl bg-secondary-light/60 py-2">
+          <p class="text-[0.6rem] uppercase tracking-wide text-secondary">
+            {{ summary().unbudgeted < 0 ? 'Over-allocated' : 'Unbudgeted' }}
+          </p>
+          <p
+            class="text-sm font-semibold title-font"
+            [class.text-red-600]="summary().unbudgeted < 0"
+            [class.text-income]="summary().unbudgeted > 0"
+          >
+            {{
+              (summary().unbudgeted < 0 ? -summary().unbudgeted : summary().unbudgeted)
+                | signedAmount: null : currency() : '1.0-0'
+            }}
+          </p>
+        </div>
+      </div>
+
+      @if (summary().income > 0 && summary().unbudgeted < 0) {
+        <p class="text-[0.7rem] text-red-600 font-light">
+          You've allocated more than your income this month.
+        </p>
+      }
+
       <div class="min-h-1.5! w-full rounded-full bg-secondary-light overflow-hidden">
         @if (summary().totalLimit >= 0) {
           <div
@@ -61,7 +134,7 @@
 
       <div class="flex justify-between text-xs font-light">
         <p class="flex items-center gap-1 flex-wrap">
-          @if (summary().overBudgetAmount >= 0) {
+          @if (summary().overBudgetAmount > 0) {
             <span class="text-red-600 title-font font-medium">
               {{ summary().overBudgetAmount | signedAmount: null : currency() : '1.0-0' }}
               over budget
@@ -76,21 +149,32 @@
               remaining
             </span>
           }
-          <span>·</span>
-          <span class="text-secondary">{{ summary().daysLeft }} days left</span>
+          @if (!summary().isReadOnly) {
+            <span>·</span>
+            <span class="text-secondary">{{ summary().daysLeft }} days left</span>
+          }
         </p>
       </div>
     </div>
 
     <!-- By Category -->
-    <p class="text-sm title-font font-medium">By Category</p>
+    <div class="flex items-center justify-between">
+      <p class="text-sm font-semibold title-font">By Category</p>
+      @if (isCurrentMonth()) {
+        <a class="flex items-center gap-1 text-xs cursor-pointer" (click)="onEditBudget($event)">
+          <ico name="pencil" size="xs"></ico>
+          <span>Edit budgets</span>
+        </a>
+      }
+    </div>
 
     <div class="flex flex-col gap-3">
       @for (card of categoryCards(); track card.category) {
         <div
-          class="card rounded-2xl overflow-hidden transition-all duration-200"
-          role="button"
-          tabindex="0"
+          class="card clickable rounded-2xl overflow-hidden transition-all duration-200"
+          [class.cursor-pointer]="isCurrentMonth()"
+          [attr.role]="isCurrentMonth() ? 'button' : null"
+          [attr.tabindex]="isCurrentMonth() ? 0 : null"
           (click)="onCardClick(card)"
           (keydown.enter)="onCardClick(card)"
           (keydown.space)="$event.preventDefault(); onCardClick(card)"
@@ -112,12 +196,14 @@
                 >
                   {{ card.percent }}%
                 </p>
-                <ico
-                  name="chevron-right"
-                  size="sm"
-                  class="text-secondary transition-transform duration-200"
-                  [class.rotate-90]="isCardExpanded(card)"
-                ></ico>
+                @if (isCurrentMonth()) {
+                  <ico
+                    name="chevron-right"
+                    size="sm"
+                    class="text-secondary transition-transform duration-200"
+                    [class.rotate-90]="isCardExpanded(card)"
+                  ></ico>
+                }
               </div>
             </div>
 
@@ -147,8 +233,8 @@
               </div>
             }
 
-            <!-- Expandable action buttons -->
-            @if (isCardExpanded(card)) {
+            <!-- Expandable action buttons (current month only) -->
+            @if (isCurrentMonth() && isCardExpanded(card)) {
               <div class="flex gap-2 items-center justify-between">
                 <div
                   class="flex items-center gap-1 text-xs rounded-xl px-3 py-2 text-primary font-light card selected-card cursor-pointer"
@@ -159,13 +245,6 @@
                 </div>
                 @if (!card.isOther) {
                   <div class="flex gap-2">
-                    <button
-                      type="button"
-                      class="flex items-center gap-1 text-sm button-yellow rounded-xl p-3 font-light"
-                      (click)="onEditBudget($event)"
-                    >
-                      <ico name="pencil" size="sm"></ico>
-                    </button>
                     <button
                       type="button"
                       class="flex items-center gap-1 text-sm button-red rounded-xl p-3 font-light"

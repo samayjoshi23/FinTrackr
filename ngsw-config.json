@@ -34,16 +34,6 @@
   ],
   "dataGroups": [
     {
-      "name": "firestore-api",
-      "urls": ["https://firestore.googleapis.com/**"],
-      "cacheConfig": {
-        "strategy": "freshness",
-        "maxSize": 100,
-        "maxAge": "1d",
-        "timeout": "5s"
-      }
-    },
-    {
       "name": "google-fonts",
       "urls": ["https://fonts.googleapis.com/**", "https://fonts.gstatic.com/**"],
       "cacheConfig": {

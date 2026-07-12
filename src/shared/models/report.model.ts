@@ -23,6 +23,13 @@ export interface MonthlyReport {
   totalExpense: number;
   savings: number;
   totalBudgetUsed: number; // overall % of total budget used
+  /**
+   * Total budget allocated for the month (recurring plan's `monthlyBudget` at the
+   * time this report was stamped). Enables zero-based math (income → allocated →
+   * unbudgeted) and is the frozen source for past-month budget limits. Optional for
+   * backward-compat with reports written before this field existed.
+   */
+  totalBudget?: number;
   categoryBreakdown: Record<string, CategoryBreakdownEntry>;
   recurrings: {
     totalIncome: number;
@@ -46,6 +53,7 @@ export interface MonthlyReportCreateInput {
   totalExpense: number;
   savings: number;
   totalBudgetUsed: number;
+  totalBudget?: number;
   categoryBreakdown: Record<string, CategoryBreakdownEntry>;
   recurrings: {
     totalIncome?: number;
@@ -66,6 +74,7 @@ export interface MonthlyReportUpdateInput {
   totalExpense?: number;
   savings?: number;
   totalBudgetUsed?: number;
+  totalBudget?: number;
   categoryBreakdown?: Record<string, CategoryBreakdownEntry>;
   recurrings?: {
     totalIncome?: number;
@@ -130,4 +139,31 @@ export interface ReportSummary {
   totalExpense: number;
   savings: number;
   savingsRate: number; // percentage
+}
+
+/** One historical month's budget performance, derived from a {@link MonthlyReport} snapshot. */
+export interface BudgetHistoryMonth {
+  month: string; // 'YYYY-MM'
+  label: string; // 'Jul 2026'
+  totalIncome: number;
+  totalExpense: number;
+  savings: number;
+  /** Allocated budget for the month (zero-based pool). */
+  totalBudget: number;
+  /** income − allocated; negative means over-allocated. */
+  unbudgeted: number;
+  totalBudgetUsed: number; // %
+  overspentCount: number;
+  categories: BudgetTrackingCard[];
+}
+
+/** Zero-based allocation snapshot for a single month (Budgets page summary). */
+export interface ZeroBasedSummary {
+  totalIncome: number;
+  totalBudget: number; // allocated
+  totalSpent: number;
+  /** income − allocated; negative ⇒ over-allocated. */
+  unbudgeted: number;
+  /** allocated − spent (can be negative when overspent). */
+  remaining: number;
 }

@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, inject, model, signal } from '@angular/core';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
@@ -16,7 +17,7 @@ import { RecordAction, RecordActionType } from '../../../../shared/enums/recordA
 
 @Component({
   selector: 'app-transaction-list',
-  imports: [CommonModule, Icon, FormsModule, TransactionDetailModal, SignedAmountPipe],
+  imports: [CommonModule, Icon, FormsModule, TransactionDetailModal, SignedAmountPipe, ScrollingModule],
   templateUrl: './transaction-list.html',
   styleUrl: './transaction-list.css',
 })
@@ -57,6 +58,9 @@ export class TransactionList {
       if (!this.txDetailOpen()) this.selectedTransaction.set(null);
     });
   }
+
+  /** trackBy for *cdkVirtualFor (keeps DOM nodes stable across pages). */
+  readonly trackByUid = (_: number, t: TransactionRecord) => t.uid;
 
   /** Category chips from the catalog only (no full transaction scan). */
   readonly categoryChipLabels = computed(() => {

@@ -4,7 +4,7 @@
     <div class="flex items-center gap-2 justify-between w-full">
       <div class="flex items-center gap-2">
         <div
-          class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+          class="h-9 w-9 rounded-full button-secondary"
           (click)="onBack()"
         >
           <ico name="left-arrow" size="sm"></ico>
@@ -72,17 +72,21 @@
     </div>
   }
 
-  <!-- Notifications List -->
+  <!-- Notifications List (virtualized: constant DOM node count while scrolling) -->
   @if (!loading()) {
-    <div class="flex-1 overflow-y-auto pb-20 space-y-3">
-      @if (items().length === 0) {
-        <div class="flex flex-col items-center justify-center gap-2 py-16 text-secondary">
-          <ico name="bell" size="xl"></ico>
-          <p class="text-sm">No notifications yet</p>
-        </div>
-      }
-
-      @for (n of items(); track n.id) {
+    @if (items().length === 0) {
+      <div class="flex flex-col items-center justify-center gap-2 py-16 text-secondary flex-1">
+        <ico name="bell" size="xl"></ico>
+        <p class="text-sm">No notifications yet</p>
+      </div>
+    } @else {
+      <cdk-virtual-scroll-viewport
+        itemSize="112"
+        minBufferPx="448"
+        maxBufferPx="896"
+        class="notif-scroll-viewport flex-1 pb-20"
+      >
+        <div *cdkVirtualFor="let n of items(); trackBy: trackById" class="pb-3">
         <div
           class="notif-card w-full text-left card rounded-2xl p-3 flex gap-3 relative cursor-pointer"
           [class.notif-card--unread]="n.status === 'UNREAD'"
@@ -143,11 +147,12 @@
             ></span>
           }
         </div>
-      }
+        </div>
+      </cdk-virtual-scroll-viewport>
 
       <!-- Load More -->
-      @if (items().length > 0 && hasMore()) {
-        <div class="flex justify-center pt-2 pb-4">
+      @if (hasMore()) {
+        <div class="flex justify-center pt-2 pb-4 shrink-0">
           <button
             class="text-xs text-primary font-medium px-4 py-2 rounded-lg button-secondary"
             (click)="loadMore()"
@@ -156,6 +161,6 @@
           </button>
         </div>
       }
-    </div>
+    }
   }
 </div>

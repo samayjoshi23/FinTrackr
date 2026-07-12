@@ -45,11 +45,11 @@ export class About {
   }
 
   openGitHub() {
-    window.open('https://github.com/samayjoshi', '_blank', 'noopener');
+    window.open('https://github.com/samayjoshi23', '_blank', 'noopener,noreferrer');
   }
 
   openPortfolio() {
-    window.open('https://samayjoshi.dev', '_blank', 'noopener');
+    window.open('https://samayjoshi23.github.io/DevPortfolio-Samay', '_blank', 'noopener,noreferrer');
   }
 
   async onShareApp() {

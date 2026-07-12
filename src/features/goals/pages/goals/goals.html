@@ -3,7 +3,7 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-2">
       <div
-        class="h-9 w-9 flex justify-center items-center rounded-full button-secondary cursor-pointer"
+        class="h-9 w-9 rounded-full button-secondary"
         (click)="goBack()"
       >
         <ico name="left-arrow" size="sm"></ico>
@@ -11,7 +11,7 @@
       <h1 class="text-xl font-semibold title-font">Savings Goals</h1>
     </div>
     <div
-      class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer bg-primary-light text-primary"
+      class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
       (click)="onNewGoal()"
       aria-label="New goal"
     >
@@ -29,7 +29,7 @@
   } @else {
     <div class="flex flex-col gap-3">
       @for (g of goalCards(); track g.name) {
-        <div class="card rounded-2xl p-4 flex flex-col gap-3">
+        <div class="card clickable rounded-2xl p-4 flex flex-col gap-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="h-11 w-11 rounded-xl bg-secondary-light flex items-center justify-center">
