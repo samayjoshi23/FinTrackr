@@ -19,6 +19,7 @@ import {
   totalNetBalance,
 } from '../../group-balance.utils';
 import { Group } from '../../../../shared/models/group.model';
+import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
 
 interface GroupListItem {
   group: Group;
@@ -41,6 +42,7 @@ export class GroupsList implements OnInit {
   private readonly inviteService = inject(GroupInviteService);
   private readonly notifier = inject(NotifierService);
   readonly usersLookup = inject(UsersLookupService);
+  readonly privacyPrefs = inject(PrivacyPreferencesService);
 
   loading = signal(true);
   groupItems = signal<GroupListItem[]>([]);

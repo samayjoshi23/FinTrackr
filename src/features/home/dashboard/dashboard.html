@@ -25,20 +25,77 @@
           }
         </div>
         <div
-          class="h-9 w-9 rounded-full bg-primary-light flex items-center justify-center text-xs font-medium uppercase title-font text-primary cursor-pointer hover:opacity-90 transition-opacity"
-          (click)="goToProfile()"
+          class="relative"
+          (pointerdown)="onAvatarPointerDown()"
+          (pointerup)="onAvatarPointerUp()"
+          (pointerleave)="onAvatarPointerLeave()"
+          (contextmenu)="$event.preventDefault()"
         >
-          {{ userInitials() }}
+          @if (userPhotoURL()) {
+            <img
+              [src]="userPhotoURL()"
+              alt="Profile"
+              class="h-9 w-9 rounded-full object-cover cursor-pointer hover:opacity-90 transition-opacity select-none"
+              referrerpolicy="no-referrer"
+              draggable="false"
+            />
+          } @else {
+            <div
+              class="h-9 w-9 rounded-full bg-primary-light flex items-center justify-center text-xs font-medium uppercase title-font text-primary cursor-pointer hover:opacity-90 transition-opacity select-none"
+            >
+              {{ userInitials() }}
+            </div>
+          }
+
+          <!-- Account Switcher Dropdown -->
+          @if (accountSwitcherOpen()) {
+            <div
+              class="account-switcher-backdrop"
+              (pointerdown)="$event.stopPropagation()"
+              (pointerup)="$event.stopPropagation()"
+              (click)="closeAccountSwitcher()"
+            ></div>
+            <div class="account-switcher-dropdown card-light"
+              (pointerdown)="$event.stopPropagation()"
+              (pointerup)="$event.stopPropagation()"
+            >
+              <p class="text-xs text-secondary font-light px-3 pt-2 pb-1">Switch account</p>
+              @for (acc of accounts(); track acc.id) {
+                <div
+                  type="button"
+                  class="account-switcher-item"
+                  [class.active]="acc.id === selectedAccount()?.id"
+                  (click)="switchAccount(acc.id)"
+                >
+                  <span class="text-sm title-font truncate">{{ acc.name }}</span>
+                  @if (acc.id === selectedAccount()?.id) {
+                    <ico name="tick" size="sm" class="text-primary shrink-0"></ico>
+                  }
+                </div>
+              }
+            </div>
+          }
         </div>
       </div>
     </div>
     <!-- Summary Card -->
     <div class="flex flex-col gap-3 p-3 bg-primary-light rounded-2xl">
       <div class="flex flex-col">
-        <p class="text-xs">Total Balance</p>
+        <div class="flex items-center justify-between">
+          <p class="text-xs">Total Balance</p>
+          @if (privacyPrefs.hideBalances()) {
+            <div
+              class="flex items-center justify-center h-8 w-8 rounded-full bg-[var(--color-tertiary)] cursor-pointer border-0 p-0"
+              (click)="toggleBalanceVisibility()"
+              [attr.aria-label]="balancesRevealed() ? 'Hide balances' : 'Reveal balances'"
+            >
+              <ico [name]="balancesRevealed() ? 'eye-open' : 'eye-closed'" size="sm" class="text-primary"></ico>
+            </div>
+          }
+        </div>
         <p class="text-2xl title-font font-medium">
           @if (selectedAccount()) {
-            {{ selectedAccount()?.balance | signedAmount: null : currency() : '1.0-2' }}
+            {{ selectedAccount()?.balance | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }}
           } @else {
             -
           }
@@ -58,7 +115,7 @@
             @if (selectedAccount()) {
               <p class="text-md title-font font-medium flex gap-2 items-center">
                 <ico name="stock-up" size="sm"></ico>
-                {{ monthlyIncome() | signedAmount: null : currency() : '1.0-2' }}
+                {{ monthlyIncome() | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }}
               </p>
             } @else {
               -
@@ -78,7 +135,7 @@
             @if (selectedAccount()) {
               <p class="text-md title-font font-medium flex gap-2 items-center">
                 <ico name="stock-down" size="sm"></ico>
-                {{ monthlyExpense() | signedAmount: null : currency() : '1.0-2' }}
+                {{ monthlyExpense() | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }}
               </p>
             } @else {
               -
@@ -110,16 +167,16 @@
             <p class="text-xs">
               @if (isBudgetOver()) {
                 <span class="title-font font-medium">
-                  {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' }} over budget
+                  {{ budgetOverAmount() | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }} over budget
                 </span>
                 <span class="text-secondary font-light">
                   ·
-                  {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
+                  {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }}
                   planned
                 </span>
               } @else {
-                {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' }} remaining of
-                {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' }}
+                {{ budgetRemaining() | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }} remaining of
+                {{ monthlyBudgetTotal() | signedAmount: null : currency() : '1.0-2' : false : balancesRevealed() }}
               }
             </p>
           </div>
@@ -200,7 +257,7 @@
                 transaction.type === 'income' ? 'text-green-500' : 'text-red-400'
               }}"
             >
-              {{ transaction.amount | signedAmount: transaction.type : currency() }}
+              {{ transaction.amount | signedAmount: transaction.type : currency() : '1.0-2' : false : balancesRevealed() }}
             </p>
           </div>
         }

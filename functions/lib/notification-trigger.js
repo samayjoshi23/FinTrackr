@@ -11,6 +11,7 @@ exports.createNotification = createNotification;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const firestore_2 = require("firebase-admin/firestore");
 const messaging_1 = require("firebase-admin/messaging");
+const types_1 = require("./types");
 const MAX_TOKENS_PER_BATCH = 500;
 const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 exports.onNotificationCreate = (0, firestore_1.onDocumentCreated)('users/{userId}/notifications/{notificationId}', async (event) => {
@@ -23,6 +24,14 @@ exports.onNotificationCreate = (0, firestore_1.onDocumentCreated)('users/{userId
         return;
     const db = (0, firestore_2.getFirestore)();
     const messaging = (0, messaging_1.getMessaging)();
+    const prefKey = types_1.NOTIFICATION_TYPE_TO_PREF_KEY[notification.type];
+    if (prefKey) {
+        const userSnap = await db.doc(`users/${userId}`).get();
+        const userPrefs = (userSnap.data()?.['notificationPreferences'] ?? types_1.NOTIFICATION_PREF_DEFAULTS);
+        if (userPrefs[prefKey] === false) {
+            return;
+        }
+    }
     const devicesSnap = await db.collection(`users/${userId}/devices`).get();
     const tokens = devicesSnap.docs
         .map((d) => d.data().token)

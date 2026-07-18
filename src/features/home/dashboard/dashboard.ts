@@ -17,6 +17,7 @@ import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
 import { RecordAction, RecordActionType } from '../../../shared/enums/recordActions.enum';
 import { NotificationService } from '../../../features/notifications/notification.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { PrivacyPreferencesService } from '../../../core/services/privacy-preferences.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -32,6 +33,8 @@ export class Dashboard {
   private readonly notifier = inject(NotifierService);
   private readonly authService = inject(AuthService);
   readonly notificationService = inject(NotificationService);
+  readonly privacyPrefs = inject(PrivacyPreferencesService);
+  readonly balancesRevealed = signal(false);
 
   constructor() {
     effect(() => {
@@ -44,6 +47,7 @@ export class Dashboard {
 
   userProfile = signal<UserProfile | null>(null);
   userInitials = signal<string>('');
+  userPhotoURL = signal<string | null>(null);
   greetingMessage = signal<string>('');
   quickActions = quickActions;
   accounts = signal<Account[]>([]);
@@ -53,6 +57,9 @@ export class Dashboard {
   loading = signal(true);
   txDetailOpen = model(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
+
+  accountSwitcherOpen = signal(false);
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Current calendar month summary from {@link ReportsService.ensureCurrentMonthReport}. */
   summaryMonthLabel = signal<string>('');
@@ -81,6 +88,7 @@ export class Dashboard {
     const profile = this.authService.getCachedProfile() as UserProfile | null;
     this.userProfile.set(profile ?? null);
     this.setUserInitials();
+    this.setUserPhoto();
     this.setGreetingMessage();
 
     await this.initDashboard();
@@ -88,6 +96,7 @@ export class Dashboard {
 
   async initDashboard(): Promise<void> {
     this.loading.set(true);
+    this.balancesRevealed.set(false);
     try {
       let account = await this.accountsService.getSelectedAccount();
       if (!account) {
@@ -95,6 +104,8 @@ export class Dashboard {
       }
       this.selectedAccount.set(account ?? null);
       this.currency.set(account?.currency ?? 'INR');
+      const allAccounts = await this.accountsService.getAccounts().catch(() => []);
+      this.accounts.set(allAccounts);
       if (this.selectedAccount()) {
         const [recentTransactions, report] = await Promise.all([
           this.transactionsService.getTransactionsPage(
@@ -197,6 +208,11 @@ export class Dashboard {
     }
   }
 
+  private setUserPhoto() {
+    const photoURL = (this.userProfile()?.['photoURL'] as string) ?? null;
+    this.userPhotoURL.set(photoURL || null);
+  }
+
   setGreetingMessage() {
     const hour = new Date().getHours();
     let greeting = '';
@@ -215,8 +231,46 @@ export class Dashboard {
     this.greetingMessage.set(`${greeting}, ${displayName}`);
   }
 
+  toggleBalanceVisibility(): void {
+    this.balancesRevealed.update((v) => !v);
+  }
+
   goToProfile() {
     this.router.navigateByUrl('/user/settings');
+  }
+
+  onAvatarPointerDown(): void {
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTimer = null;
+      this.accountSwitcherOpen.set(true);
+    }, 500);
+  }
+
+  onAvatarPointerUp(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+      this.goToProfile();
+    }
+  }
+
+  onAvatarPointerLeave(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  closeAccountSwitcher(): void {
+    this.accountSwitcherOpen.set(false);
+  }
+
+  async switchAccount(accountId: string): Promise<void> {
+    this.accountSwitcherOpen.set(false);
+    const selected = await this.accountsService.selectAccount(accountId);
+    if (selected) {
+      await this.initDashboard();
+    }
   }
 
   goToNotifications(): void {

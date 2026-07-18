@@ -1,0 +1,153 @@
+<div class="container-layout p-4 md:p-5">
+  <!-- Header -->
+  <header class="flex items-center gap-2">
+    <div
+      class="h-9 w-9 rounded-full button-secondary cursor-pointer flex items-center justify-center"
+      (click)="onBack()"
+    >
+      <ico name="left-arrow" size="sm"></ico>
+    </div>
+    <h1 class="text-xl font-semibold title-font">Edit Goal</h1>
+  </header>
+
+  @if (loading()) {
+    <div class="flex flex-col gap-4 animate-pulse" aria-busy="true">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="flex flex-col gap-2">
+          <div class="h-3 w-20 rounded-md bg-secondary-light"></div>
+          <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+        </div>
+      }
+    </div>
+  } @else {
+    <form class="flex flex-col gap-4" #goalForm="ngForm" (ngSubmit)="onSave(goalForm)">
+      <!-- Goal Name -->
+      <div class="flex flex-col gap-2">
+        <label for="goalName" class="text-xs text-gray-400">Goal Name</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="target" size="sm"></ico>
+          </span>
+          <input
+            type="text"
+            id="goalName"
+            name="goalName"
+            class="w-full"
+            placeholder="e.g. Emergency Fund"
+            [(ngModel)]="goalName"
+            required
+            [minlength]="limits.nameMinLen"
+            [maxlength]="limits.nameMax"
+            #nameCtrl="ngModel"
+            [ngModelOptions]="{ standalone: true }"
+          />
+        </div>
+        @if (nameCtrl.invalid && nameCtrl.touched) {
+          <p class="text-xs text-red-600">
+            Name must be {{ limits.nameMinLen }}–{{ limits.nameMax }} characters.
+          </p>
+        }
+        @if (nameCtrl.valid && goalName.trim() && isGoalNameDuplicate(goalName)) {
+          <p class="text-xs text-red-600">This goal name is already used.</p>
+        }
+      </div>
+
+      <!-- Target Amount -->
+      <div class="flex flex-col gap-2">
+        <label for="goalTarget" class="text-xs text-gray-400">Target Amount</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            id="goalTarget"
+            name="goalTarget"
+            class="w-full"
+            placeholder="0"
+            required
+            [min]="limits.amountMin"
+            [max]="limits.amountMax"
+            step="0.01"
+            [(ngModel)]="targetAmount"
+            #targetCtrl="ngModel"
+            [ngModelOptions]="{ standalone: true }"
+          />
+        </div>
+        @if (targetCtrl.invalid && targetCtrl.touched) {
+          <p class="text-xs text-red-600">
+            Enter a target between {{ limits.amountMin }} and {{ limits.amountMax }}.
+          </p>
+        }
+      </div>
+
+      <!-- Due Date -->
+      <div class="flex flex-col gap-2">
+        <label for="goalDueDate" class="text-xs text-gray-400">Due Date</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="calendar" size="sm"></ico>
+          </span>
+          <app-date-picker
+            class="w-full"
+            modalTitle="Due Date"
+            placeholder="YYYY-MM-DD"
+            compactFieldIcon
+            name="dueDate"
+            [(ngModel)]="dueDate"
+            #dueDateCtrl="ngModel"
+            required
+            [ngModelOptions]="{ standalone: true }"
+          />
+          @if (dueDateCtrl.invalid && dueDateCtrl.touched) {
+            <p class="text-xs text-red-600">Pick a due date.</p>
+          }
+        </div>
+      </div>
+
+      <!-- Current Amount -->
+      <div class="flex flex-col gap-2">
+        <label for="goalCurrentAmount" class="text-xs text-gray-400">Already Saved</label>
+        <div class="field-wrapper before">
+          <span class="field-icon before">
+            <ico name="dollar-sign" size="sm"></ico>
+          </span>
+          <input
+            type="number"
+            id="goalCurrentAmount"
+            name="goalCurrentAmount"
+            class="w-full"
+            placeholder="0"
+            required
+            min="0"
+            [max]="currentSavedMax()"
+            step="0.01"
+            [(ngModel)]="currentAmount"
+            #currentCtrl="ngModel"
+            [ngModelOptions]="{ standalone: true }"
+          />
+        </div>
+        @if (currentCtrl.invalid && currentCtrl.touched) {
+          <p class="text-xs text-red-600">Must be 0 up to your target amount.</p>
+        }
+      </div>
+
+      <!-- Submit -->
+      <div class="flex flex-col gap-2 mt-2">
+        <button
+          type="submit"
+          class="button-primary rounded-xl py-3 w-full disabled:opacity-60"
+          [disabled]="saving()"
+        >
+          @if (saving()) {
+            <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+            <span>Saving…</span>
+          } @else {
+            <span>Save Changes</span>
+            <ico name="right-arrow" size="sm"></ico>
+          }
+        </button>
+      </div>
+    </form>
+  }
+</div>

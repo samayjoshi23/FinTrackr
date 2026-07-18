@@ -7,3 +7,28 @@
   color: var(--color-primary);
   border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
+
+.danger-label {
+  color: var(--color-red, #ef4444);
+}
+
+.danger-card {
+  border: 1px solid color-mix(in srgb, var(--color-red, #ef4444) 25%, transparent);
+}
+
+.danger-icon-wrap {
+  background-color: color-mix(in srgb, var(--color-red, #ef4444) 14%, transparent);
+}
+
+.text-red {
+  color: var(--color-red, #ef4444);
+}
+
+.reauth-input {
+  border: 1px solid color-mix(in srgb, var(--color-text-secondary) 30%, transparent);
+}
+
+.reauth-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}

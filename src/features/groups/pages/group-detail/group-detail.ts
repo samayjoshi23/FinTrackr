@@ -21,6 +21,7 @@ import { SettleUpModal } from '../../components/settle-up-modal/settle-up-modal'
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
 import { ExpenseDetailModal } from '../../components/expense-detail-modal/expense-detail-modal';
 import { SettlementDetailModal } from '../../components/settlement-detail-modal/settlement-detail-modal';
+import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
 
 // Sentinel to mark names that should not be stored in the name map
 const PLACEHOLDER_YOU = 'You';
@@ -47,6 +48,7 @@ export class GroupDetail implements OnInit {
   private readonly expensesService = inject(GroupExpensesService);
   private readonly settlementsService = inject(GroupSettlementsService);
   private readonly notifier = inject(NotifierService);
+  private readonly privacyPrefs = inject(PrivacyPreferencesService);
 
   loading = signal(true);
   group = signal<Group | null>(null);
@@ -281,6 +283,7 @@ export class GroupDetail implements OnInit {
   }
 
   formatCurrency(amount: number, currency: string): string {
+    if (this.privacyPrefs.hideBalances()) return '••••';
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency,

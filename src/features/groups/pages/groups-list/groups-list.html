@@ -46,19 +46,21 @@
         <div class="card rounded-2xl p-3 card-light flex-1 flex flex-col gap-0.5">
           <p class="text-xs text-secondary font-light">You're owed</p>
           <p class="text-base font-semibold" style="color: var(--color-income)">
-            {{
-              totalOwed() > 0 ? (totalOwed().toFixed(2) | currency: 'INR') : (0 | currency: 'INR')
-            }}
+            @if (privacyPrefs.hideBalances()) {
+              ••••
+            } @else {
+              {{ totalOwed() > 0 ? (totalOwed().toFixed(2) | currency: 'INR') : (0 | currency: 'INR') }}
+            }
           </p>
         </div>
         <div class="card rounded-2xl p-3 card-light flex-1 flex flex-col gap-0.5">
           <p class="text-xs text-secondary font-light">You owe</p>
           <p class="text-base font-semibold" style="color: var(--color-expense)">
-            {{
-              totalOwing() < 0
-                ? (-totalOwing().toFixed(2) | currency: 'INR')
-                : (0 | currency: 'INR')
-            }}
+            @if (privacyPrefs.hideBalances()) {
+              ••••
+            } @else {
+              {{ totalOwing() < 0 ? (-totalOwing().toFixed(2) | currency: 'INR') : (0 | currency: 'INR') }}
+            }
           </p>
         </div>
       </div>
@@ -273,11 +275,11 @@
 
             @if (item.netBalance > 0.005) {
               <div class="bg-primary-light text-primary rounded-full px-2 py-1 text-xs font-light">
-                <span>+ {{ item.netBalance | currency: item.group.currency }}</span>
+                <span>@if (privacyPrefs.hideBalances()) { •••• } @else { + {{ item.netBalance | currency: item.group.currency }} }</span>
               </div>
             } @else if (item.netBalance < -0.005) {
               <div class="button-red rounded-full px-2 py-1 text-xs font-light">
-                <span>{{ item.netBalance | currency: item.group.currency }}</span>
+                <span>@if (privacyPrefs.hideBalances()) { •••• } @else { {{ item.netBalance | currency: item.group.currency }} }</span>
               </div>
             } @else {
               <div class="text-primary flex items-center gap-1">

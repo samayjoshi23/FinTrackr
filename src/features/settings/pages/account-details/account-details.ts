@@ -13,11 +13,12 @@ import { TransactionDetailModal } from '../../../../shared/components/transactio
 import { SETTINGS_CURRENCIES } from '../../settings-currencies';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 import { Modal } from '../../../../shared/components/modal/modal';
+import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-account-details',
-  imports: [CommonModule, FormsModule, Icon, Modal, TransactionDetailModal, SignedAmountPipe],
+  imports: [CommonModule, FormsModule, Icon, Modal, ConfirmPrompt, TransactionDetailModal, SignedAmountPipe],
   templateUrl: './account-details.html',
   styleUrl: './account-details.css',
 })
@@ -38,6 +39,7 @@ export class AccountDetails {
   loading = signal(true);
   selecting = signal(false);
   removing = signal(false);
+  removeConfirmOpen = signal(false);
   savingEdit = signal(false);
   editModalOpen = false;
   editName = '';
@@ -93,7 +95,7 @@ export class AccountDetails {
       const txs = await this.transactionsService
         .getTransactionsForAccount(accountKey)
         .catch(() => []);
-      this.recentActivity.set((txs ?? []).slice(0, 8));
+      this.recentActivity.set((txs ?? []).slice(0, 3));
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load account.');
@@ -205,10 +207,15 @@ export class AccountDetails {
     this.txDetailOpen.set(true);
   }
 
-  async onRemoveAccount() {
+  onRemoveAccount() {
+    this.removeConfirmOpen.set(true);
+  }
+
+  async onRemoveConfirmed(confirmed: boolean) {
+    this.removeConfirmOpen.set(false);
+    if (!confirmed) return;
     const a = this.account();
     if (!a) return;
-    if (!confirm(`Remove “${a.name}”? This cannot be undone.`)) return;
     this.removing.set(true);
     try {
       await this.accountsService.deleteAccount(a.id);

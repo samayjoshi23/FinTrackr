@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
+  deleteDoc,
   doc,
   Firestore,
   getDoc,
@@ -159,6 +160,13 @@ export class GoalsService {
       },
       { indexName: 'accountId', value: accountId },
     );
+  }
+
+  async deleteGoal(goalId: string): Promise<void> {
+    await this.offlineCrud.remove('goals', goalId, async () => {
+      const ref = doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`);
+      await deleteDoc(ref);
+    });
   }
 
   /** Direct Firestore read bypassing offline layer (used internally after create). */

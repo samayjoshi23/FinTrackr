@@ -28,6 +28,7 @@ import { SyncService } from '../offline/sync.service';
 import { FcmService } from '../../features/notifications/fcm.service';
 import { NotificationService } from '../../features/notifications/notification.service';
 import { UsersLookupService } from '../../services/users-lookup.service';
+import { NotificationPreferencesService } from '../../features/notifications/notification-preferences.service';
 import { date } from '../date';
 
 /**
@@ -73,6 +74,7 @@ export class AuthService {
   private readonly fcmService = inject(FcmService);
   private readonly notificationService = inject(NotificationService);
   private readonly usersLookup = inject(UsersLookupService);
+  private readonly notificationPrefs = inject(NotificationPreferencesService);
 
   readonly user$ = user(this.auth);
   userProfile = signal<UserProfile | null>(null);
@@ -94,6 +96,7 @@ export class AuthService {
         // (login AND session restore). Recovers gracefully if localStorage was cleared.
         void this.ensureUserProfileCached(u.uid);
         void this.notificationService.init(u.uid);
+        void this.notificationPrefs.init(u.uid);
         void this.fcmService.initForUser(u.uid);
       } else {
         void this.notificationService.clearAll();
@@ -255,6 +258,7 @@ export class AuthService {
         /* IndexedDB unavailable — non-fatal */
       }
       // Session memos not covered by clearAllData.
+      this.notificationPrefs.teardown();
       this.usersLookup.resetDirectory();
       this.syncService.failedEntries.set([]);
       this.userProfile.set(null);

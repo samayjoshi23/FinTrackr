@@ -167,6 +167,17 @@
     </div>
   }
 
+  <app-confirm-prompt
+    [(open)]="removeConfirmOpen"
+    [title]="'Remove “' + (account()?.name ?? 'account') + '”?'"
+    message="All transactions and data linked to this account will be permanently deleted. This action cannot be undone."
+    confirmText="Remove"
+    cancelText="Cancel"
+    icon="trash"
+    severity="danger"
+    (confirmed)="onRemoveConfirmed($event)"
+  />
+
   <app-transaction-detail-modal
     [(open)]="txDetailOpen"
     [transaction]="selectedTransaction()"

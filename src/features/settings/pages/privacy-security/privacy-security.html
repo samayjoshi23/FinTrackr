@@ -91,5 +91,107 @@
         </div>
       </div>
     </div>
+
+    <!-- Danger Zone -->
+    <div class="flex flex-col gap-2 mt-4">
+      <p class="text-sm title-font font-medium danger-label">Danger zone</p>
+      <div class="card rounded-2xl p-4 flex items-center gap-3 danger-card">
+        <div class="danger-icon-wrap h-10 w-10 rounded-xl flex items-center justify-center shrink-0">
+          <ico name="trash" size="md" class="text-red"></ico>
+        </div>
+        <div class="min-w-0 flex-1 flex flex-col gap-0.5">
+          <span class="text-sm font-semibold title-font">Delete profile</span>
+          <span class="text-xs text-secondary font-light">Delete your FinTrackr profile and all the associated accounts</span>
+        </div>
+        <button
+          type="button"
+          class="button-red px-3 py-1.5 rounded-xl text-xs font-medium shrink-0"
+          (click)="onDeleteAccountClick()"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
   </div>
 </div>
+
+<!-- Step 1: Confirmation dialog -->
+<app-confirm-prompt
+  [(open)]="showDeleteConfirm"
+  title="Delete your account?"
+  message="This will permanently delete your account and all associated data including transactions, budgets, goals, categories, reports, and group memberships. This action cannot be undone."
+  confirmText="Continue"
+  cancelText="Cancel"
+  icon="trash"
+  severity="danger"
+  (confirmed)="onDeleteConfirmed($event)"
+/>
+
+<!-- Step 2: Reauthentication dialog -->
+<app-modal
+  [(open)]="showReauthDialog"
+  [closable]="!isDeletingAccount()"
+  [closeOnBackdrop]="!isDeletingAccount()"
+  [bodyTemplate]="reauthTpl"
+/>
+
+<ng-template #reauthTpl>
+  <div class="flex flex-col items-center gap-5 py-2">
+    <div class="h-14 w-14 rounded-full flex items-center justify-center button-red">
+      <ico name="lock" size="md"></ico>
+    </div>
+
+    <div class="text-center">
+      <h3 class="text-base font-semibold title-font">Verify your identity</h3>
+      <p class="text-sm text-secondary mt-1.5 leading-relaxed">
+        For security, please confirm your identity before deleting your account.
+      </p>
+    </div>
+
+    @if (authProvider === 'password') {
+      <div class="w-full flex flex-col gap-2">
+        <input
+          type="password"
+          class="w-full px-4 py-2.5 rounded-xl text-sm card title-font reauth-input"
+          placeholder="Enter your password"
+          [ngModel]="reauthPassword()"
+          (ngModelChange)="reauthPassword.set($event)"
+          [disabled]="isDeletingAccount()"
+          (keydown.enter)="onReauthAndDelete()"
+        />
+      </div>
+    }
+
+    @if (deleteError()) {
+      <p class="text-xs text-red text-center w-full">{{ deleteError() }}</p>
+    }
+
+    <div class="flex gap-3 w-full">
+      <button
+        type="button"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium button-secondary"
+        [disabled]="isDeletingAccount()"
+        (click)="onReauthCancel()"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium button-red disabled:opacity-60 flex items-center justify-center gap-2"
+        [disabled]="isDeletingAccount() || (authProvider === 'password' && !reauthPassword())"
+        (click)="onReauthAndDelete()"
+      >
+        @if (isDeletingAccount()) {
+          <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
+          <span>Deleting…</span>
+        } @else {
+          @if (authProvider === 'google') {
+            <span>Sign in & Delete</span>
+          } @else {
+            <span>Delete My Account</span>
+          }
+        }
+      </button>
+    </div>
+  </div>
+</ng-template>

@@ -8,7 +8,13 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
-import { DeviceDocument, NotificationDocument } from './types';
+import {
+  DeviceDocument,
+  NotificationDocument,
+  NotificationPreferences,
+  NOTIFICATION_PREF_DEFAULTS,
+  NOTIFICATION_TYPE_TO_PREF_KEY,
+} from './types';
 
 const MAX_TOKENS_PER_BATCH = 500;
 const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -26,6 +32,15 @@ export const onNotificationCreate = onDocumentCreated(
 
     const db = getFirestore();
     const messaging = getMessaging();
+
+    const prefKey = NOTIFICATION_TYPE_TO_PREF_KEY[notification.type];
+    if (prefKey) {
+      const userSnap = await db.doc(`users/${userId}`).get();
+      const userPrefs = (userSnap.data()?.['notificationPreferences'] ?? NOTIFICATION_PREF_DEFAULTS) as NotificationPreferences;
+      if (userPrefs[prefKey] === false) {
+        return;
+      }
+    }
 
     const devicesSnap = await db.collection(`users/${userId}/devices`).get();
     const tokens: string[] = devicesSnap.docs

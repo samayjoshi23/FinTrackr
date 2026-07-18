@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input, model, output } from '@angular/core';
+import { Component, computed, inject, input, model, output } from '@angular/core';
 import { Modal } from '../../../../shared/components/modal/modal';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { GroupExpense, GroupSettlement } from '../../../../shared/models/group.model';
@@ -8,6 +8,7 @@ import {
   computeExpenseMemberStatuses,
   MemberSplitStatus,
 } from '../../group-settlement-allocation.utils';
+import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
 
 @Component({
   selector: 'app-expense-detail-modal',
@@ -15,6 +16,7 @@ import {
   templateUrl: './expense-detail-modal.html',
 })
 export class ExpenseDetailModal {
+  private readonly privacyPrefs = inject(PrivacyPreferencesService);
   open = model(false);
   expense = input<GroupExpense | null>(null);
   allExpenses = input<GroupExpense[]>([]);
@@ -44,6 +46,7 @@ export class ExpenseDetailModal {
   }
 
   formatCurrency(amount: number, currency: string): string {
+    if (this.privacyPrefs.hideBalances()) return '••••';
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency,

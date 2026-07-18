@@ -99,6 +99,11 @@ export const routes: Routes = [
           import('./../features/goals/pages/new-goal/new-goal').then((m) => m.NewGoal),
       },
       {
+        path: 'goals/edit/:id',
+        loadComponent: () =>
+          import('./../features/goals/pages/edit-goal/edit-goal').then((m) => m.EditGoal),
+      },
+      {
         path: 'categories',
         data: { browserBackTarget: '/user/settings' },
         loadComponent: () =>

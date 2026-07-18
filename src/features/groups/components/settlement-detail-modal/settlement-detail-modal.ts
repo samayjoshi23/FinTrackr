@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input, model } from '@angular/core';
+import { Component, computed, inject, input, model } from '@angular/core';
 import { Modal } from '../../../../shared/components/modal/modal';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { GroupSettlement } from '../../../../shared/models/group.model';
 import { memberAvatarClass, memberInitials } from '../../group-balance.utils';
+import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
 
 @Component({
   selector: 'app-settlement-detail-modal',
@@ -11,6 +12,7 @@ import { memberAvatarClass, memberInitials } from '../../group-balance.utils';
   templateUrl: './settlement-detail-modal.html',
 })
 export class SettlementDetailModal {
+  private readonly privacyPrefs = inject(PrivacyPreferencesService);
   open = model(false);
   settlement = input<GroupSettlement | null>(null);
   currentUserId = input.required<string>();
@@ -37,6 +39,7 @@ export class SettlementDetailModal {
   }
 
   formatCurrency(amount: number, currency: string): string {
+    if (this.privacyPrefs.hideBalances()) return '••••';
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency,

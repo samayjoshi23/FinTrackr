@@ -28,16 +28,37 @@
     </div>
   } @else {
     <div class="flex flex-col gap-3">
-      @for (g of goalCards(); track g.name) {
-        <div class="card clickable rounded-2xl p-4 flex flex-col gap-3">
+      @for (g of goalCards(); track g.id) {
+        <div class="card rounded-2xl p-4 flex flex-col gap-3">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="h-11 w-11 rounded-xl bg-secondary-light flex items-center justify-center">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="h-11 w-11 rounded-xl bg-secondary-light flex items-center justify-center shrink-0">
                 <ico [name]="g.icon" size="sm" class="text-secondary"></ico>
               </div>
-              <p class="text-sm font-semibold title-font">{{ g.name }}</p>
+              <p class="text-sm font-semibold title-font truncate">{{ g.name }}</p>
             </div>
-            <p class="text-sm font-semibold title-font text-violet-500">{{ g.percent }}%</p>
+
+            <!-- Action buttons -->
+            <div class="flex items-center gap-2 shrink-0 ml-2">
+              <span class="text-sm font-semibold title-font text-violet-500">{{ g.percent }}%</span>
+              <button
+                type="button"
+                title="Edit goal"
+                class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
+                (click)="$event.stopPropagation(); onEdit(g)"
+              >
+                <ico name="pencil" size="sm"></ico>
+              </button>
+              <button
+                type="button"
+                title="Delete goal"
+                class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-red"
+                [disabled]="deleting()"
+                (click)="onDeleteRequest($event, g)"
+              >
+                <ico name="trash" size="sm"></ico>
+              </button>
+            </div>
           </div>
 
           <div class="h-2 w-full rounded-full bg-secondary-light overflow-hidden">
@@ -53,3 +74,15 @@
     </div>
   }
 </div>
+
+<!-- Delete confirmation -->
+<app-confirm-prompt
+  [(open)]="deletePromptOpen"
+  title="Delete goal?"
+  [message]="'Delete \'' + (deletingGoal()?.name ?? '') + '\'? This action cannot be undone.'"
+  icon="trash"
+  confirmText="Delete"
+  cancelText="Cancel"
+  severity="danger"
+  (confirmed)="onDeleteConfirmed($event)"
+/>

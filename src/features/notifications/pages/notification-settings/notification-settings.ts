@@ -64,6 +64,6 @@ export class NotificationSettings {
   }
 
   setPref(key: PrefKey, value: boolean): void {
-    this.notificationPrefs.patch({ [key]: value } as Partial<NotificationPreferences>);
+    void this.notificationPrefs.patch({ [key]: value } as Partial<NotificationPreferences>);
   }
 }

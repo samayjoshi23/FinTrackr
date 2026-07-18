@@ -1,5 +1,6 @@
 import { CurrencyPipe } from '@angular/common';
 import { inject, LOCALE_ID, Pipe, PipeTransform } from '@angular/core';
+import { PrivacyPreferencesService } from '../../core/services/privacy-preferences.service';
 
 @Pipe({
   name: 'signedAmount',
@@ -8,6 +9,7 @@ import { inject, LOCALE_ID, Pipe, PipeTransform } from '@angular/core';
 export class SignedAmountPipe implements PipeTransform {
   private readonly locale = inject(LOCALE_ID);
   private readonly currencyPipe = new CurrencyPipe(this.locale);
+  private readonly privacyPrefs = inject(PrivacyPreferencesService);
 
   transform(
     amount: number | string | null | undefined,
@@ -15,7 +17,11 @@ export class SignedAmountPipe implements PipeTransform {
     currencyCode: string | null | undefined,
     digitsInfo = '1.0-2',
     forceSign = false,
+    revealed = false,
   ): string {
+    if (this.privacyPrefs.hideBalances() && !revealed) {
+      return '••••';
+    }
     const numeric = Number(amount ?? 0);
     const absolute = Number.isFinite(numeric) ? Math.abs(numeric) : 0;
     const code = (currencyCode ?? 'USD').trim() || 'USD';

@@ -115,3 +115,34 @@ export interface AccountMember {
   isJoined: boolean;
   isActive: boolean;
 }
+
+export interface NotificationPreferences {
+  expenseAlerts: boolean;
+  budgetWarnings: boolean;
+  billReminders: boolean;
+  groupActivity: boolean;
+  transactionUpdates: boolean;
+}
+
+export const NOTIFICATION_PREF_DEFAULTS: NotificationPreferences = {
+  expenseAlerts: true,
+  budgetWarnings: true,
+  billReminders: true,
+  groupActivity: true,
+  transactionUpdates: false,
+};
+
+export const NOTIFICATION_TYPE_TO_PREF_KEY: Partial<Record<NotificationType, keyof NotificationPreferences>> = {
+  BUDGET_WARNING: 'budgetWarnings',
+  BUDGET_EXCEEDED: 'budgetWarnings',
+  RECURRING_DUE: 'billReminders',
+  RECURRING_AUTOPAID: 'billReminders',
+  GROUP_INVITE: 'groupActivity',
+  PAYMENT_REQUEST: 'groupActivity',
+  SETTLEMENT_DONE: 'groupActivity',
+  GOAL_ACHIEVED: 'expenseAlerts',
+  MONTH_END_SUMMARY: 'expenseAlerts',
+  ACCOUNT_INVITE: 'transactionUpdates',
+  ACCOUNT_INVITE_ACCEPTED: 'transactionUpdates',
+  ACCOUNT_INVITE_DECLINED: 'transactionUpdates',
+};
