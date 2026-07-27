@@ -133,7 +133,7 @@ export class AddRecurringTransaction {
     }
 
     const nextPay = this.nextPaymentDate();
-    if (!nextPay || Number.isNaN(nextPay.getTime())) {
+    if (!nextPay) {
       this.notifier.error('Select a next payment date.');
       return;
     }

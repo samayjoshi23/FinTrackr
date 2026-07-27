@@ -293,9 +293,13 @@ export class AuthService {
 
   /**
    * Checks whether the user has completed onboarding from the Firestore user doc.
-   * Offline: reads `isOnboarded` from the cached `userProfile` object (same source of truth shape).
+   * Offline: reads `isOnboarded` from the cached `userProfile` object immediately
+   * instead of waiting for the Firestore timeout (~10s).
    */
   async checkOnboardingStatus(uid: string): Promise<boolean> {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return this.readIsOnboardedFromCachedUserProfile(uid);
+    }
     try {
       const profile = await this.getUserProfile(uid);
       const onboarded = profile?.['isOnboarded'] === true;

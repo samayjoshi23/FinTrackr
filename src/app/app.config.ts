@@ -36,7 +36,13 @@ export const appConfig: ApplicationConfig = {
     // BEFORE ngx-indexed-db opens it. Runs first, uses the native IndexedDB API only,
     // and reloads after deleting a broken DB so a clean one is rebuilt at the configured
     // version. See IndexedDbRecoveryService.
-    provideAppInitializer(() => inject(IndexedDbRecoveryService).checkAndRecover()),
+    provideAppInitializer(() => {
+      const recovery = inject(IndexedDbRecoveryService);
+      return Promise.race([
+        recovery.checkAndRecover(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+      ]);
+    }),
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     // App Check must be initialized IMMEDIATELY after the Firebase app and

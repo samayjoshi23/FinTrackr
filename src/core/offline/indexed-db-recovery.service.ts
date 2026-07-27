@@ -84,6 +84,14 @@ export class IndexedDbRecoveryService {
   async recover(reason: string): Promise<boolean> {
     if (this.recovering || !this.available) return false;
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      console.warn(
+        `IndexedDbRecoveryService: fault detected (${reason}) but device is offline — ` +
+          `skipping delete+reload (would show "page can't be reached"); app continues on the Firestore fallback.`,
+      );
+      return false;
+    }
+
     if (!this.canAttempt()) {
       console.warn(
         `IndexedDbRecoveryService: fault detected (${reason}) but a recovery was attempted recently — ` +

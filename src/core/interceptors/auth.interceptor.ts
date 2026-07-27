@@ -54,7 +54,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  return from(auth.currentUser?.getIdToken() ?? Promise.resolve(null)).pipe(
+  const tokenPromise =
+    typeof navigator !== 'undefined' && !navigator.onLine
+      ? Promise.resolve(null)
+      : (auth.currentUser?.getIdToken() ?? Promise.resolve(null));
+
+  return from(tokenPromise).pipe(
     switchMap((token) => {
       if (!token) {
         return next(req);
