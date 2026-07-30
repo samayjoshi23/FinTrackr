@@ -369,9 +369,7 @@ export class AddGroupTransaction {
           linkedObject,
         };
 
-        const txResponse = await this.transactionsService.createTransaction(txPayload, {
-          syncRemoteInBackground: true,
-        });
+        const txResponse = await this.transactionsService.createTransaction(txPayload);
 
         void this.reportsService
           .applyTransactionDelta({ kind: 'create', tx: txResponse })
@@ -492,9 +490,7 @@ export class AddGroupTransaction {
           linkedObject,
         };
 
-        const txResponse = await this.transactionsService.createTransaction(txPayload, {
-          syncRemoteInBackground: true,
-        });
+        const txResponse = await this.transactionsService.createTransaction(txPayload);
 
         void this.reportsService
           .applyTransactionDelta({ kind: 'create', tx: txResponse })

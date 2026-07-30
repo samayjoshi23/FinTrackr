@@ -129,7 +129,6 @@ export class AddTransaction {
 
       const transactionResponse = await this.transactionsService.createTransaction(
         transactionPayload,
-        { syncRemoteInBackground: true },
       );
 
       // Optimistic balance update

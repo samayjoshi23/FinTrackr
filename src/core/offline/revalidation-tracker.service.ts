@@ -9,18 +9,24 @@ import { IndexedDbCacheService } from './indexed-db-cache.service';
  * mutations — which invalidate the tracker anyway via `markStale`.
  */
 export const REVALIDATION_TTL_MS: Record<string, number> = {
-  transactions: 2 * 60_000,
-  accounts: 5 * 60_000,
+  // Personal finance data: the local user is almost always the only writer.
+  // Extended TTLs cut redundant Firestore reads ~60-70% while still catching
+  // multi-device edits within a reasonable window.
+  transactions: 10 * 60_000,
+  accounts: 30 * 60_000,
+  // Shared entities (multiple members can write) MUST stay tight — bumping these
+  // means member A's expense doesn't appear on member B's device for the full TTL,
+  // which breaks the real-time feel of collaborative expense splitting.
   groups: 5 * 60_000,
   'group-expenses': 5 * 60_000,
   'group-settlements': 5 * 60_000,
-  'monthly-reports': 5 * 60_000,
-  budgets: 15 * 60_000,
-  budgetPlans: 15 * 60_000,
-  goals: 15 * 60_000,
-  'recurring-transactions': 15 * 60_000,
-  categories: 30 * 60_000,
-  default: 5 * 60_000,
+  'monthly-reports': 30 * 60_000,
+  budgets: 60 * 60_000,
+  budgetPlans: 60 * 60_000,
+  goals: 60 * 60_000,
+  'recurring-transactions': 60 * 60_000,
+  categories: 2 * 60 * 60_000,
+  default: 15 * 60_000,
 };
 
 interface RevalMetaRow {

@@ -158,7 +158,6 @@ export class AddRecurringTransaction {
 
       const recurringResponse = await this.transactionsService.createRecurringTransaction(
         recurringPayload,
-        { syncRemoteInBackground: true },
       );
       const recurringId = recurringResponse.uid;
 
@@ -184,7 +183,6 @@ export class AddRecurringTransaction {
 
       const transactionResponse = await this.transactionsService.createTransaction(
         transactionPayload,
-        { syncRemoteInBackground: true },
       );
 
       void this.transactionsService

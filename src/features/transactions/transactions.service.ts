@@ -53,7 +53,6 @@ export class TransactionsService {
 
   async createTransaction(
     data: TransactionCreateInput,
-    options?: { syncRemoteInBackground?: boolean },
   ): Promise<TransactionRecord> {
     const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
@@ -100,7 +99,6 @@ export class TransactionsService {
         ...(data.linkedObject?.type !== undefined ? { isRecurring: data.linkedObject.type === 'recurring' } : {}),
         date: data.date ?? day,
       },
-      options?.syncRemoteInBackground ? { syncRemoteInBackground: true } : undefined,
     );
   }
 
@@ -387,7 +385,6 @@ export class TransactionsService {
 
   async createRecurringTransaction(
     data: RecurringTransactionCreateInput,
-    options?: { syncRemoteInBackground?: boolean },
   ): Promise<RecurringTransactionRecord> {
     const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
     const day = date().format('YYYY-MM-DD');
@@ -436,7 +433,6 @@ export class TransactionsService {
         nextPaymentDate: data.nextPaymentDate,
         date: day,
       },
-      options?.syncRemoteInBackground ? { syncRemoteInBackground: true } : undefined,
     );
   }
 

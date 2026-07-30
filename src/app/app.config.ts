@@ -24,6 +24,7 @@ import { environment } from '../environment/environment';
 import { authInterceptor } from '../core/interceptors/auth.interceptor';
 import { indexedDbConfig } from '../core/offline/indexed-db.config';
 import { IndexedDbRecoveryService } from '../core/offline/indexed-db-recovery.service';
+import { StorageQuotaService } from '../core/offline/storage-quota.service';
 
 // Note: provideStorage and provideMessaging are intentionally omitted here.
 // ProfileUploadService uses firebase/storage via dynamic import (lazy).
@@ -42,6 +43,12 @@ export const appConfig: ApplicationConfig = {
         recovery.checkAndRecover(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
       ]);
+    }),
+    // Fire a startup storage-quota baseline. Non-blocking (`void`) — we don't
+    // hold up bootstrap for the estimate. If usage is already near quota this
+    // surfaces a warning banner before the user makes any writes.
+    provideAppInitializer(() => {
+      void inject(StorageQuotaService).check();
     }),
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),

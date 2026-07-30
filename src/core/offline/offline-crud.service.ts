@@ -1,11 +1,9 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { Firestore, collection, doc } from '@angular/fire/firestore';
 import { NetworkService } from './network.service';
 import { IndexedDbCacheService } from './indexed-db-cache.service';
 import { RevalidationTrackerService, RevalIndexFilter } from './revalidation-tracker.service';
 import { SyncQueueService } from './sync-queue.service';
-import { NotifierService } from '../../shared/components/notifier/notifier.service';
-import { NotifierSeverity } from '../../shared/components/notifier/types';
 import { PostSyncCallable } from './sync-queue.model';
 import { TransactionRecord } from '../../shared/models/transaction.model';
 import {
@@ -36,7 +34,26 @@ export class OfflineCrudService {
   private readonly cache = inject(IndexedDbCacheService);
   private readonly tracker = inject(RevalidationTrackerService);
   private readonly syncQueue = inject(SyncQueueService);
-  private readonly notifier = inject(NotifierService);
+  private readonly zone = inject(NgZone);
+
+  /**
+   * Per-store monotonic revalidation counter. Every successful background revalidation
+   * (`revalidateAll` / `revalidateOne`) bumps the count for its store. Consumers
+   * subscribe with:
+   *
+   * ```ts
+   * const txReval = computed(() => crud.revalidationCounts()['transactions'] ?? 0);
+   * effect(() => { txReval(); refetchTransactions(); });
+   * ```
+   *
+   * Per-store keying is intentional: a single "last event" signal collapses when
+   * two revalidations complete in the same microtask (Angular batches effect
+   * runs to one per flush), so a consumer filtering `event.storeName === 'X'`
+   * would silently miss events. A counter changes value distinctly per store,
+   * so an effect on one store's count re-runs iff THAT store actually
+   * revalidated — no lost updates.
+   */
+  readonly revalidationCounts = signal<Record<string, number>>({});
 
   /**
    * READ list — cache-first with background revalidation.
@@ -175,7 +192,7 @@ export class OfflineCrudService {
     keyField: string,
     firestoreFn: (assignedId: string) => Promise<T>,
     payload: Record<string, unknown>,
-    options?: { fixedDocId?: string; syncRemoteInBackground?: boolean },
+    options?: { fixedDocId?: string },
   ): Promise<T> {
     const collectionPath = FIRESTORE_COLLECTION_BY_STORE[storeName];
     if (!collectionPath) {
@@ -198,7 +215,9 @@ export class OfflineCrudService {
     }
 
     await this.cache.put(storeName, optimistic);
-    this.tracker.markStale(storeName);
+    // Do NOT markStale here — the cache row we just wrote IS the local truth.
+    // A revalidation now would just re-fetch what we already have. The store's
+    // TTL will trigger natural revalidation later to catch multi-device writes.
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -208,7 +227,6 @@ export class OfflineCrudService {
         tempLocalId: assignedId,
         timestamp: Date.now(),
       });
-      this.notifier.show('Saved locally. Will sync when connected.', NotifierSeverity.WARNING);
     };
 
     if (!this.network.isOnline()) {
@@ -216,20 +234,8 @@ export class OfflineCrudService {
       return optimistic;
     }
 
-    if (options?.syncRemoteInBackground) {
-      void this.syncRemoteCreate(storeName, assignedId, firestoreFn, enqueuePending);
-      return optimistic;
-    }
-
-    try {
-      const result = await firestoreFn(assignedId);
-      const merged = { ...(result as object), _pendingSync: false } as unknown as T;
-      await this.cache.put(storeName, merged);
-      return merged;
-    } catch {
-      await enqueuePending();
-      return optimistic;
-    }
+    void this.syncRemoteCreate(storeName, assignedId, firestoreFn, enqueuePending);
+    return optimistic;
   }
 
   /**
@@ -266,7 +272,9 @@ export class OfflineCrudService {
     } as unknown as T;
 
     await this.cache.put(storeName, optimistic);
-    this.tracker.markStale(storeName);
+    // Do NOT markStale here — the cache row we just wrote IS the local truth.
+    // A revalidation now would just re-fetch what we already have. The store's
+    // TTL will trigger natural revalidation later to catch multi-device writes.
 
     const postSyncCallables = options?.postSyncCallablesBuilder?.(assignedId);
 
@@ -279,7 +287,6 @@ export class OfflineCrudService {
         timestamp: Date.now(),
         ...(postSyncCallables?.length ? { postSyncCallables } : {}),
       });
-      this.notifier.show('Saved locally. Will sync when connected.', NotifierSeverity.WARNING);
     };
 
     if (!this.network.isOnline()) {
@@ -287,19 +294,19 @@ export class OfflineCrudService {
       return optimistic;
     }
 
-    try {
-      const result = await firestoreFn(assignedId);
-      const merged = { ...(result as object), _pendingSync: false } as unknown as T;
-      await this.cache.put(storeName, merged);
-      options?.onSuccess?.(assignedId, merged);
-      return merged;
-    } catch {
-      await enqueuePending();
-      return optimistic;
-    }
+    void this.syncRemoteCreateWithPath(storeName, assignedId, firestoreFn, enqueuePending, options?.onSuccess);
+    return optimistic;
   }
 
-  /** Firestore write after optimistic IndexedDB row; failures fall back to sync queue. */
+  /**
+   * Firestore write after optimistic IndexedDB row; failures fall back to sync queue.
+   *
+   * On success, re-reads the current cache row (which may include intervening client
+   * writes like a follow-up update) and only flips `_pendingSync: false` — never writes
+   * back the stale server snapshot, which would clobber any patches applied while the
+   * background write was in flight. Server-only fields not yet in the cache are merged
+   * UNDER the current row so client patches always win.
+   */
   private syncRemoteCreate<T>(
     storeName: string,
     assignedId: string,
@@ -309,8 +316,81 @@ export class OfflineCrudService {
     void (async () => {
       try {
         const result = await firestoreFn(assignedId);
-        const merged = { ...(result as object), _pendingSync: false } as unknown as T;
-        await this.cache.put(storeName, merged);
+        await this.mergePendingSyncFlag(storeName, assignedId, result);
+      } catch {
+        await enqueuePending();
+      }
+    })();
+  }
+
+  /** Same as syncRemoteCreate but fires an onSuccess callback after the server write. */
+  private syncRemoteCreateWithPath<T>(
+    storeName: string,
+    assignedId: string,
+    firestoreFn: (assignedId: string) => Promise<T>,
+    enqueuePending: () => Promise<void>,
+    onSuccess?: (assignedId: string, result: T) => void,
+  ): void {
+    void (async () => {
+      try {
+        const result = await firestoreFn(assignedId);
+        const merged = await this.mergePendingSyncFlag(storeName, assignedId, result);
+        onSuccess?.(assignedId, merged);
+      } catch {
+        await enqueuePending();
+      }
+    })();
+  }
+
+  /**
+   * Background Firestore update; failures fall back to sync queue.
+   * Re-reads the current cache row after success so any concurrent write (a rapid
+   * follow-up update, revalidation, etc.) isn't clobbered by a stale snapshot.
+   */
+  private syncRemoteUpdate(
+    storeName: string,
+    docId: string,
+    firestoreFn: () => Promise<void>,
+    enqueuePending: () => Promise<void>,
+  ): void {
+    void (async () => {
+      try {
+        await firestoreFn();
+        await this.mergePendingSyncFlag(storeName, docId, null);
+      } catch {
+        await enqueuePending();
+      }
+    })();
+  }
+
+  /**
+   * After a background write succeeds, flip `_pendingSync: false` on the cache row
+   * WITHOUT overwriting any intervening client writes. Merges server-only fields
+   * (present in `serverResult` but not in current cache row) so nothing is lost, but
+   * client patches take precedence for keys that exist in both. Returns the merged row.
+   */
+  private async mergePendingSyncFlag<T>(
+    storeName: string,
+    key: string | number,
+    serverResult: T | null,
+  ): Promise<T> {
+    const current = await this.cache.getByKey<Record<string, unknown>>(storeName, key);
+    const server = (serverResult ?? {}) as Record<string, unknown>;
+    // Client patches (current cache row) win over server result — the server response
+    // may be stale relative to a follow-up update that landed while we were waiting.
+    const merged = { ...server, ...(current ?? {}), _pendingSync: false } as unknown as T;
+    await this.cache.put(storeName, merged);
+    return merged;
+  }
+
+  /** Background Firestore delete; failures fall back to sync queue. */
+  private syncRemoteDelete(
+    firestoreFn: () => Promise<void>,
+    enqueuePending: () => Promise<void>,
+  ): void {
+    void (async () => {
+      try {
+        await firestoreFn();
       } catch {
         await enqueuePending();
       }
@@ -334,7 +414,7 @@ export class OfflineCrudService {
       _pendingSync: true,
     } as unknown as T;
     await this.cache.put(storeName, updated);
-    this.tracker.markStale(storeName);
+    // Do NOT markStale — the patched row we just wrote IS the local truth.
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -344,7 +424,6 @@ export class OfflineCrudService {
         docId,
         timestamp: Date.now(),
       });
-      this.notifier.show('Saved locally. Will sync when connected.', NotifierSeverity.WARNING);
     };
 
     if (!this.network.isOnline()) {
@@ -352,15 +431,8 @@ export class OfflineCrudService {
       return updated;
     }
 
-    try {
-      await firestoreFn();
-      const done = { ...(updated as object), _pendingSync: false } as unknown as T;
-      await this.cache.put(storeName, done);
-      return done;
-    } catch {
-      await enqueuePending();
-      return updated;
-    }
+    void this.syncRemoteUpdate(storeName, docId, firestoreFn, enqueuePending);
+    return updated;
   }
 
   /**
@@ -376,7 +448,7 @@ export class OfflineCrudService {
     extraPayload?: Record<string, unknown>,
   ): Promise<void> {
     await this.cache.delete(storeName, docId);
-    this.tracker.markStale(storeName);
+    // Do NOT markStale — the delete is already reflected locally.
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -386,7 +458,6 @@ export class OfflineCrudService {
         docId,
         timestamp: Date.now(),
       });
-      this.notifier.show('Deleted offline. Will sync when connected.', NotifierSeverity.WARNING);
     };
 
     if (!this.network.isOnline()) {
@@ -394,14 +465,25 @@ export class OfflineCrudService {
       return;
     }
 
-    try {
-      await firestoreFn();
-    } catch (e: Error | unknown) {
-      await enqueuePending();
-    }
+    void this.syncRemoteDelete(firestoreFn, enqueuePending);
   }
 
   // ─── Background revalidation ──────────────────────────────────
+
+  /**
+   * Debounce map for background revalidations. Rapid navigation (back/forward,
+   * multiple components mounting the same list) can trigger many `fetchAll` calls
+   * for the same slice within milliseconds — without debouncing each one fires its
+   * own Firestore query. Keyed by store+indexFilter so different slices don't
+   * cancel each other.
+   */
+  private readonly revalDebounce = new Map<string, ReturnType<typeof setTimeout>>();
+  private static readonly REVAL_DEBOUNCE_MS = 500;
+
+  private revalDebounceKey(storeName: string, indexFilter?: RevalIndexFilter): string {
+    const slice = indexFilter ? `${indexFilter.indexName}=${String(indexFilter.value)}` : 'all';
+    return `${storeName}::${slice}`;
+  }
 
   /** Fire-and-forget: revalidate only when the cached slice's TTL has expired. */
   private async maybeRevalidateAll<T>(
@@ -410,7 +492,31 @@ export class OfflineCrudService {
     indexFilter?: RevalIndexFilter,
   ): Promise<void> {
     if (await this.tracker.isFresh(storeName, indexFilter)) return;
-    this.revalidateAll(storeName, firestoreFn, indexFilter);
+    this.scheduleRevalidate(storeName, firestoreFn, indexFilter);
+  }
+
+  /**
+   * Debounce a revalidation: only the last request within the window actually fires.
+   *
+   * Runs the setTimeout outside Angular's zone so the delay itself, the resulting
+   * Firestore call, and the cache write don't trigger change detection. UI updates
+   * happen naturally via signals when consumers next read the cache.
+   */
+  private scheduleRevalidate<T>(
+    storeName: string,
+    firestoreFn: () => Promise<T[]>,
+    indexFilter?: RevalIndexFilter,
+  ): void {
+    const key = this.revalDebounceKey(storeName, indexFilter);
+    const existing = this.revalDebounce.get(key);
+    if (existing) clearTimeout(existing);
+    this.zone.runOutsideAngular(() => {
+      const handle = setTimeout(() => {
+        this.revalDebounce.delete(key);
+        this.revalidateAll(storeName, firestoreFn, indexFilter);
+      }, OfflineCrudService.REVAL_DEBOUNCE_MS);
+      this.revalDebounce.set(key, handle);
+    });
   }
 
   /** Fire-and-forget: fetch from Firestore and update cache for next read. */
@@ -423,6 +529,7 @@ export class OfflineCrudService {
       .then(async (results) => {
         await this.replaceCache(storeName, results, indexFilter);
         await this.tracker.markFresh(storeName, indexFilter);
+        this.emitRevalidationEvent(storeName);
       })
       .catch(() => {
         /* silent — cached data already served */
@@ -440,6 +547,7 @@ export class OfflineCrudService {
         if (result) {
           this.cache.put(storeName, result);
           this.tracker.markDocFresh(storeName, key);
+          this.emitRevalidationEvent(storeName);
         }
       })
       .catch(() => {
@@ -447,22 +555,55 @@ export class OfflineCrudService {
       });
   }
 
-  /** Replace cached entries for a given filter with fresh server data. */
+  /**
+   * Bump the per-store revalidation counter so consumer effects/computeds re-run.
+   * Signals have their own scheduler — they don't need to be written inside
+   * Angular's zone to trigger effects, so we can update from the outside-zone
+   * revalidation callback without wrapping in `zone.run()`.
+   */
+  private emitRevalidationEvent(storeName: string): void {
+    this.revalidationCounts.update((counts) => ({
+      ...counts,
+      [storeName]: (counts[storeName] ?? 0) + 1,
+    }));
+  }
+
+  /**
+   * Replace cached entries for a given filter with fresh server data.
+   *
+   * Preserves rows with `_pendingSync: true` — they represent writes the user made
+   * that haven't reached the server yet. Wiping them would make the UI "forget"
+   * the user's own change until sync completes, which is confusing and looks like
+   * data loss.
+   *
+   * If the server response ALSO contains a row with the same key, the server row
+   * wins (the pending write already landed and this is the canonical version).
+   */
   private async replaceCache<T>(
     storeName: string,
     results: T[],
     indexFilter?: { indexName: string; value: IDBValidKey },
   ): Promise<void> {
+    const keyField = this.getKeyField(storeName);
+    const serverKeys = new Set<string | number>();
+    for (const row of results as Array<Record<string, unknown>>) {
+      const k = row?.[keyField] as string | number | undefined;
+      if (k != null) serverKeys.add(k);
+    }
+
     if (indexFilter) {
       const old = await this.cache.getAllByIndex<Record<string, unknown>>(
         storeName,
         indexFilter.indexName,
         indexFilter.value,
       );
-      const keyField = this.getKeyField(storeName);
       for (const item of old) {
         const key = item[keyField] as string | number;
-        if (key) await this.cache.delete(storeName, key);
+        if (key == null) continue;
+        // Keep local pending writes that the server response doesn't include —
+        // they still need to sync, and the UI should keep showing them.
+        if (item['_pendingSync'] === true && !serverKeys.has(key)) continue;
+        await this.cache.delete(storeName, key);
       }
     }
     await this.cache.putAll(storeName, results);
