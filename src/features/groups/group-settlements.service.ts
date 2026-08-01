@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { computed, effect, inject, Injectable, signal, Signal, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
@@ -52,6 +52,20 @@ export class GroupSettlementsService {
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
 
+  /** Reactive settlements map keyed by groupId; see notes on `GroupExpensesService`. */
+  private readonly _settlementsByGroup = signal<Record<string, GroupSettlement[]>>({});
+
+  constructor() {
+    effect(() => {
+      const _stamp = this.offlineCrud.revalidationCounts()[STORE] ?? 0;
+      untracked(() => void this.hydrateAllTrackedGroupsFromCache());
+    });
+  }
+
+  settlementsForGroup(groupId: string): Signal<GroupSettlement[]> {
+    return computed(() => this._settlementsByGroup()[groupId] ?? []);
+  }
+
   /** Anchor for security-rules authorship checks on settlement writes. */
   private requireUid(): string {
     const uid = this.auth.currentUser?.uid;
@@ -66,6 +80,27 @@ export class GroupSettlementsService {
       () => this.fetchSettlementsFromFirestore(groupId),
       { indexName: 'groupId', value: groupId },
     );
+  }
+
+  async refreshSettlements(groupId: string): Promise<GroupSettlement[]> {
+    try {
+      const list = await this.getSettlements(groupId);
+      this._settlementsByGroup.update((prev) => ({ ...prev, [groupId]: list }));
+      return list;
+    } catch (e) {
+      console.warn('refreshSettlements failed', e);
+      return this._settlementsByGroup()[groupId] ?? [];
+    }
+  }
+
+  private async hydrateAllTrackedGroupsFromCache(): Promise<void> {
+    const tracked = Object.keys(this._settlementsByGroup());
+    if (tracked.length === 0) return;
+    const next: Record<string, GroupSettlement[]> = {};
+    for (const gid of tracked) {
+      next[gid] = await this.idbCache.getAllByIndex<GroupSettlement>(STORE, 'groupId', gid);
+    }
+    this._settlementsByGroup.set(next);
   }
 
   /**

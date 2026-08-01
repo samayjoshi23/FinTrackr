@@ -162,6 +162,15 @@
             </p>
           </div>
         }
+        <button
+          type="button"
+          class="flex items-center gap-1 card selected-card rounded-full p-2 cursor-pointer text-primary"
+          (click)="onAddCategory()"
+          aria-label="Add category and set budget"
+        >
+          <ico name="plus" size="sm" class="text-primary"></ico>
+          <p class="text-xs text-center">Add category</p>
+        </button>
       </div>
       @if (txForm.submitted && !transaction().category.trim()) {
         <p class="text-xs text-red-600">Select a category.</p>

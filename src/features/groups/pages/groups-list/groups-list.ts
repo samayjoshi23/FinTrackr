@@ -45,8 +45,28 @@ export class GroupsList implements OnInit {
   readonly privacyPrefs = inject(PrivacyPreferencesService);
 
   loading = signal(true);
-  groupItems = signal<GroupListItem[]>([]);
   currentUserId = signal('');
+
+  /**
+   * View model derived from the three group signals. Any refresh (initial load,
+   * offline-layer background revalidation, or a follow-up call to any service's
+   * `refresh*` method) mutates the underlying signals, and this computed re-runs
+   * so the template updates automatically — no manual re-read required.
+   */
+  readonly groupItems = computed<GroupListItem[]>(() => {
+    const uid = this.currentUserId();
+    const groups = this.groupsService.myGroups();
+    return groups.map((group) => {
+      const expenses = this.expensesService.expensesForGroup(group.id)();
+      const settlements = this.settlementsService.settlementsForGroup(group.id)();
+      const balances = computeBalances(expenses, settlements, group.members, uid);
+      return {
+        group,
+        netBalance: totalNetBalance(balances),
+        memberCount: group.members.filter((m) => m.isActive).length + 1,
+      };
+    });
+  });
 
   createExpanded = signal(false);
   newGroupName = '';
@@ -77,28 +97,16 @@ export class GroupsList implements OnInit {
     const uid = this.auth.currentUser?.uid ?? '';
     this.currentUserId.set(uid);
     this.ownerUid = uid;
-
     try {
-      const groups = await this.groupsService.getMyGroups();
-      const items = await Promise.all(
-        groups.map(async (group) => {
-          try {
-            const [expenses, settlements] = await Promise.all([
-              this.expensesService.getExpenses(group.id),
-              this.settlementsService.getSettlements(group.id),
-            ]);
-            const balances = computeBalances(expenses, settlements, group.members, uid);
-            return {
-              group,
-              netBalance: totalNetBalance(balances),
-              memberCount: group.members.filter((m) => m.isActive).length + 1,
-            };
-          } catch {
-            return { group, netBalance: 0, memberCount: group.members.length };
-          }
-        }),
+      const groups = await this.groupsService.refreshMyGroups();
+      await Promise.all(
+        groups.map((g) =>
+          Promise.all([
+            this.expensesService.refreshExpenses(g.id),
+            this.settlementsService.refreshSettlements(g.id),
+          ]),
+        ),
       );
-      this.groupItems.set(items);
     } finally {
       this.loading.set(false);
     }
@@ -151,12 +159,22 @@ export class GroupsList implements OnInit {
     if (this.creating()) return;
     this.creating.set(true);
     try {
-      // Pending members are added by `sendGroupInvite` so invites and notifications are not skipped.
+      // Seed with the creator so invitees can render the creator's name (otherwise
+      // they'd see "Unknown" until an expense / settlement adds it via denormalized fields).
+      // Invited members are added later by `sendGroupInvite` so invite notifications still fire.
+      const creator = this.auth.currentUser;
+      const creatorMember = {
+        memberId: this.ownerUid,
+        memberDisplayName: creator?.displayName ?? creator?.email ?? 'Owner',
+        memberEmail: creator?.email ?? undefined,
+        isActive: true,
+        joinedAt: null,
+      };
       const group = await this.groupsService.createGroup({
         name,
         currency: 'INR',
         creatorId: this.ownerUid,
-        members: [],
+        members: [creatorMember],
       });
 
       for (const m of this.invitedMembers()) {

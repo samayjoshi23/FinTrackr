@@ -25,3 +25,17 @@
   flex: 1;
   min-height: 20rem;
 }
+
+/* Sticky totals strip sits just above the app-snackbar and summarizes the
+   applied filter set. Uses the scroll container's own bottom so it doesn't
+   need any global positioning to stay above the bottom nav. */
+.tx-totals-strip {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+  margin: 0 -1rem -0.5rem;
+  padding: 0.55rem 1rem;
+  background: var(--color-bg-card);
+  border-top: 1px solid var(--color-border);
+  backdrop-filter: blur(4px);
+}

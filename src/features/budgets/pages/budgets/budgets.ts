@@ -13,7 +13,16 @@ import { BudgetPlan } from '../../../../shared/models/budget.model';
 import { MonthlyReport, monthlyReportCategoryKey } from '../../../../shared/models/report.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { Category } from '../../../categories/types';
-import { transactionEventDate } from '../../../../core/date';
+import {
+  transactionEventDate,
+  toMonthKey,
+  currentMonthKey as currentMonthKeyFn,
+  monthKeyLabel,
+  startOfMonth,
+  endOfMonth,
+  daysLeftInMonth,
+  isoLocalDate,
+} from '../../../../core/date';
 import { ProgressStatus, CategoryBudgetCardModel, SummaryCardModel } from '../../types';
 import {
   budgetUsageBarClass,
@@ -367,9 +376,8 @@ export class Budgets {
     this.router.navigateByUrl('/user/budgets/new');
   }
 
-  /** Toggle expanded state for the card; collapse others. Disabled for read-only months. */
+  /** Toggle expanded state for the card; collapse others. Works for any month. */
   onCardClick(card: CategoryBudgetCardModel): void {
-    if (!this.isCurrentMonth()) return;
     const current = this.expandedCategory();
     this.expandedCategory.set(current === card.category ? null : card.category);
   }
@@ -378,17 +386,28 @@ export class Budgets {
     return this.expandedCategory() === card.category;
   }
 
-  /** Open transaction list filtered to this budget's category for the current month. */
+  /**
+   * Open transaction list filtered to this budget's category for the selected month.
+   *   - Current month → use the `month` preset chip (rolls with `now`).
+   *   - Past month → use an explicit `dateFrom`/`dateTo` range for that month.
+   */
   onSeeTransactions(event: Event, card: CategoryBudgetCardModel): void {
     event.stopPropagation();
-    void this.router.navigate(['/user/transactions/list'], {
-      queryParams: {
-        type: 'expense',
-        date: 'month',
-        category: card.category,
-        advanced: '1',
-      },
-    });
+    const month = this.selectedMonth();
+    const isCurrent = month === this.currentMonthKey();
+    const base = {
+      type: 'expense',
+      category: card.category,
+      advanced: '1',
+    } as Record<string, string>;
+    const queryParams = isCurrent
+      ? { ...base, date: 'month' }
+      : {
+          ...base,
+          dateFrom: isoLocalDate(startOfMonth(month)),
+          dateTo: isoLocalDate(endOfMonth(month)),
+        };
+    void this.router.navigate(['/user/transactions/list'], { queryParams });
   }
 
   onEditBudget(event: Event): void {
@@ -398,33 +417,60 @@ export class Budgets {
 
   onDeleteRequest(event: Event, card: CategoryBudgetCardModel): void {
     event.stopPropagation();
-    if (card.isOther || !this.isCurrentMonth()) return; // derived bucket / read-only
+    if (card.isOther) return; // derived bucket has no explicit limit to delete
     this.deletingCard.set(card);
     this.deletePromptOpen.set(true);
   }
 
-  /** Removing a category budget clears its limit from the plan; "Other" absorbs the leftover. */
+  /** Reload the past-month snapshot after a snapshot mutation (e.g., delete). */
+  private async refreshHistoricalReport(): Promise<void> {
+    const month = this.selectedMonth();
+    if (month === this.currentMonthKey()) return;
+    try {
+      const report = await this.reportsService.getReportForMonth(this.accountKey(), month);
+      this.historicalReport.set(report);
+    } catch {
+      /* offline / already up-to-date — non-fatal */
+    }
+  }
+
+  /**
+   * Removing a category budget clears its limit; "Other" absorbs the leftover.
+   *   - Current month → mutates the live plan; rebuilds current + future reports.
+   *   - Past month → clears the limit on that month's report snapshot only.
+   */
   async onDeleteConfirmed(agreed: boolean): Promise<void> {
     if (!agreed) {
       this.deletingCard.set(null);
       return;
     }
     const card = this.deletingCard();
-    const plan = this.budgetPlan();
-    if (!card || !plan) return;
+    if (!card) return;
 
     this.deleting.set(true);
     try {
-      const categoryBudgets = { ...plan.categoryBudgets };
-      delete categoryBudgets[card.categoryId];
-      const updated = await this.budgetsService.upsertBudgetPlan({
-        accountId: plan.accountId,
-        monthlyBudget: plan.monthlyBudget,
-        categoryBudgets,
-      });
-      // Plan edit applies to this month and future months (past stays frozen).
-      await this.reportsService.rebuildCurrentAndFutureReports();
-      this.budgetPlan.set(updated);
+      if (this.isCurrentMonth()) {
+        const plan = this.budgetPlan();
+        if (!plan) return;
+        const categoryBudgets = { ...plan.categoryBudgets };
+        delete categoryBudgets[card.categoryId];
+        const updated = await this.budgetsService.upsertBudgetPlan({
+          accountId: plan.accountId,
+          monthlyBudget: plan.monthlyBudget,
+          categoryBudgets,
+        });
+        // Plan edit applies to this month and future months (past stays frozen).
+        await this.reportsService.rebuildCurrentAndFutureReports();
+        this.budgetPlan.set(updated);
+      } else {
+        const month = this.selectedMonth();
+        const report = this.historicalReport();
+        const total = report ? this.allocatedFromReport(report) : 0;
+        await this.reportsService.updateReportBudgetSnapshot(month, total, {
+          [card.categoryId]: null,
+        });
+        await this.refreshHistoricalReport();
+      }
       if (this.expandedCategory() === card.category) {
         this.expandedCategory.set(null);
       }
@@ -443,25 +489,19 @@ export class Budgets {
   }
 
   private currentMonthKey(): string {
-    return this.toMonthKey(new Date());
+    return currentMonthKeyFn();
   }
 
   private toMonthKey(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
+    return toMonthKey(d);
   }
 
   private monthKeyLabel(monthKey: string): string {
-    const [y, m] = monthKey.split('-').map((n) => parseInt(n, 10));
-    if (!y || !m) return monthKey;
-    return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    return monthKeyLabel(monthKey, 'long');
   }
 
-  private daysLeftInMonth(date: Date): number {
-    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-    const ms = end.getTime() - date.getTime();
-    return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+  private daysLeftInMonth(d: Date): number {
+    return daysLeftInMonth(d);
   }
 
   goBack(): void {

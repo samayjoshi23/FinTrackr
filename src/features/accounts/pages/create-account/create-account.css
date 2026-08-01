@@ -5,8 +5,19 @@
   left: 0;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 20;
+  z-index: 40;
   max-height: 240px;
   overflow-y: auto;
   background: var(--color-bg-card);
+}
+
+/* Pins the Continue/Finish block to the bottom of the scrolling form so the
+   member-search dropdown never has to compete with it for space. */
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: var(--color-bg);
+  padding-top: 0.75rem;
+  margin-top: auto;
 }

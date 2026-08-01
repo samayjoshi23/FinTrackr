@@ -99,7 +99,10 @@ export class OfflineCrudService {
       await this.replaceCache(storeName, results, indexFilter);
       await this.tracker.markFresh(storeName, indexFilter);
       return results;
-    } catch {
+    } catch (e) {
+      // Silent failure here has masked real issues (rules denial, App Check,
+      // network error). Log so on-device debugging can find the root cause.
+      console.warn(`offlineCrud.fetchAll("${storeName}") failed`, e);
       return [];
     }
   }
@@ -123,17 +126,16 @@ export class OfflineCrudService {
         void this.maybeRevalidateAll('transactions', firestoreFn, indexFilter);
       }
       const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(cached, filter));
-      const { items, total, hasMore } = paginateTransactionRows(pipeline, offset, limit);
-      return { items, total, hasMore };
+      return paginateTransactionRows(pipeline, offset, limit);
     }
 
     const hasPending = await this.syncQueue.hasPendingForStore('transactions');
     if (hasPending) {
-      return { items: [], total: 0, hasMore: false };
+      return { items: [], total: 0, hasMore: false, totals: { income: 0, expense: 0 } };
     }
 
     if (!this.network.isOnline()) {
-      return { items: [], total: 0, hasMore: false };
+      return { items: [], total: 0, hasMore: false, totals: { income: 0, expense: 0 } };
     }
 
     try {
@@ -141,10 +143,9 @@ export class OfflineCrudService {
       await this.replaceCache('transactions', results, indexFilter);
       await this.tracker.markFresh('transactions', indexFilter);
       const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(results, filter));
-      const { items, total, hasMore } = paginateTransactionRows(pipeline, offset, limit);
-      return { items, total, hasMore };
+      return paginateTransactionRows(pipeline, offset, limit);
     } catch {
-      return { items: [], total: 0, hasMore: false };
+      return { items: [], total: 0, hasMore: false, totals: { income: 0, expense: 0 } };
     }
   }
 
@@ -416,7 +417,11 @@ export class OfflineCrudService {
     await this.cache.put(storeName, updated);
     // Do NOT markStale — the patched row we just wrote IS the local truth.
 
+    // Monthly reports are derived from transactions/budgets — the sync pass rebuilds
+    // them via `rebuildReportsForMonths`, so queuing raw patches would only race that
+    // rebuild (and there's no `processUpdate` case for this store either).
     const enqueuePending = async () => {
+      if (storeName === 'monthly-reports') return;
       await this.syncQueue.enqueue({
         storeName,
         operation: 'update',

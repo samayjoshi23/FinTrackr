@@ -34,11 +34,6 @@
     </button>
     <div class="flex items-center gap-2">
       <p class="text-sm font-semibold title-font">{{ monthLabel() }}</p>
-      @if (!isCurrentMonth()) {
-        <span class="text-[0.6rem] font-medium px-1.5 py-0.5 rounded-full bg-secondary-light text-secondary">
-          Read only
-        </span>
-      }
     </div>
     <button
       type="button"
@@ -69,7 +64,7 @@
     }
   } @else {
     <!-- Summary (zero-based) -->
-    <div class="card-light rounded-2xl p-4 flex flex-col gap-3 min-h-35">
+    <div class="card-light rounded-2xl p-4 flex flex-col gap-3">
       <div class="flex items-end justify-between">
         <p class="text-xs font-light text-secondary">{{ summary().monthLabel }} Budget</p>
       </div>
@@ -171,10 +166,9 @@
     <div class="flex flex-col gap-3">
       @for (card of categoryCards(); track card.category) {
         <div
-          class="card clickable rounded-2xl overflow-hidden transition-all duration-200"
-          [class.cursor-pointer]="isCurrentMonth()"
-          [attr.role]="isCurrentMonth() ? 'button' : null"
-          [attr.tabindex]="isCurrentMonth() ? 0 : null"
+          class="card clickable rounded-2xl overflow-hidden transition-all duration-200 cursor-pointer"
+          role="button"
+          tabindex="0"
           (click)="onCardClick(card)"
           (keydown.enter)="onCardClick(card)"
           (keydown.space)="$event.preventDefault(); onCardClick(card)"
@@ -196,14 +190,12 @@
                 >
                   {{ card.percent }}%
                 </p>
-                @if (isCurrentMonth()) {
-                  <ico
-                    name="chevron-right"
-                    size="sm"
-                    class="text-secondary transition-transform duration-200"
-                    [class.rotate-90]="isCardExpanded(card)"
-                  ></ico>
-                }
+                <ico
+                  name="chevron-right"
+                  size="sm"
+                  class="text-secondary transition-transform duration-200"
+                  [class.rotate-90]="isCardExpanded(card)"
+                ></ico>
               </div>
             </div>
 
@@ -233,8 +225,8 @@
               </div>
             }
 
-            <!-- Expandable action buttons (current month only) -->
-            @if (isCurrentMonth() && isCardExpanded(card)) {
+            <!-- Expandable action buttons -->
+            @if (isCardExpanded(card)) {
               <div class="flex gap-2 items-center justify-between">
                 <div
                   class="flex items-center gap-1 text-xs rounded-xl px-3 py-2 text-primary font-light card selected-card cursor-pointer"
@@ -279,6 +271,7 @@
   severity="danger"
   (confirmed)="onDeleteConfirmed($event)"
 />
+
 
 <ng-template #loadingTpl>
   <div class="flex flex-col gap-3 animate-pulse" aria-busy="true" aria-label="Loading budgets">

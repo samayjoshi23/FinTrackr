@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
@@ -64,10 +64,58 @@ export class GroupsService {
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
 
+  /**
+   * Reactive source of truth for the current user's groups. Components read via
+   * `myGroups()` (readonly) and rebuild derived state through `computed`. Any
+   * refresh — explicit (`refreshMyGroups`) or the offline-layer's background
+   * revalidation — writes here, and every subscriber updates at once.
+   */
+  private readonly _myGroups = signal<Group[]>([]);
+  readonly myGroups = this._myGroups.asReadonly();
+
+  constructor() {
+    // When the offline layer writes fresh Firestore results into IndexedDB
+    // (background revalidation), re-read the cache and push into the signal
+    // so any component that subscribed via `myGroups()` updates automatically.
+    effect(() => {
+      const _stamp = this.offlineCrud.revalidationCounts()['groups'] ?? 0;
+      untracked(() => {
+        if (!this.auth.currentUser?.uid) return;
+        void this.hydrateFromCache();
+      });
+    });
+  }
+
   private requireUid(): string {
     const uid = this.auth.currentUser?.uid;
     if (!uid) throw new Error('Not authenticated.');
     return uid;
+  }
+
+  /** Read the current user's groups from IndexedDB and publish into the signal. */
+  private async hydrateFromCache(): Promise<void> {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) return;
+    const rows = await this.idbCache.getAllByIndex<Group>('groups', 'viewerUid', uid);
+    this._myGroups.set(
+      [...rows].sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0)),
+    );
+  }
+
+  /**
+   * Trigger a load: seeds `myGroups` from cache (fast), then background-refreshes
+   * from Firestore via the offline layer (which writes back to cache — the
+   * constructor effect then re-publishes to the signal, so callers just need to
+   * subscribe once). Returns the current snapshot for convenience.
+   */
+  async refreshMyGroups(): Promise<Group[]> {
+    try {
+      const groups = await this.getMyGroups();
+      this._myGroups.set(groups);
+    } catch (e) {
+      console.warn('refreshMyGroups failed', e);
+    }
+    return this._myGroups();
   }
 
   private withViewer(group: Group, uid: string): Group {

@@ -192,11 +192,43 @@ export class GroupDetail implements OnInit {
       this.group.set(group);
       this.expenses.set(expenses);
       this.settlements.set(settlements);
+      void this.selfHealCreatorMembership(group);
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load group.');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Backfill for groups created before the creator was seeded into `members`. When
+   * the current user IS the creator and isn't in the list, patch the group so
+   * invitees can render the creator's real name instead of "Unknown".
+   */
+  private async selfHealCreatorMembership(group: Group | null): Promise<void> {
+    if (!group) return;
+    const uid = this.auth.currentUser?.uid ?? '';
+    if (!uid || group.creatorId !== uid) return;
+    if (group.members.some((m) => m.memberId === uid)) return;
+    const creator = this.auth.currentUser;
+    const nextMembers = [
+      ...group.members,
+      {
+        memberId: uid,
+        memberDisplayName: creator?.displayName ?? creator?.email ?? 'Owner',
+        memberEmail: creator?.email ?? undefined,
+        isActive: true,
+        joinedAt: null,
+      },
+    ];
+    try {
+      await this.groupsService.updateGroup(group.id, {
+        members: nextMembers as unknown as Group['members'],
+      });
+      this.group.set({ ...group, members: nextMembers as unknown as Group['members'] });
+    } catch (e) {
+      console.error('Failed to self-heal creator membership', e);
     }
   }
 

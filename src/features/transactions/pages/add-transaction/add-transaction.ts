@@ -87,6 +87,11 @@ export class AddTransaction {
     this.transaction.set({ ...this.transaction(), category: category.name, icon: category.icon });
   }
 
+  /** Deep-link to the new-category page. */
+  onAddCategory(): void {
+    void this.router.navigateByUrl('/user/categories/new');
+  }
+
   async onSubmit(form: NgForm) {
     if (form.invalid) {
       form.control.markAllAsTouched();

@@ -64,9 +64,11 @@ async function getAccountForUser(db: FirebaseFirestore.Firestore, userId: string
   id: string;
   currency: string;
 } | null> {
+  // The account doc stores the owner as `ownerId`; `uid` is the doc's own id,
+  // so querying by uid never matches and silently drops the write.
   const snap = await db
     .collection('accounts')
-    .where('uid', '==', userId)
+    .where('ownerId', '==', userId)
     .limit(1)
     .get();
   if (snap.empty) return null;
@@ -183,10 +185,10 @@ export const recordGroupSettlement = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Settlement payload does not match the stored record.');
   }
 
-  // Find the creditor's primary account
+  // Find the creditor's primary account (owner is stored as `ownerId`).
   const accountSnap = await db
     .collection('accounts')
-    .where('uid', '==', creditorId)
+    .where('ownerId', '==', creditorId)
     .limit(1)
     .get();
 

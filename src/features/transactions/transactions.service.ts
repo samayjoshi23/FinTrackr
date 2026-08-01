@@ -230,7 +230,7 @@ export class TransactionsService {
   ): Promise<TransactionPagedResult> {
     const accountKey = await this.selectedAccountKey();
     if (!accountKey) {
-      return { items: [], total: 0, hasMore: false };
+      return { items: [], total: 0, hasMore: false, totals: { income: 0, expense: 0 } };
     }
     return this.offlineCrud.fetchTransactionsPage(accountKey, filter, offset, limit, async () => {
       const snap = await getDocs(

@@ -133,6 +133,50 @@ export function docCalendarDate(
   return undefined;
 }
 
+/** 'YYYY-MM' for the calendar month a `Date` falls in (local time). */
+export function toMonthKey(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+/** 'YYYY-MM' for today. */
+export function currentMonthKey(): string {
+  return toMonthKey(new Date());
+}
+
+/** 'YYYY-MM' → `Date` at 00:00:00 on the 1st of that month (local time). */
+export function startOfMonth(monthKey: string): Date {
+  const [y, m] = monthKey.split('-').map(Number);
+  return new Date(y, m - 1, 1, 0, 0, 0, 0);
+}
+
+/** 'YYYY-MM' → `Date` at 23:59:59.999 on the last day of that month (local time). */
+export function endOfMonth(monthKey: string): Date {
+  const [y, m] = monthKey.split('-').map(Number);
+  return new Date(y, m, 0, 23, 59, 59, 999);
+}
+
+/** 'YYYY-MM' → human label. `style: 'long'` → 'July 2026'; default 'short' → 'Jul 2026'. */
+export function monthKeyLabel(monthKey: string, style: 'long' | 'short' = 'short'): string {
+  const [y, m] = monthKey.split('-').map((n) => parseInt(n, 10));
+  if (!y || !m) return monthKey;
+  return new Date(y, m - 1, 1).toLocaleString('en-US', {
+    month: style,
+    year: 'numeric',
+  });
+}
+
+/** Days remaining in the calendar month `d` falls in (0 on the last day). */
+export function daysLeftInMonth(d: Date): number {
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const ms = end.getTime() - d.getTime();
+  return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+}
+
+/** `Date` → 'YYYY-MM-DD' in local calendar (matches how the app stores transaction dates). */
+export function isoLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
 /**
  * Event instant for filters / charts: calendar day from `date`, with clock from `createdAt` when it matches that day.
  */

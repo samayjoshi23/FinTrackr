@@ -79,6 +79,36 @@
           </div>
         }
       </div>
+      @if (dateFilter() === 'custom') {
+        <div class="flex gap-2 mt-1">
+          <div class="flex-1">
+            <div class="field-wrapper before relative h-[1rem]">
+              <span class="field-icon before z-[101]">
+                <ico name="calendar" size="sm"></ico>
+              </span>
+              <app-date-picker
+                placeholder="From"
+                modalTitle="From"
+                [ngModel]="dateFrom()"
+                (ngModelChange)="onCustomDateFromChange($event)"
+              ></app-date-picker>
+            </div>
+          </div>
+          <div class="flex-1">
+            <div class="field-wrapper before relative h-[1rem]">
+              <span class="field-icon before z-[101]">
+                <ico name="calendar" size="sm"></ico>
+              </span>
+              <app-date-picker
+                placeholder="To"
+                modalTitle="To"
+                [ngModel]="dateTo()"
+                (ngModelChange)="onCustomDateToChange($event)"
+              ></app-date-picker>
+            </div>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Category -->
@@ -100,6 +130,37 @@
         }
       </div>
     </div>
+
+    @if (isMultiUser()) {
+      <!-- Paid by (multi-user accounts) -->
+      <div class="flex flex-col gap-2">
+        <p class="text-[0.65rem] uppercase tracking-wide text-secondary font-medium">By user</p>
+        <div class="flex flex-wrap gap-2">
+          <div
+            class="rounded-full px-3 py-1 text-xs cursor-pointer flex items-center justify-center {{
+              isPaidByChipActive('') ? 'purple-card purple-card-selected' : 'card text-secondary'
+            }}"
+            (click)="setPaidByFilter('')"
+            aria-label="Select all users"
+          >
+            All
+          </div>
+          @for (m of accountMembers(); track m.memberId) {
+            <div
+              class="rounded-full px-3 py-1 text-xs cursor-pointer flex items-center justify-center {{
+                isPaidByChipActive(m.memberId)
+                  ? 'purple-card purple-card-selected'
+                  : 'card text-secondary'
+              }}"
+              (click)="setPaidByFilter(m.memberId)"
+              [attr.aria-label]="'Filter by ' + m.memberDisplayName"
+            >
+              {{ m.memberDisplayName || 'Member' }}
+            </div>
+          }
+        </div>
+      </div>
+    }
   }
 
   <!-- List (virtualized: ~30 live DOM rows regardless of loaded pages) -->
@@ -163,6 +224,28 @@
           {{ loadingMore() ? 'Loading…' : 'Load more' }}
         </button>
       }
+    }
+    @if (!loading() && totalFiltered() > 0) {
+      <div class="tx-totals-strip">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <span class="text-xs text-secondary font-light">
+            {{ totalFiltered() }}
+            {{ totalFiltered() === 1 ? 'transaction' : 'transactions' }}
+          </span>
+          <div class="flex items-center gap-3 text-xs title-font font-semibold tabular-nums">
+            @if (typeFilter() !== 'expense' && totalIncome() > 0) {
+              <span class="text-income">
+                + {{ totalIncome() | signedAmount: null : currency() : '1.0-0' }}
+              </span>
+            }
+            @if (typeFilter() !== 'income' && totalExpense() > 0) {
+              <span class="text-expense">
+                - {{ totalExpense() | signedAmount: null : currency() : '1.0-0' }}
+              </span>
+            }
+          </div>
+        </div>
+      </div>
     }
     <app-transaction-detail-modal
       [(open)]="txDetailOpen"

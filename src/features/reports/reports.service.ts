@@ -1338,6 +1338,86 @@ export class ReportsService {
     await this.cache.put(STORE, { ...row, _pendingSync: false });
   }
 
+  /**
+   * Rewrite the budget-snapshot fields (`categoryBreakdown` budgets + `totalBudget`) on
+   * an existing month's report without touching its `amount` totals. Used when the user
+   * edits budgets for a past month — that month becomes editable, but the change never
+   * flows into the live `budgetPlans` doc or into other months.
+   *
+   * Semantics:
+   *   - `byCategoryId` maps categoryId → new limit. Categories not in the map keep their
+   *     current budget. Pass `0` to clear a category's budget (its row still shows spend).
+   *   - `monthlyBudget` becomes the new total. The derived "Other" bucket's budget is
+   *     recomputed as `max(0, monthlyBudget − Σ budgeted category limits)`.
+   *   - `used` and `overspent` are recomputed from the existing `amount` and new budgets.
+   *   - Nothing else on the report changes.
+   */
+  async updateReportBudgetSnapshot(
+    month: string,
+    monthlyBudget: number,
+    byCategoryId: Record<string, number | null>,
+  ): Promise<void> {
+    const accountId = await this.resolveAccountKey();
+    if (!accountId) throw new Error('No account selected.');
+    const report = await this.findReportForMonth(accountId, month);
+    if (!report) throw new Error(`No report exists for ${month}.`);
+
+    const otherKey = monthlyReportCategoryKey('other');
+    const newBreakdown: Record<string, CategoryBreakdownEntry> = {};
+
+    let budgetedLimitTotal = 0;
+    let budgetedSpendTotal = 0;
+    let otherAmount = 0;
+
+    for (const [key, entry] of Object.entries(report.categoryBreakdown ?? {})) {
+      if (key === otherKey) {
+        otherAmount = entry.amount;
+        continue;
+      }
+      const catId = key.replace(/^cat_/, '');
+      const overrideRaw = Object.prototype.hasOwnProperty.call(byCategoryId, catId)
+        ? byCategoryId[catId]
+        : undefined;
+      const nextBudget =
+        overrideRaw === undefined ? entry.budget : overrideRaw === null ? null : Number(overrideRaw);
+      const budgetNum = nextBudget !== null && nextBudget > 0 ? nextBudget : null;
+      const used = budgetNum ? Math.round((entry.amount / budgetNum) * 100) : 0;
+      const overspent = !!budgetNum && entry.amount > budgetNum;
+      newBreakdown[key] = {
+        name: entry.name,
+        amount: entry.amount,
+        budget: budgetNum,
+        used,
+        overspent,
+      };
+      if (budgetNum) budgetedLimitTotal += budgetNum;
+      budgetedSpendTotal += entry.amount;
+    }
+
+    const otherLimit = Math.max(0, monthlyBudget - budgetedLimitTotal);
+    const otherSpend = Math.max(0, (report.totalExpense ?? 0) - budgetedSpendTotal);
+    if (otherLimit > 0 || otherSpend > 0 || otherAmount > 0) {
+      const budget = otherLimit > 0 ? otherLimit : null;
+      newBreakdown[otherKey] = {
+        name: 'Other',
+        amount: otherSpend || otherAmount,
+        budget,
+        used: budget ? Math.round((otherSpend / budget) * 100) : 0,
+        overspent: !!budget && otherSpend > budget,
+      };
+    }
+
+    const totalBudgetUsed =
+      monthlyBudget > 0 ? Math.round(((report.totalExpense ?? 0) / monthlyBudget) * 100) : 0;
+
+    await this.updateReport(report.uid, {
+      categoryBreakdown: newBreakdown,
+      totalBudget: monthlyBudget,
+      totalBudgetUsed,
+      updatedAt: new Date(),
+    });
+  }
+
   async updateReport(reportId: string, patch: MonthlyReportUpdateInput): Promise<void> {
     const cached = await this.offlineCrud.fetchOne<MonthlyReport>(STORE, reportId, async () => {
       const snap = await getDoc(doc(this.firestore, `${COLLECTION}/${reportId}`));

@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { computed, effect, inject, Injectable, signal, Signal, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
@@ -53,6 +53,26 @@ export class GroupExpensesService {
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
 
+  /**
+   * Reactive expenses map keyed by groupId. Populated lazily as callers invoke
+   * `refreshExpenses(groupId)`; the offline layer's revalidation events feed
+   * back into every group already tracked here, so any subscriber to
+   * `expensesForGroup(id)` receives fresh data automatically.
+   */
+  private readonly _expensesByGroup = signal<Record<string, GroupExpense[]>>({});
+
+  constructor() {
+    effect(() => {
+      const _stamp = this.offlineCrud.revalidationCounts()[STORE] ?? 0;
+      untracked(() => void this.hydrateAllTrackedGroupsFromCache());
+    });
+  }
+
+  /** Reactive per-group expenses. Empty array until `refreshExpenses(groupId)` runs. */
+  expensesForGroup(groupId: string): Signal<GroupExpense[]> {
+    return computed(() => this._expensesByGroup()[groupId] ?? []);
+  }
+
   /** Anchor for security-rules authorship checks on group subcollection writes. */
   private requireUid(): string {
     const uid = this.auth.currentUser?.uid;
@@ -67,6 +87,31 @@ export class GroupExpensesService {
       () => this.fetchExpensesFromFirestore(groupId),
       { indexName: 'groupId', value: groupId },
     );
+  }
+
+  /**
+   * Fetch (cache-first + background revalidate via `fetchAll`) and publish
+   * into the reactive `expensesForGroup(id)` signal. Idempotent.
+   */
+  async refreshExpenses(groupId: string): Promise<GroupExpense[]> {
+    try {
+      const list = await this.getExpenses(groupId);
+      this._expensesByGroup.update((prev) => ({ ...prev, [groupId]: list }));
+      return list;
+    } catch (e) {
+      console.warn('refreshExpenses failed', e);
+      return this._expensesByGroup()[groupId] ?? [];
+    }
+  }
+
+  private async hydrateAllTrackedGroupsFromCache(): Promise<void> {
+    const tracked = Object.keys(this._expensesByGroup());
+    if (tracked.length === 0) return;
+    const next: Record<string, GroupExpense[]> = {};
+    for (const gid of tracked) {
+      next[gid] = await this.idbCache.getAllByIndex<GroupExpense>(STORE, 'groupId', gid);
+    }
+    this._expensesByGroup.set(next);
   }
 
   /**

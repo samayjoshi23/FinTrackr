@@ -22,7 +22,7 @@
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="flex flex-col gap-3 p-4">
+    <div class="flex flex-col gap-3">
       @for (i of [1, 2, 3]; track i) {
         <div class="card rounded-2xl p-4 flex gap-3 animate-pulse">
           <div class="h-10 w-10 rounded-xl bg-[var(--color-bg-elevated)] shrink-0"></div>
@@ -37,7 +37,7 @@
 
   @if (!loading() && group()) {
     <!-- Member avatars row -->
-    <div class="flex items-center gap-2 px-4 pb-2 shrink-0 overflow-x-auto">
+    <div class="flex items-center gap-2 shrink-0 overflow-x-auto">
       @for (m of allActiveMembers(); track m.memberId) {
         <div class="flex flex-col items-center gap-1 shrink-0">
           <div
@@ -55,7 +55,7 @@
 
     <!-- Tabs -->
     <div
-      class="flex gap-1 mx-4 mb-3 rounded-xl overflow-hidden bg-[var(--color-bg-elevated)] p-1 shrink-0"
+      class="flex gap-1 mb-3 rounded-xl overflow-hidden bg-[var(--color-bg-elevated)] p-1 shrink-0"
     >
       <button
         type="button"
@@ -81,7 +81,7 @@
 
     <!-- Expenses tab -->
     @if (activeTab() === 'expenses') {
-      <div class="flex-1 overflow-y-auto px-4 pb-32 space-y-3">
+      <div class="flex-1 overflow-y-auto space-y-3">
         @if (expenses().length === 0) {
           <div class="flex flex-col items-center justify-center gap-3 py-16 text-secondary">
             <ico name="bank-notes" size="xl"></ico>
@@ -137,7 +137,7 @@
 
     <!-- Settle Up tab -->
     @if (activeTab() === 'balances') {
-      <div class="flex-1 overflow-y-auto px-4 pb-32 space-y-5">
+      <div class="flex-1 overflow-y-auto space-y-5">
         <!-- "You owe" -->
         @if (owingBalances().length > 0) {
           <div class="flex flex-col gap-2">

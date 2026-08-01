@@ -3,7 +3,7 @@
   left: 0;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 20;
+  z-index: 40;
   max-height: 240px;
   overflow-y: auto;
   background: var(--color-bg-card);

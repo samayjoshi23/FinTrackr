@@ -113,7 +113,6 @@ export class Dashboard {
               search: '',
               type: 'all',
               category: 'all',
-              datePreset: 'all',
             },
             0,
             10,

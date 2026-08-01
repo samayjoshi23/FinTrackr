@@ -1,0 +1,20 @@
+.member-search-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--color-bg-card);
+}
+
+/* Keeps the Continue button pinned to the bottom of the viewport-height form
+   so a long member-search dropdown never has to compete with it for space. */
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: var(--color-bg);
+  padding-top: 0.75rem;
+}

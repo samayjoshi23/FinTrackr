@@ -84,6 +84,11 @@ export class AddRecurringTransaction {
     this.icon.set(cat.icon ?? null);
   }
 
+  /** Deep-link to the new-category page. */
+  onAddCategory(): void {
+    void this.router.navigateByUrl('/user/categories/new');
+  }
+
   onChangeFrequency(freq: string) {
     this.recurringFrequency.set(freq);
   }

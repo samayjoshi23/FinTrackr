@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
+import { AccountMember } from '../../../../shared/models/account.model';
 import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Category } from '../../../categories/types';
@@ -12,12 +13,21 @@ import { AccountsService } from '../../../../services/accounts.service';
 import { CategoriesService } from '../../../../services/categories.service';
 import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
+import { DatePicker } from '../../../../shared/components/date-picker/date-picker';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 import { RecordAction, RecordActionType } from '../../../../shared/enums/recordActions.enum';
 
 @Component({
   selector: 'app-transaction-list',
-  imports: [CommonModule, Icon, FormsModule, TransactionDetailModal, SignedAmountPipe, ScrollingModule],
+  imports: [
+    CommonModule,
+    Icon,
+    FormsModule,
+    TransactionDetailModal,
+    DatePicker,
+    SignedAmountPipe,
+    ScrollingModule,
+  ],
   templateUrl: './transaction-list.html',
   styleUrl: './transaction-list.css',
 })
@@ -38,12 +48,22 @@ export class TransactionList {
   currency = signal<string>('INR');
   searchQuery = signal('');
   typeFilter = signal<TypeFilter>('all');
-  dateFilter = signal<DateFilter>('all');
+  dateFilter = signal<DateFilter>('month');
+  /** ISO local `YYYY-MM-DD`; only used when dateFilter === 'custom'. */
+  dateFrom = signal<string>('');
+  dateTo = signal<string>('');
   categoryFilter = signal<string>('all');
+  /** `'all'` or a member uid; only relevant when the account is multi-user. */
+  paidByFilter = signal<string>('all');
+  /** Multi-user only: joined + active members. Empty for single-user accounts. */
+  accountMembers = signal<AccountMember[]>([]);
+  isMultiUser = computed(() => this.accountMembers().length > 0);
   isFilterActive = signal(false);
 
   displayedTransactions = signal<TransactionRecord[]>([]);
   totalFiltered = signal(0);
+  totalIncome = signal(0);
+  totalExpense = signal(0);
   hasMore = signal(false);
   loading = signal(true);
   loadingMore = signal(false);
@@ -74,6 +94,7 @@ export class TransactionList {
     try {
       const account = await this.accountsService.getSelectedAccount();
       this.currency.set(account?.currency ?? 'INR');
+      this.accountMembers.set(this.resolveJoinedMembers(account));
 
       this.applyQueryParams();
 
@@ -101,16 +122,34 @@ export class TransactionList {
     }
   }
 
-  /** Deep links from dashboard: ?type=income|expense&date=month&category=all&advanced=1 */
+  /**
+   * Deep links from budgets, reports, dashboard.
+   * Accepts: `type`, `category`, `advanced`, `date` (preset), and `dateFrom`+`dateTo`
+   * (which force `custom`).
+   */
   private applyQueryParams(): void {
     const q = this.route.snapshot.queryParamMap;
     const type = q.get('type');
     if (type === 'income' || type === 'expense' || type === 'all') {
       this.typeFilter.set(type);
     }
-    const date = q.get('date');
-    if (date === 'today' || date === 'week' || date === 'month' || date === 'all') {
-      this.dateFilter.set(date);
+    const dateFrom = q.get('dateFrom');
+    const dateTo = q.get('dateTo');
+    if (isIsoDate(dateFrom) && isIsoDate(dateTo)) {
+      this.dateFilter.set('custom');
+      this.dateFrom.set(dateFrom);
+      this.dateTo.set(dateTo);
+    } else {
+      const date = q.get('date');
+      if (
+        date === 'month' ||
+        date === '3m' ||
+        date === '6m' ||
+        date === 'all' ||
+        date === 'custom'
+      ) {
+        this.dateFilter.set(date);
+      }
     }
     const category = q.get('category');
     if (category === 'all') {
@@ -122,6 +161,17 @@ export class TransactionList {
     if (advanced === '1' || advanced === 'true' || advanced === 'yes') {
       this.isFilterActive.set(true);
     }
+    const paidBy = q.get('paidBy');
+    if (paidBy?.trim()) this.paidByFilter.set(paidBy.trim());
+  }
+
+  /** Joined + active non-owner members surface for the "By user" filter. Empty on single-user accounts. */
+  private resolveJoinedMembers(
+    account: { members?: AccountMember[]; accountType?: string; ownerId?: string } | null | undefined,
+  ): AccountMember[] {
+    if (!account || account.accountType !== 'multi-user') return [];
+    const members = Array.isArray(account.members) ? account.members : [];
+    return members.filter((m) => m && m.memberId && m.isJoined && m.isActive);
   }
 
   onBack() {
@@ -143,18 +193,25 @@ export class TransactionList {
           type: this.typeFilter(),
           category: this.categoryFilter(),
           datePreset: this.dateFilter(),
+          dateFrom: this.dateFrom() || undefined,
+          dateTo: this.dateTo() || undefined,
+          paidBy: this.paidByFilter(),
         },
         0,
         this.pageSize,
       );
       this.displayedTransactions.set(r.items);
       this.totalFiltered.set(r.total);
+      this.totalIncome.set(r.totals.income);
+      this.totalExpense.set(r.totals.expense);
       this.hasMore.set(r.hasMore);
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load transactions.');
       this.displayedTransactions.set([]);
       this.totalFiltered.set(0);
+      this.totalIncome.set(0);
+      this.totalExpense.set(0);
       this.hasMore.set(false);
     } finally {
       this.loading.set(false);
@@ -172,12 +229,17 @@ export class TransactionList {
           type: this.typeFilter(),
           category: this.categoryFilter(),
           datePreset: this.dateFilter(),
+          dateFrom: this.dateFrom() || undefined,
+          dateTo: this.dateTo() || undefined,
+          paidBy: this.paidByFilter(),
         },
         offset,
         this.pageSize,
       );
       this.displayedTransactions.update((rows) => [...rows, ...r.items]);
       this.totalFiltered.set(r.total);
+      this.totalIncome.set(r.totals.income);
+      this.totalExpense.set(r.totals.expense);
       this.hasMore.set(r.hasMore);
     } catch (e) {
       console.error(e);
@@ -215,12 +277,37 @@ export class TransactionList {
 
   setDateFilter(value: DateFilter) {
     this.dateFilter.set(value);
+    if (value !== 'custom') {
+      this.dateFrom.set('');
+      this.dateTo.set('');
+    }
     void this.reloadFromFilters();
+  }
+
+  onCustomDateFromChange(value: string): void {
+    this.dateFrom.set(value ?? '');
+    if (this.dateFilter() !== 'custom') this.dateFilter.set('custom');
+    if (this.dateFrom() && this.dateTo()) void this.reloadFromFilters();
+  }
+
+  onCustomDateToChange(value: string): void {
+    this.dateTo.set(value ?? '');
+    if (this.dateFilter() !== 'custom') this.dateFilter.set('custom');
+    if (this.dateFrom() && this.dateTo()) void this.reloadFromFilters();
   }
 
   setCategoryChip(label: string) {
     this.categoryFilter.set(label === 'All' ? 'all' : label);
     void this.reloadFromFilters();
+  }
+
+  setPaidByFilter(memberId: string): void {
+    this.paidByFilter.set(memberId || 'all');
+    void this.reloadFromFilters();
+  }
+
+  isPaidByChipActive(memberId: string): boolean {
+    return this.paidByFilter() === (memberId || 'all');
   }
 
   isTypeChipActive(value: TypeFilter): boolean {
@@ -261,4 +348,8 @@ export class TransactionList {
       await this.reloadFromFilters();
     }
   }
+}
+
+function isIsoDate(v: string | null | undefined): v is string {
+  return !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
