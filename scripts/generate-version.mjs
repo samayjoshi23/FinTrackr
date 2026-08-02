@@ -50,7 +50,10 @@ function readGitSha() {
 function readBreakingBuild() {
   const fromEnv = process.env.BREAKING_BUILD?.trim();
   if (fromEnv) {
-    console.log(`generate-version: using BREAKING_BUILD='${fromEnv}' from environment`);
+    // stderr, not stdout — Firebase App Hosting's Angular adapter parses
+    // stdout to extract `ng build`'s JSON manifest, and any `{…}`-looking
+    // line we write to stdout is grabbed first and breaks the parse.
+    log(`generate-version: using BREAKING_BUILD='${fromEnv}' from environment`);
     return fromEnv;
   }
   const filePath = resolve(projectRoot, 'src/environment/version-config.ts');
@@ -79,6 +82,9 @@ mkdirSync(outDir, { recursive: true });
 const outPath = resolve(outDir, 'version.json');
 writeFileSync(outPath, JSON.stringify(payload, null, 2) + '\n');
 
-console.log(
-  `generate-version: wrote ${outPath}\n  ${JSON.stringify(payload)}`,
-);
+log(`generate-version: wrote ${outPath}\n  ${JSON.stringify(payload)}`);
+
+/** stderr-only logger — see the note on `readBreakingBuild` for why. */
+function log(message) {
+  process.stderr.write(`${message}\n`);
+}
