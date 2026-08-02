@@ -5,7 +5,7 @@
       "name": "dev",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["ng", "serve"],
-      "port": 4200
+      "autoPort": true
     }
   ]
 }

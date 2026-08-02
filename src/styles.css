@@ -224,7 +224,16 @@ router-outlet + * > * > *:nth-child(n + 6) {
 }
 
 .container-layout {
-  height: calc(100dvh - 3.5rem);
+  /*
+   * Fill whatever height our parent slot gives us — the Features shell wraps
+   * `<router-outlet>` in a `flex-1 min-h-0` div so this is already
+   * `viewport − snackbar − any visible banners (offline / failed-sync)`.
+   * A hardcoded `calc(100dvh - 3.5rem)` only accounted for the snackbar, so
+   * whenever a banner appeared above the router-outlet the page over-flowed
+   * and its bottom controls slid behind the snackbar.
+   */
+  height: 100%;
+  min-height: 0;
   width: 100%;
   overflow-y: auto;
   display: flex;

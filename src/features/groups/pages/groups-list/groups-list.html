@@ -10,7 +10,7 @@
       </div>
       <h1 class="text-xl font-semibold title-font">Groups</h1>
     </div>
-    @if (!createExpanded()) {
+    @if (!createExpanded() && !selectedAccountIsMultiUser()) {
       <div
         type="button"
         class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
@@ -23,8 +23,26 @@
     }
   </div>
 
+  @if (selectedAccountIsMultiUser()) {
+    <!-- Groups aren't available while a shared (multi-user) account is selected —
+         the shared account already covers cross-user collaboration. -->
+    <div class="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
+      <div class="h-16 w-16 rounded-2xl button-secondary text-secondary flex items-center justify-center">
+        <ico name="users" size="xl"></ico>
+      </div>
+      <div class="flex flex-col items-center gap-1 max-w-sm">
+        <p class="text-base font-semibold title-font">Groups aren't used with shared accounts</p>
+        <p class="text-sm text-secondary font-light">
+          You're on a multi-user account, where every member already logs and shares
+          transactions directly. Switch to a personal account from Settings if you'd
+          like to split expenses with friends outside this account.
+        </p>
+      </div>
+    </div>
+  }
+
   <!-- Loading skeleton -->
-  @if (loading()) {
+  @if (loading() && !selectedAccountIsMultiUser()) {
     <div class="flex flex-col gap-3">
       @for (i of [1, 2, 3]; track i) {
         <div class="card rounded-2xl p-4 flex gap-3 animate-pulse">
@@ -39,7 +57,7 @@
     </div>
   }
 
-  @if (!loading()) {
+  @if (!loading() && !selectedAccountIsMultiUser()) {
     <!-- Summary banner -->
     @if (groupItems().length > 0) {
       <div class="flex gap-3">

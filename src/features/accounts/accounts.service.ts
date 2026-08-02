@@ -147,7 +147,13 @@ export class AccountsService {
       'id',
       async (assignedId: string) => {
         const ref = this.accountDocRef(assignedId);
-        const existing = await getDoc(ref);
+        // Preflight read tells us whether to stamp `createdAt`/`date`/`initialBalance`
+        // (fresh doc) vs. preserve them (re-run of the primary-account flow).
+        // For auto-id docs the read rule denies (accountId ≠ auth.uid and the doc
+        // doesn't exist yet for `canAccessExistingAccount` to inspect) — treat any
+        // failure here as "doc is fresh" and proceed.
+        const existing = await getDoc(ref).catch(() => null);
+        const isFreshDoc = !existing || !existing.exists();
         const payload: Record<string, unknown> = {
           uid: assignedId,
           name: data.name.trim(),
@@ -162,7 +168,7 @@ export class AccountsService {
           ownerId: data.ownerId,
           updatedAt: serverTimestamp(),
         };
-        if (!existing.exists()) {
+        if (isFreshDoc) {
           payload['createdAt'] = serverTimestamp();
           payload['date'] = day;
           payload['initialBalance'] = Number(data.balance);
@@ -202,7 +208,11 @@ export class AccountsService {
   async applyPendingAccountCreate(docId: string, data: AccountCreateInput): Promise<void> {
     const day = date().format('YYYY-MM-DD');
     const ref = this.accountDocRef(docId);
-    const existing = await getDoc(ref);
+    // Same rationale as `createAccountInternal` above — the read rule denies
+    // for auto-id docs whose creator isn't yet a member. Treat any failure as
+    // "doc is fresh" so a sync-queue retry can succeed.
+    const existing = await getDoc(ref).catch(() => null);
+    const isFreshDoc = !existing || !existing.exists();
     const accountType: AccountType = data.accountType ?? 'single-user';
     const members = serializeMembersForWrite(data.members);
     const memberIndex = deriveAccountMemberIndexes(data.members);
@@ -220,7 +230,7 @@ export class AccountsService {
       ownerId: data.ownerId,
       updatedAt: serverTimestamp(),
     };
-    if (!existing.exists()) {
+    if (isFreshDoc) {
       payload['createdAt'] = serverTimestamp();
       payload['date'] = day;
     }

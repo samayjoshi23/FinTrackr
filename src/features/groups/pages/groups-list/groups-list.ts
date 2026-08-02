@@ -6,6 +6,7 @@ import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { UsersSearchFilterPipe } from '../../../../shared/pipes/users-search-filter.pipe';
 import { SafePhotoUrlPipe } from '../../../../shared/pipes/safe-photo-url.pipe';
+import { AccountsService } from '../../../../services/accounts.service';
 import { GroupsService } from '../../groups.service';
 import { GroupExpensesService } from '../../group-expenses.service';
 import { GroupSettlementsService } from '../../group-settlements.service';
@@ -36,6 +37,7 @@ interface GroupListItem {
 export class GroupsList implements OnInit {
   private readonly router = inject(Router);
   private readonly auth = inject(Auth);
+  private readonly accountsService = inject(AccountsService);
   private readonly groupsService = inject(GroupsService);
   private readonly expensesService = inject(GroupExpensesService);
   private readonly settlementsService = inject(GroupSettlementsService);
@@ -43,6 +45,16 @@ export class GroupsList implements OnInit {
   private readonly notifier = inject(NotifierService);
   readonly usersLookup = inject(UsersLookupService);
   readonly privacyPrefs = inject(PrivacyPreferencesService);
+
+  /**
+   * True when the currently-selected account is a multi-user (shared) account.
+   * Groups are single-account-scoped — they don't make sense on top of a shared
+   * account (which already handles collaboration). We keep the route reachable
+   * but gate the UI so users can't create groups from here.
+   */
+  readonly selectedAccountIsMultiUser = computed(
+    () => this.accountsService.selectedAccount()?.accountType === 'multi-user',
+  );
 
   loading = signal(true);
   currentUserId = signal('');
@@ -98,6 +110,13 @@ export class GroupsList implements OnInit {
     this.currentUserId.set(uid);
     this.ownerUid = uid;
     try {
+      // Populate `selectedAccount` so the multi-user gate has a value to read.
+      // Cheap when the accounts cache is warm — no extra Firestore roundtrip.
+      await this.accountsService.refreshMyAccounts();
+      if (this.selectedAccountIsMultiUser()) {
+        // Skip the (potentially expensive) group fanout — the UI won't display it.
+        return;
+      }
       const groups = await this.groupsService.refreshMyGroups();
       await Promise.all(
         groups.map((g) =>

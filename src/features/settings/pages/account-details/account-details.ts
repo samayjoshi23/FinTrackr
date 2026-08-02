@@ -2,6 +2,8 @@ import { CommonModule, Location } from '@angular/common';
 import { Component, computed, effect, inject, model, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Auth } from '@angular/fire/auth';
+import { doc, Firestore, getDoc } from '@angular/fire/firestore';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { AccountsService } from '../../../../services/accounts.service';
 import { TransactionsService } from '../../../../services/transactions.service';
@@ -16,6 +18,16 @@ import { Modal } from '../../../../shared/components/modal/modal';
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
+type MemberStatus = 'active' | 'inactive' | 'invited';
+
+/** Single-row view model for the members strip on multi-user account details. */
+export interface AccountMemberRow {
+  memberId: string;
+  displayName: string;
+  status: MemberStatus;
+  isOwner: boolean;
+}
+
 @Component({
   selector: 'app-account-details',
   imports: [CommonModule, FormsModule, Icon, Modal, ConfirmPrompt, TransactionDetailModal, SignedAmountPipe],
@@ -26,6 +38,8 @@ export class AccountDetails {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
+  private readonly auth = inject(Auth);
+  private readonly firestore = inject(Firestore);
   private readonly accountsService = inject(AccountsService);
   private readonly transactionsService = inject(TransactionsService);
   private readonly reportsService = inject(ReportsService);
@@ -45,6 +59,16 @@ export class AccountDetails {
   editName = '';
   editBalance: number | null = null;
 
+  /**
+   * Owner's display name, resolved lazily in `ngOnInit`. For the current user's
+   * own accounts this is their `auth.currentUser.displayName`; for accounts they
+   * joined as a member it's looked up from `/user-directory/{ownerId}` (the
+   * denormalized profile mirror maintained by the `onUserProfileWrite` trigger).
+   * Falls back to a generic 'Owner' if the lookup fails (offline / no directory
+   * entry) so the row always renders.
+   */
+  private readonly ownerDisplayName = signal<string>('Owner');
+
   txDetailOpen = model(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
 
@@ -55,6 +79,44 @@ export class AccountDetails {
     const c = this.selectedAccount();
     if (!a || !c) return false;
     return a.id === c.id;
+  });
+
+  /** True when this account is shared (multi-user); drives the members strip. */
+  readonly isMultiUser = computed(() => this.account()?.accountType === 'multi-user');
+
+  /**
+   * Ordered list of everyone who has any relationship with this account:
+   *   1. The owner (always first, always shown as Active).
+   *   2. Every entry in `account.members` — the invited users — in stored order.
+   *
+   * Only rendered for multi-user accounts; for single-user accounts the array
+   * still resolves to `[owner]` but the template doesn't render it.
+   */
+  readonly memberRows = computed<AccountMemberRow[]>(() => {
+    const acc = this.account();
+    if (!acc) return [];
+    const rows: AccountMemberRow[] = [
+      {
+        memberId: acc.ownerId ?? '',
+        displayName: this.ownerDisplayName(),
+        status: 'active',
+        isOwner: true,
+      },
+    ];
+    for (const m of acc.members ?? []) {
+      if (!m.memberId || m.memberId === acc.ownerId) continue;
+      let status: MemberStatus;
+      if (m.isJoined && m.isActive) status = 'active';
+      else if (m.isJoined) status = 'inactive';
+      else status = 'invited';
+      rows.push({
+        memberId: m.memberId,
+        displayName: m.memberDisplayName?.trim() || 'Member',
+        status,
+        isOwner: false,
+      });
+    }
+    return rows;
   });
 
   /** Gain/loss relative to initialBalance. Null when initialBalance is not set. */
@@ -96,6 +158,8 @@ export class AccountDetails {
         .getTransactionsForAccount(accountKey)
         .catch(() => []);
       this.recentActivity.set((txs ?? []).slice(0, 3));
+      // Fire-and-forget: fills in the owner's display name for the members strip.
+      void this.resolveOwnerDisplayName(row.ownerId ?? '');
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load account.');
@@ -107,6 +171,30 @@ export class AccountDetails {
 
   private async refreshSelectedAccount() {
     this.selectedAccount.set(await this.accountsService.getSelectedAccount());
+  }
+
+  /**
+   * Populate `ownerDisplayName` for the members strip.
+   *   1. If the owner is the current user, use their auth profile — no network hit.
+   *   2. Otherwise fetch `/user-directory/{ownerId}` (the denormalized profile
+   *      mirror maintained by `onUserProfileWrite`, PII-safe).
+   * Any failure leaves the fallback 'Owner' in place so the row still renders.
+   */
+  private async resolveOwnerDisplayName(ownerId: string): Promise<void> {
+    if (!ownerId) return;
+    const me = this.auth.currentUser;
+    if (me?.uid === ownerId) {
+      const name = me.displayName?.trim() || me.email?.trim() || 'Owner';
+      this.ownerDisplayName.set(name);
+      return;
+    }
+    try {
+      const snap = await getDoc(doc(this.firestore, `user-directory/${ownerId}`));
+      const raw = snap.exists() ? (snap.data()['displayName'] as string | undefined) : null;
+      if (raw && raw.trim()) this.ownerDisplayName.set(raw.trim());
+    } catch {
+      /* offline / permission — keep the 'Owner' fallback */
+    }
   }
 
   onBack() {
