@@ -37,15 +37,30 @@ function readGitSha() {
   }
 }
 
-/** Read BREAKING_BUILD from the TS constant so the source of truth stays a single file. */
+/**
+ * Resolve BREAKING_BUILD from (in priority order):
+ *   1. `process.env.BREAKING_BUILD` — CI/CD override, one-off wipe deploys
+ *      without a source-code commit (`BREAKING_BUILD=2026-08-02-1 npm run build`).
+ *   2. The `BREAKING_BUILD` constant in `src/environment/version-config.ts` —
+ *      the committed default, so a plain `npm run build` still works locally.
+ *
+ * Whichever wins gets stamped into `public/version.json` and later drives the
+ * boot-time compare in `AppVersionService`.
+ */
 function readBreakingBuild() {
+  const fromEnv = process.env.BREAKING_BUILD?.trim();
+  if (fromEnv) {
+    console.log(`generate-version: using BREAKING_BUILD='${fromEnv}' from environment`);
+    return fromEnv;
+  }
   const filePath = resolve(projectRoot, 'src/environment/version-config.ts');
   const source = readFileSync(filePath, 'utf8');
   const match = source.match(/BREAKING_BUILD\s*=\s*['"]([^'"]+)['"]/);
   if (!match) {
     throw new Error(
-      `generate-version: could not parse BREAKING_BUILD from ${filePath}. ` +
-        `Expected a line like: export const BREAKING_BUILD = '1';`,
+      `generate-version: could not parse BREAKING_BUILD from ${filePath} ` +
+        `and no BREAKING_BUILD env var was set. Expected a line like: ` +
+        `export const BREAKING_BUILD = '1';`,
     );
   }
   return match[1];
