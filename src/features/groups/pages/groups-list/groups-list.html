@@ -124,7 +124,7 @@
               />
               @if (memberSearchQuery.trim().length >= 2) {
                 <div
-                  class="member-search-dropdown card-light rounded-xl border bg-[var(--color-bg-elevated)] shadow-lg"
+                  class="member-search-dropdown card card-light rounded-xl card card-light shadow-lg overflow-hidden"
                   (mousedown)="$event.preventDefault()"
                   role="listbox"
                 >
@@ -141,21 +141,19 @@
                         | usersSearchFilter: memberSearchQuery : memberSearchExcludeUids();
                       track hit.uid
                     ) {
-                      <button
-                        type="button"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left bg-secondary-light"
+                      <div
+                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left card card-light"
                         (click)="pickMember(hit, $event)"
                       >
                         @if (hit.photoURL | safePhotoUrl; as safeUrl) {
                           <img
                             [src]="safeUrl"
-                            alt=""
-                            class="h-9 w-9 rounded-full object-cover shrink-0"
+                            class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-secondary-light text-primary"
                             referrerpolicy="no-referrer"
                           />
                         } @else {
                           <div
-                            class="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                            class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-secondary-light text-primary"
                             [ngClass]="avatarClass(hit.uid)"
                           >
                             {{ initials(hit.displayName || hit.email) }}
@@ -168,9 +166,9 @@
                           <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
                         </div>
                         <ico name="user-group" size="sm" class="text-primary shrink-0"></ico>
-                      </button>
+                      </div>
                     } @empty {
-                      <div class="px-3 py-3 text-sm text-secondary bg-secondary-light">
+                      <div class="px-3 py-3 text-sm text-secondary bg-secondary-light card card-light rounded-xl">
                         No users match that search.
                       </div>
                     }
@@ -218,7 +216,7 @@
 
         <button
           type="button"
-          class="button-primary rounded-xl w-full py-3 text-sm font-semibold"
+          class="button-primary rounded-xl w-full py-3 mt-5 text-sm font-semibold"
           [disabled]="creating()"
           (click)="submitNewGroup()"
         >

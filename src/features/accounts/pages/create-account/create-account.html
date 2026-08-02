@@ -93,8 +93,8 @@
         <div class="flex flex-col gap-2">
           <span class="text-xs text-gray-400">Invite members</span>
           <p class="text-xs text-secondary font-light">
-            Search by name or email and tap each person to add them. You can invite as many as you need
-            before continuing.
+            Search by name or email and tap each person to add them. You can invite as many as you
+            need before continuing.
           </p>
 
           <div class="relative z-30">
@@ -117,12 +117,14 @@
 
             @if (memberSearchQuery.trim().length >= 2) {
               <div
-                class="member-search-dropdown card-light rounded-xl border bg-[var(--color-bg-elevated)] shadow-lg"
+                class="member-search-dropdown card-light rounded-xl bg-[var(--color-bg-elevated)] shadow-lg overflow-hidden"
                 (mousedown)="$event.preventDefault()"
                 role="listbox"
               >
                 @if (usersLookup.directoryLoading()) {
-                  <div class="px-3 py-4 flex items-center justify-center gap-2 text-secondary text-sm">
+                  <div
+                    class="px-3 py-4 flex items-center justify-center gap-2 text-secondary text-sm"
+                  >
                     <ico name="circle-notch-loader" size="sm" [spin]="true"></ico>
                     Searching…
                   </div>
@@ -132,54 +134,61 @@
                       | usersSearchFilter: memberSearchQuery : memberSearchExcludeUids();
                     track hit.uid
                   ) {
-                    <button
-                      type="button"
-                      class="member-search-row w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-bg-elevated)]"
+                    <div
+                      class="member-search-row w-full flex items-center gap-3 px-3 py-2.5 text-left"
                       (click)="pickMember(hit, $event)"
                     >
-                      <div class="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary">
+                      <div
+                        class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-secondary-light text-primary"
+                      >
                         {{ (hit.displayName || hit.email).slice(0, 1).toUpperCase() }}
                       </div>
                       <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium truncate">{{ hit.displayName || hit.email }}</p>
+                        <p class="text-sm font-medium truncate text-[var(--color-text)]">
+                          {{ hit.displayName || hit.email }}
+                        </p>
                         <p class="text-xs text-secondary truncate">{{ hit.email }}</p>
                       </div>
                       <ico name="user-group" size="sm" class="text-primary shrink-0"></ico>
-                    </button>
+                    </div>
                   } @empty {
                     <div class="px-3 py-3 text-sm text-secondary">No users match that search.</div>
                   }
                 }
               </div>
             }
-        </div>
-
-        @if (invitedMembers().length > 0) {
-          <div class="flex flex-col gap-2">
-            <span class="text-xs text-gray-400">Invited ({{ invitedMembers().length }})</span>
-            <div class="flex flex-col gap-2">
-              @for (m of invitedMembers(); track m.uid) {
-                <div class="rounded-xl p-2.5 flex items-center gap-3 bg-[var(--color-bg-elevated)]">
-                  <div class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary">
-                    {{ (m.displayName || m.email).slice(0, 1).toUpperCase() }}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
-                    <p class="text-xs text-secondary truncate">{{ m.email }}</p>
-                  </div>
-                  <button
-                    type="button"
-                    class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
-                    (click)="removeInvitedMember(m.uid)"
-                    aria-label="Remove"
-                  >
-                    <ico name="times" size="sm"></ico>
-                  </button>
-                </div>
-              }
-            </div>
           </div>
-        }
+
+          @if (invitedMembers().length > 0) {
+            <div class="flex flex-col gap-2">
+              <span class="text-xs text-gray-400">Invited ({{ invitedMembers().length }})</span>
+              <div class="flex flex-col gap-2">
+                @for (m of invitedMembers(); track m.uid) {
+                  <div
+                    class="rounded-xl p-2.5 flex items-center gap-3 bg-[var(--color-bg-elevated)]"
+                  >
+                    <div
+                      class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary"
+                    >
+                      {{ (m.displayName || m.email).slice(0, 1).toUpperCase() }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
+                      <p class="text-xs text-secondary truncate">{{ m.email }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
+                      (click)="removeInvitedMember(m.uid)"
+                      aria-label="Remove"
+                    >
+                      <ico name="times" size="sm"></ico>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
         </div>
       }
     </div>
@@ -407,7 +416,9 @@
     <div class="flex flex-col gap-2 max-h-[45vh] overflow-y-auto">
       @for (c of accountCategories(); track c.uid) {
         <div class="flex items-center gap-3">
-          <div class="h-9 w-9 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+          <div
+            class="h-9 w-9 rounded-xl bg-primary-light flex items-center justify-center shrink-0"
+          >
             <ico [name]="c.icon" size="sm" class="text-primary"></ico>
           </div>
           <p class="flex-1 text-sm truncate">{{ c.name }}</p>
@@ -434,11 +445,10 @@
       </div>
       <div class="flex justify-between">
         <span class="text-secondary">Remaining (Other)</span>
-        <span
-          class="title-font font-medium"
-          [class.text-red-600]="categoryBudgetRemaining() < 0"
-        >
-          {{ categoryBudgetRemaining() | signedAmount: null : formModel.account.currency : '1.0-0' }}
+        <span class="title-font font-medium" [class.text-red-600]="categoryBudgetRemaining() < 0">
+          {{
+            categoryBudgetRemaining() | signedAmount: null : formModel.account.currency : '1.0-0'
+          }}
         </span>
       </div>
       @if (categoryBudgetRemaining() < 0) {
