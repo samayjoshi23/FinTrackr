@@ -195,24 +195,6 @@
     </div>
 
     <div class="flex flex-col gap-3 mt-2">
-      @if (!isCurrentAccount()) {
-        <button
-          type="button"
-          class="button-primary rounded-xl py-3 w-full font-semibold disabled:opacity-60"
-          [disabled]="selecting()"
-          (click)="onSelectThisAccount()"
-        >
-          <ico name="tick" size="sm"></ico>
-          <span>{{ selecting() ? 'Selecting…' : 'Select this account' }}</span>
-        </button>
-      } @else {
-        <div
-          class="rounded-xl py-3 px-4 text-center text-sm font-medium text-primary border border-[var(--color-border-primary)] bg-primary-soft"
-        >
-          This is your active account
-        </div>
-      }
-
       <button
         type="button"
         class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
