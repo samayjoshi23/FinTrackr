@@ -21,5 +21,6 @@ exports.NOTIFICATION_TYPE_TO_PREF_KEY = {
     ACCOUNT_INVITE: 'transactionUpdates',
     ACCOUNT_INVITE_ACCEPTED: 'transactionUpdates',
     ACCOUNT_INVITE_DECLINED: 'transactionUpdates',
+    ACCOUNT_DELETED: 'transactionUpdates',
 };
 //# sourceMappingURL=types.js.map

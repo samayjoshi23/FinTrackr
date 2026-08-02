@@ -18,58 +18,64 @@
 
   <!-- Failed-sync banner: offline changes that exhausted retries — never lost silently -->
   @if (syncService.failedEntries().length > 0 && !failedBannerDismissed()) {
-    <div class="bg-rose-600 text-white text-xs py-1.5 px-3 z-50">
-      <div class="flex items-center justify-center gap-2 flex-wrap">
-        <svg class="w-3.5 h-3.5 shrink-0">
-          <use href="assets/icons/sprite.svg#info-circle"></use>
-        </svg>
-        <span>
-          {{ syncService.failedEntries().length }} change(s) failed to sync.
-        </span>
-        <button
-          type="button"
-          class="underline font-semibold"
-          (click)="failedListOpen.set(!failedListOpen())"
-        >
-          {{ failedListOpen() ? 'Hide' : 'Details' }}
-        </button>
-        <button
-          type="button"
-          class="bg-white/20 hover:bg-white/30 rounded px-2 py-0.5 font-bold"
-          [disabled]="failedActionBusy()"
-          (click)="retryAllFailed()"
-        >
-          Retry all
-        </button>
-        <button
-          type="button"
-          class="bg-rose-800 hover:bg-rose-900 rounded px-2 py-0.5 font-bold"
-          [disabled]="failedActionBusy()"
-          (click)="discardAllFailed()"
-        >
-          {{ confirmingDiscard() ? 'Tap again to confirm' : 'Discard' }}
-        </button>
-        <button
-          type="button"
-          class="ml-1 font-bold opacity-80 hover:opacity-100"
-          aria-label="Dismiss"
-          (click)="failedBannerDismissed.set(true)"
-        >
-          ✕
-        </button>
+    <div class="bg-rose-600 text-white text-xs py-1.5 px-2 z-50 relative">
+      <div
+        class="flex items-center justify-between gap-2 flex-wrap cursor-pointer"
+        (click)="failedListOpen.set(!failedListOpen())"
+      >
+        <div class="flex align-center gap-1">
+          <ico name="info-circle" size="sm"></ico>
+          <span> {{ syncService.failedEntries().length }} change(s) failed to sync. </span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="bg-transparent! color-[var(--color-text)]! rounded px-2 py-0.5 font-bold"
+            [disabled]="failedActionBusy()"
+            (click)="discardAllFailed()"
+          >
+            {{ confirmingDiscard() ? 'Tap again to confirm' : 'Discard' }}
+          </button>
+          <button
+            type="button"
+            class="bg-[var(--color-tertiary)]! text-[var(--color-text)]! rounded px-2 py-0.5"
+            [disabled]="failedActionBusy()"
+            (click)="retryAllFailed()"
+          >
+            Retry all
+          </button>
+          <ico
+            name="times"
+            size="sm"
+            (click)="failedBannerDismissed.set(true)"
+            class="cursor-pointer"
+          ></ico>
+        </div>
       </div>
       @if (failedListOpen()) {
-        <ul class="mt-1.5 max-h-28 overflow-y-auto text-left mx-auto max-w-md space-y-0.5">
-          @for (entry of syncService.failedEntries(); track entry.id) {
-            <li class="bg-rose-700/60 rounded px-2 py-1">
-              <span class="font-semibold capitalize">{{ entry.operation }}</span>
-              · {{ entry.storeName }}
-              @if (entry.errorMessage) {
-                <span class="opacity-80">— {{ entry.errorMessage }}</span>
-              }
-            </li>
-          }
-        </ul>
+        <div
+          class="flex flex-col absolute top-full left-0 right-0 w-full bg-rose-500 z-50 shadow-xl rounded-b-lg overflow-hidden p-1.5 gap-1"
+        >
+          <ul class="max-h-30 overflow-y-auto text-left mx-auto max-w-md gap-1 flex flex-col">
+            @for (entry of syncService.failedEntries(); track entry.id) {
+              <li class="bg-rose-700/60 rounded px-2 py-1">
+                <span class="font-semibold capitalize">{{ entry.operation }}</span>
+                · {{ entry.storeName }}
+                @if (entry.errorMessage) {
+                  <span class="opacity-80">— {{ entry.errorMessage }}</span>
+                }
+              </li>
+            }
+          </ul>
+          <hr class="border-t border-rose-700" />
+          <div
+            class="flex align-center gap-1 custor-pointer w-full justify-center py-0.5 bg-rose-700 rounded-md"
+            (click)="failedListOpen.set(false)"
+          >
+            <ico name="arrow-up" size="xs" class="mt-1.5 cursor-pointer"></ico>
+            <span class="mt-1 text-xs">Hide</span>
+          </div>
+        </div>
       }
     </div>
   }

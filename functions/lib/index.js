@@ -7,7 +7,7 @@
  *   - scheduledDailyNotifications : Cron (daily 09:00 IST) → generate system notifications
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUserAccount = exports.onUserProfileWrite = exports.notifyGroupExpense = exports.recordTransactionForUser = exports.recordGroupSettlement = exports.respondGroupInvite = exports.sendGroupInvite = exports.respondAccountInvite = exports.onAccountUpdated = exports.onAccountCreated = exports.scheduledDailyNotifications = exports.onNotificationCreate = void 0;
+exports.deleteAccountCascade = exports.deleteUserAccount = exports.onUserProfileWrite = exports.notifyGroupExpense = exports.recordTransactionForUser = exports.recordGroupSettlement = exports.respondGroupInvite = exports.sendGroupInvite = exports.respondAccountInvite = exports.onAccountUpdated = exports.onAccountCreated = exports.scheduledDailyNotifications = exports.onNotificationCreate = void 0;
 const app_1 = require("firebase-admin/app");
 // Initialize once at cold start
 (0, app_1.initializeApp)();
@@ -30,4 +30,6 @@ var user_directory_1 = require("./user-directory");
 Object.defineProperty(exports, "onUserProfileWrite", { enumerable: true, get: function () { return user_directory_1.onUserProfileWrite; } });
 var delete_user_account_1 = require("./delete-user-account");
 Object.defineProperty(exports, "deleteUserAccount", { enumerable: true, get: function () { return delete_user_account_1.deleteUserAccount; } });
+var delete_account_cascade_1 = require("./delete-account-cascade");
+Object.defineProperty(exports, "deleteAccountCascade", { enumerable: true, get: function () { return delete_account_cascade_1.deleteAccountCascade; } });
 //# sourceMappingURL=index.js.map

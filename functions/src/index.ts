@@ -18,3 +18,4 @@ export { sendGroupInvite, respondGroupInvite } from './group-invites';
 export { recordGroupSettlement, recordTransactionForUser, notifyGroupExpense } from './group-transactions';
 export { onUserProfileWrite } from './user-directory';
 export { deleteUserAccount } from './delete-user-account';
+export { deleteAccountCascade } from './delete-account-cascade';

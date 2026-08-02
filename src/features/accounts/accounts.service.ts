@@ -1,7 +1,7 @@
-import { inject, Injectable } from '@angular/core';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
-  deleteDoc,
   doc,
   Firestore,
   getDoc,
@@ -57,6 +57,7 @@ export class AccountsService {
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly cache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
+  private readonly functions = inject(Functions);
 
   /**
    * Session memo for the accounts list. `getSelectedAccount()` is called from nearly
@@ -65,9 +66,51 @@ export class AccountsService {
    */
   private accountsMemo: { uid: string; accounts: Account[]; at: number } | null = null;
 
+  /**
+   * Reactive source of truth for the current user's accounts. Populated by
+   * `refreshMyAccounts()` and auto-refreshed whenever the offline layer signals
+   * fresh rows in the `accounts` store. Consumers do `service.myAccounts()` and
+   * derive from it via `computed`.
+   */
+  private readonly _myAccounts = signal<Account[]>([]);
+  readonly myAccounts = this._myAccounts.asReadonly();
+  readonly selectedAccount = signal<Account | null>(null);
+
+  constructor() {
+    effect(() => {
+      const _stamp = this.offlineCrud.revalidationCounts()['accounts'] ?? 0;
+      untracked(() => {
+        if (!this.auth.currentUser?.uid) return;
+        void this.hydrateAccountsFromCache();
+      });
+    });
+  }
+
   /** Drop the in-memory accounts memo (mutations + logout). */
   clearSessionCache(): void {
     this.accountsMemo = null;
+  }
+
+  private async hydrateAccountsFromCache(): Promise<void> {
+    const uid = this.auth.currentUser?.uid;
+    if (!uid) return;
+    const rows = await this.cache.getAllByIndex<Account>('accounts', 'ownerId', uid);
+    this._myAccounts.set(rows);
+    const sel = rows.find((a) => a.isSelected) ?? rows[0] ?? null;
+    if (sel) this.selectedAccount.set(sel);
+  }
+
+  /** Explicit refresh: seed from cache, then re-fetch via the offline layer. */
+  async refreshMyAccounts(): Promise<Account[]> {
+    try {
+      const list = await this.getAccounts();
+      this._myAccounts.set(list);
+      const sel = list.find((a) => a.isSelected) ?? list[0] ?? null;
+      if (sel) this.selectedAccount.set(sel);
+    } catch (e) {
+      console.warn('refreshMyAccounts failed', e);
+    }
+    return this._myAccounts();
   }
 
   private accountDocRef(userId: string) {
@@ -145,7 +188,14 @@ export class AccountsService {
         ownerId: data.ownerId,
         date: day,
       },
-      'fixedDocId' in opts ? { fixedDocId: opts.fixedDocId } : undefined,
+      {
+        ...('fixedDocId' in opts ? { fixedDocId: opts.fixedDocId } : {}),
+        // Block until Firestore commits: `selectAccount`, budget-plan/goals/
+        // monthly-report creates that fire right after all reference this doc's
+        // id through `canAccessAccount(accountId)`, and their rules `get()`
+        // won't see an uncommitted optimistic write.
+        awaitRemote: true,
+      },
     );
   }
 
@@ -366,27 +416,41 @@ export class AccountsService {
     return refreshed;
   }
 
+  /**
+   * Delete an owned account and every doc that references its id — transactions,
+   * recurring, monthlyReports, budgets, budgetPlan, goals, categories — and notify
+   * any active member of the account that it's been removed.
+   *
+   * Server-side (`deleteAccountCascade` callable) does the cascade with Admin SDK
+   * so nothing gets orphaned by Firestore rules that check `canAccessAccount`.
+   * Only the account's owner may invoke this — members can leave or decline invites
+   * but can never delete a shared account.
+   *
+   * Fully requires network: the cascade is not offline-safe. If offline, throws
+   * so the caller can surface a "reconnect and retry" message.
+   */
   async deleteAccount(accountDocId: string): Promise<void> {
-    const uid = this.requireUid();
+    this.requireUid();
 
     const all = await this.getAccounts();
     if (all.length <= 1) {
       throw new Error('You must keep at least one account.');
     }
+    if (!this.network.isOnline()) {
+      throw new Error('You must be online to delete an account.');
+    }
 
-    await this.offlineCrud.remove('accounts', accountDocId, async () => {
-      const ref = this.accountDocRef(accountDocId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        throw new Error('Account not found.');
-      }
-      if ((snap.data()['ownerId'] as string | undefined) !== uid) {
-        throw new Error('Not allowed to remove this account.');
-      }
-      await deleteDoc(ref);
-    });
+    const call = httpsCallable<
+      { accountId: string },
+      { ok: boolean; notified: number }
+    >(this.functions, 'deleteAccountCascade');
+    await call({ accountId: accountDocId });
+
+    // Server has already deleted the Firestore doc + cascade; now drop the local
+    // IDB row so cache-first reads don't resurrect it, and refresh signals.
+    await this.cache.delete('accounts', accountDocId).catch(() => {});
     this.clearSessionCache();
-
+    await this.refreshMyAccounts();
     await this.selectAccount(null);
   }
 

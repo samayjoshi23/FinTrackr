@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import {
   collection,
   deleteDoc,
@@ -38,6 +38,41 @@ export class TransactionsService {
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
   private readonly accountsService = inject(AccountsService);
+
+  /**
+   * Reactive transactions for the currently selected account. Re-hydrated whenever
+   * the offline layer signals fresh rows in the `transactions` store, so any
+   * background revalidation (or a sibling device's write) surfaces without a
+   * manual re-fetch. Consumers can either call `refreshMyTransactions()` on entry
+   * OR simply subscribe and let the effect keep them in sync.
+   */
+  private readonly _myTransactions = signal<TransactionRecord[]>([]);
+  readonly myTransactions = this._myTransactions.asReadonly();
+
+  constructor() {
+    effect(() => {
+      const _stamp = this.offlineCrud.revalidationCounts()['transactions'] ?? 0;
+      untracked(() => void this.hydrateFromCache());
+    });
+  }
+
+  private async hydrateFromCache(): Promise<void> {
+    const key = await this.selectedAccountKey();
+    if (!key) return;
+    const rows = await this.idbCache.getAllByIndex<TransactionRecord>('transactions', 'accountId', key);
+    this._myTransactions.set(rows);
+  }
+
+  /** Explicit refresh — seeds from cache and triggers background Firestore fetch. */
+  async refreshMyTransactions(): Promise<TransactionRecord[]> {
+    try {
+      const list = await this.getTransactions();
+      this._myTransactions.set(list);
+    } catch (e) {
+      console.warn('refreshMyTransactions failed', e);
+    }
+    return this._myTransactions();
+  }
 
   /** Firestore `accountId` on child docs — matches selected account (`uid`, then `id`). */
   private async selectedAccountKey(): Promise<string | null> {

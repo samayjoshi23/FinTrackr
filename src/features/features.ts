@@ -5,10 +5,12 @@ import { Snackbar } from '../shared/components/snackbar/snackbar';
 import { NetworkService } from '../core/offline/network.service';
 import { SyncService } from '../core/offline/sync.service';
 import { BrowserBackRedirectService } from '../core/navigation/browser-back-redirect.service';
+import { SyncQueueEntry } from '../core/offline/sync-queue.model';
+import { Icon } from '../shared/components/icon/icon';
 
 @Component({
   selector: 'app-features',
-  imports: [CommonModule, RouterOutlet, Snackbar],
+  imports: [CommonModule, RouterOutlet, Snackbar, Icon],
   templateUrl: './features.html',
   styleUrl: './features.css',
   providers: [BrowserBackRedirectService],

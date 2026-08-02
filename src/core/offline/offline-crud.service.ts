@@ -193,7 +193,17 @@ export class OfflineCrudService {
     keyField: string,
     firestoreFn: (assignedId: string) => Promise<T>,
     payload: Record<string, unknown>,
-    options?: { fixedDocId?: string },
+    options?: {
+      fixedDocId?: string;
+      /**
+       * When online, await the Firestore write before returning. Use for records
+       * whose id is immediately referenced by follow-up Firestore writes (e.g.
+       * account create → budgetPlans/goals/monthlyReports create) — otherwise
+       * rules deny because `canAccessAccount(accountId)` can't `get()` a doc
+       * that hasn't been committed yet.
+       */
+      awaitRemote?: boolean;
+    },
   ): Promise<T> {
     const collectionPath = FIRESTORE_COLLECTION_BY_STORE[storeName];
     if (!collectionPath) {
@@ -233,6 +243,18 @@ export class OfflineCrudService {
     if (!this.network.isOnline()) {
       await enqueuePending();
       return optimistic;
+    }
+
+    if (options?.awaitRemote) {
+      // Block until Firestore commits so downstream writes that reference this
+      // id (accountId is the canonical case) don't race the rules `get()`.
+      try {
+        const result = await firestoreFn(assignedId);
+        return (await this.mergePendingSyncFlag(storeName, assignedId, result)) as T;
+      } catch (e) {
+        await enqueuePending();
+        throw e;
+      }
     }
 
     void this.syncRemoteCreate(storeName, assignedId, firestoreFn, enqueuePending);
