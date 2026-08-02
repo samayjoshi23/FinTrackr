@@ -25,6 +25,7 @@ import { authInterceptor } from '../core/interceptors/auth.interceptor';
 import { indexedDbConfig } from '../core/offline/indexed-db.config';
 import { IndexedDbRecoveryService } from '../core/offline/indexed-db-recovery.service';
 import { StorageQuotaService } from '../core/offline/storage-quota.service';
+import { AppVersionService } from '../core/updates/app-version.service';
 
 // Note: provideStorage and provideMessaging are intentionally omitted here.
 // ProfileUploadService uses firebase/storage via dynamic import (lazy).
@@ -42,6 +43,17 @@ export const appConfig: ApplicationConfig = {
       return Promise.race([
         recovery.checkAndRecover(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+      ]);
+    }),
+    // Compare the served /version.json's `breakingBuild` to the last one this
+    // device saw. On mismatch, wipe IndexedDB + safe localStorage + reload —
+    // gated by IndexedDbRecoveryService's 60s cooldown so we can't loop.
+    // Race against a 2s timeout: a slow/broken fetch must never block boot.
+    provideAppInitializer(() => {
+      const version = inject(AppVersionService);
+      return Promise.race([
+        version.hydrateAndCompare(),
+        new Promise<void>((resolve) => setTimeout(() => resolve(), 2000)),
       ]);
     }),
     // Fire a startup storage-quota baseline. Non-blocking (`void`) — we don't

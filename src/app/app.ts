@@ -3,6 +3,7 @@ import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
+import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs/operators';
 import { Notifier } from '../shared/components/notifier/pages/notifier';
 import { AuthService } from '../services/auth.service';
@@ -26,6 +27,7 @@ export class App {
   private readonly auth = inject(Auth);
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly swUpdate = inject(SwUpdate);
   protected readonly biometricLock = inject(BiometricLockService);
 
   unlocking = signal(false);
@@ -71,6 +73,42 @@ export class App {
     if (this.biometricLock.locked()) {
       void this.triggerBiometric();
     }
+
+    this.wireServiceWorkerAutoUpdate();
+  }
+
+  /**
+   * Silent auto-refresh when a new build lands. `SwUpdate.versionUpdates` fires
+   * `VERSION_READY` once ngsw has finished downloading the new bundle in the
+   * background. We activate + reload immediately — the user picks the change up
+   * without any prompt. A 60s poll keeps long-open tabs current.
+   *
+   * `isEnabled` is false in dev mode (see `provideServiceWorker` in app.config.ts),
+   * so this whole path is a no-op locally.
+   */
+  private wireServiceWorkerAutoUpdate(): void {
+    if (!this.swUpdate.isEnabled) return;
+
+    this.swUpdate.versionUpdates
+      .pipe(
+        filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(async () => {
+        try {
+          await this.swUpdate.activateUpdate();
+        } catch {
+          /* activation can race the reload — non-fatal */
+        }
+        location.reload();
+      });
+
+    const pollHandle = window.setInterval(() => {
+      void this.swUpdate.checkForUpdate().catch(() => {
+        /* offline / network hiccup — try again next tick */
+      });
+    }, 60_000);
+    this.destroyRef.onDestroy(() => window.clearInterval(pollHandle));
   }
 
   async triggerBiometric(): Promise<void> {

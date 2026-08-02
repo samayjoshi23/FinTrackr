@@ -258,14 +258,12 @@
                       <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
                       <p class="text-xs text-secondary truncate">{{ m.email }}</p>
                     </div>
-                    <button
-                      type="button"
-                      class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
+                    <div class="h-6 w-6 button-red rounded-full cursor-pointer"
                       (click)="removeInvitedMember(m.uid)"
                       aria-label="Remove"
                     >
                       <ico name="times" size="sm"></ico>
-                    </button>
+                    </div>
                   </div>
                 }
               </div>

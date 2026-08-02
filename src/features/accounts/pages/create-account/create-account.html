@@ -168,7 +168,7 @@
                     class="rounded-xl p-2.5 flex items-center gap-3 bg-[var(--color-bg-elevated)]"
                   >
                     <div
-                      class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 button-secondary text-primary"
+                      class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold bg-secondary-light text-primary"
                     >
                       {{ (m.displayName || m.email).slice(0, 1).toUpperCase() }}
                     </div>
@@ -176,14 +176,12 @@
                       <p class="text-sm font-medium truncate">{{ m.displayName || m.email }}</p>
                       <p class="text-xs text-secondary truncate">{{ m.email }}</p>
                     </div>
-                    <button
-                      type="button"
-                      class="h-7 w-7 flex items-center justify-center rounded-full text-secondary hover:text-danger transition-colors"
-                      (click)="removeInvitedMember(m.uid)"
+                    <div
+                      class="h-6 w-6 button-red rounded-full cursor-pointer"
                       aria-label="Remove"
                     >
-                      <ico name="times" size="sm"></ico>
-                    </button>
+                      <ico name="times" size="sm" (click)="removeInvitedMember(m.uid)"></ico>
+                    </div>
                   </div>
                 }
               </div>
