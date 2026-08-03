@@ -3,12 +3,16 @@ import { DBConfig } from 'ngx-indexed-db';
 export const indexedDbConfig: DBConfig = {
   name: 'FinTrackrDB',
   /** Bump when adding object stores or indexes so existing DBs run upgrade (e.g. `notifications`). */
-  version: 7,
+  version: 8,
   objectStoresMeta: [
     {
       store: 'accounts',
       storeConfig: { keyPath: 'id', autoIncrement: false },
       storeSchema: [
+        // Synthetic per-device index: the local user's uid, stamped on every
+        // account row they can see (owned OR member). One index query returns the
+        // full visible set — mirrors the `groups` store's `viewerUid` pattern.
+        { name: 'viewerUid', keypath: 'viewerUid', options: { unique: false } },
         { name: 'ownerId', keypath: 'ownerId', options: { unique: false } },
         { name: 'updatedAt', keypath: 'updatedAt', options: { unique: false } },
       ],

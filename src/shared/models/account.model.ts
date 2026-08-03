@@ -38,6 +38,13 @@ export interface Account extends Omit<AccountDocument, 'createdAt' | 'updatedAt'
   date?: string; // 'YYYY-MM-DD'
   members?: AccountMember[];
   _pendingSync?: boolean;
+  /**
+   * Synthetic, local-only field: the uid of the device's current user, stamped on
+   * every account row this user can see (owned or member). Backs the IndexedDB
+   * `viewerUid` index so a single query returns the whole visible set. Never
+   * written to Firestore. Mirrors {@link Group.viewerUid}.
+   */
+  viewerUid?: string;
 }
 
 export interface AccountCreateInput {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
@@ -36,12 +36,16 @@ export class SettingsHome {
   readonly currentUid = signal('');
 
   userProfile = signal<UserProfile | null>(null);
-  accounts = signal<Account[]>([]);
-  currentAccount = signal<Account | null>(null);
+  /** Reactive: fed by AccountsService's signal so background Firestore refreshes
+   * (and multi-account membership changes) surface without a manual re-read. */
+  readonly accounts = this.accountsService.myAccounts;
+  readonly currentAccount = this.accountsService.selectedAccount;
   themeMode = signal<ThemePreference>('light');
   generalSettingsList = signal(GENERAL_SETTINGS);
   totalTransactions = signal(0);
-  totalBalance = signal(0);
+  readonly totalBalance = computed(() =>
+    this.accounts().reduce((sum, a) => sum + Number(a.balance ?? 0), 0),
+  );
   initials = signal('');
 
   personalInfoModalOpen = false;
@@ -76,24 +80,16 @@ export class SettingsHome {
       this.userProfile.set(userProfile ?? null);
       const date: string | null = (userProfile?.['date'] as string) ?? null;
       this.dateJoined.set(!!date ? new Date(date) : new Date());
-      let accounts = await this.accountsService.getAccounts().catch(() => []);
-      this.accounts.set(accounts ?? []);
-
-      const current = await this.accountsService.getSelectedAccount();
-      this.currentAccount.set(current);
+      // Seed from cache instantly, then background-refresh from Firestore. Both
+      // land in AccountsService's `myAccounts`/`selectedAccount` signals, which
+      // `accounts`/`currentAccount`/`totalBalance` above read reactively — so the
+      // list stays live as membership/remote changes arrive. No manual re-read.
+      await this.accountsService.refreshMyAccounts().catch(() => []);
 
       this.setInitials();
 
-      let txTotal = 0;
-      let balanceSum = 0;
-      for (const a of accounts ?? []) {
-        const aid = a.uid || a.id;
-        const txs = await this.transactionsService.getTransactions().catch(() => []);
-        txTotal += txs.length;
-        balanceSum += Number(a.balance ?? 0);
-      }
-      this.totalTransactions.set(txTotal);
-      this.totalBalance.set(balanceSum);
+      const txs = await this.transactionsService.getTransactions().catch(() => []);
+      this.totalTransactions.set(txs.length);
     } catch (e: any) {
       console.error(e);
       this.notifier.error('Could not load your data. Please try again.');
