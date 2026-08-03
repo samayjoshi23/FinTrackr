@@ -94,13 +94,17 @@ export class AccountsService {
   private async hydrateAccountsFromCache(): Promise<void> {
     const uid = this.auth.currentUser?.uid;
     if (!uid) return;
-    const allRows = await this.cache.getAll<Account>('accounts');
-    const rows = allRows.filter(
-      (a) => a.ownerId === uid || (a.members ?? []).some((m) => m.memberId === uid),
-    );
+    // Single index read returns every account the user can see (owned + member),
+    // because each row is stamped with `viewerUid = uid` when cached.
+    const rows = await this.cache.getAllByIndex<Account>('accounts', 'viewerUid', uid);
     this._myAccounts.set(rows);
     const sel = rows.find((a) => a.isSelected) ?? rows[0] ?? null;
     if (sel) this.selectedAccount.set(sel);
+  }
+
+  /** Stamp the local user's uid so the row lands in the `viewerUid` cache index. */
+  private withViewer(account: Account, uid: string): Account {
+    return { ...account, viewerUid: uid };
   }
 
   /** Explicit refresh: seed from cache, then re-fetch via the offline layer. */
@@ -196,6 +200,8 @@ export class AccountsService {
         accountType,
         ownerId: data.ownerId,
         date: day,
+        // Local-only; keeps the optimistic row in the `viewerUid` cache index.
+        viewerUid: this.auth.currentUser?.uid ?? data.ownerId,
       },
       {
         ...('fixedDocId' in opts ? { fixedDocId: opts.fixedDocId } : {}),
@@ -240,7 +246,11 @@ export class AccountsService {
     await setDoc(ref, payload, { merge: true });
     const account = await this.getAccountDirect(docId);
     if (!account) throw new Error('Failed to read account after pending create sync.');
-    await this.cache.put('accounts', { ...account, _pendingSync: false });
+    await this.cache.put('accounts', {
+      ...account,
+      viewerUid: this.auth.currentUser?.uid ?? account.ownerId,
+      _pendingSync: false,
+    });
     this.clearSessionCache();
   }
 
@@ -330,7 +340,10 @@ export class AccountsService {
         await setDoc(ref, updates, { merge: true });
       },
       patchRecord,
-      (cached ?? { id: accountId }) as unknown as Record<string, unknown>,
+      (cached ?? {
+        id: accountId,
+        viewerUid: this.auth.currentUser?.uid,
+      }) as unknown as Record<string, unknown>,
     );
     this.clearSessionCache();
   }
@@ -360,7 +373,17 @@ export class AccountsService {
     );
   }
 
-  /** Returns all accounts the user owns **and** accounts they've been invited to / joined. */
+  /**
+   * Returns all accounts the user owns **and** accounts they've been invited to /
+   * joined, through a single cache-first + background-revalidation pipeline.
+   *
+   * One `fetchAll` keyed by the synthetic `viewerUid` index drives the whole
+   * visible set: it returns the cached slice instantly, then revalidates from
+   * Firestore in the background, writes fresh rows back to the cache, and bumps
+   * `revalidationCounts['accounts']` — which the constructor effect observes to
+   * re-hydrate `myAccounts`, so every subscriber updates automatically. This is
+   * the same pattern the `groups` feature uses.
+   */
   async getAccounts(userId?: string): Promise<Account[]> {
     const uid = userId ?? this.requireUid();
 
@@ -369,63 +392,46 @@ export class AccountsService {
       return [...memo.accounts];
     }
 
-    // Owned accounts — full offline-crud pipeline (cache-first + background revalidation)
-    const owned = await this.offlineCrud.fetchAll<Account>(
+    const accounts = await this.offlineCrud.fetchAll<Account>(
       'accounts',
-      async () => {
-        const snap = await getDocs(
-          query(collection(this.firestore, 'accounts'), where('ownerId', '==', uid)),
-        );
-        return snap.docs.map((docSnap) => this.mapAccount(docSnap.id, docSnap.data()));
-      },
-      { indexName: 'ownerId', value: uid },
+      () => this.fetchMyAccountsFromFirestore(uid),
+      { indexName: 'viewerUid', value: uid },
     );
-
-    // Member accounts — lightweight IDB scan + background Firestore refresh
-    const ownedIds = new Set(owned.map((a) => a.id));
-    const memberAccounts = await this.getMemberAccountsCached(uid, ownedIds);
-
-    const accounts = [...owned, ...memberAccounts];
     this.accountsMemo = { uid, accounts: [...accounts], at: Date.now() };
     return accounts;
   }
 
-  private async getMemberAccountsCached(
-    uid: string,
-    ownedIds: Set<string>,
-  ): Promise<Account[]> {
-    const allCached = await this.cache.getAll<Account>('accounts');
-    const cached = allCached.filter(
-      (a) => !ownedIds.has(a.id) && (a.members ?? []).some((m) => m.memberId === uid),
-    );
+  /**
+   * Firestore read for the full visible set. Merges three sources and de-dupes by
+   * id, then stamps `viewerUid` so the rows land in the local cache index:
+   *   1. `ownerId == uid`               — accounts owned via the current schema.
+   *   2. `accounts/{uid}` direct read   — the legacy primary account, whose doc id
+   *      is the owner's uid and which may predate the `ownerId` field. Including it
+   *      guarantees the primary is always listed even without a data migration.
+   *   3. `memberIds array-contains uid` — shared accounts the user was invited to
+   *      or has joined (pending members are in `memberIds`; active ones also in
+   *      `activeMemberIds`).
+   */
+  private async fetchMyAccountsFromFirestore(uid: string): Promise<Account[]> {
+    const col = collection(this.firestore, ACCOUNTS_COLLECTION);
+    const [ownedSnap, primarySnap, memberSnap] = await Promise.all([
+      getDocs(query(col, where('ownerId', '==', uid))),
+      getDoc(this.accountDocRef(uid)).catch(() => null),
+      getDocs(query(col, where('memberIds', 'array-contains', uid))),
+    ]);
 
-    if (this.network.isOnline()) {
-      void this.refreshMemberAccounts(uid, ownedIds);
-    }
+    const seen = new Set<string>();
+    const out: Account[] = [];
+    const push = (id: string, data: unknown) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      out.push(this.withViewer(this.mapAccount(id, data), uid));
+    };
 
-    return cached;
-  }
-
-  private async refreshMemberAccounts(uid: string, ownedIds: Set<string>): Promise<void> {
-    try {
-      const snap = await getDocs(
-        query(
-          collection(this.firestore, 'accounts'),
-          where('memberIds', 'array-contains', uid),
-        ),
-      );
-      const results = snap.docs
-        .map((d) => this.mapAccount(d.id, d.data()))
-        .filter((a) => !ownedIds.has(a.id));
-
-      for (const acc of results) {
-        await this.cache.put('accounts', acc);
-      }
-      this.clearSessionCache();
-      await this.hydrateAccountsFromCache();
-    } catch (e) {
-      console.warn('refreshMemberAccounts failed', e);
-    }
+    for (const d of ownedSnap.docs) push(d.id, d.data());
+    if (primarySnap?.exists()) push(primarySnap.id, primarySnap.data());
+    for (const d of memberSnap.docs) push(d.id, d.data());
+    return out;
   }
 
   /**
