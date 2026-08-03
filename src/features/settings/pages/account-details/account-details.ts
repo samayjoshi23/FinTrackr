@@ -336,8 +336,17 @@ export class AccountDetails {
     this.joiningOrLeaving.set(true);
     try {
       await this.accountsService.joinAccount(a.id);
-      const fresh = await this.accountsService.getAccount(a.id);
-      if (fresh) this.account.set(fresh);
+      // Optimistically flip our own membership to joined. getAccount is
+      // cache-first and would return the still-pending row, so overwriting with
+      // it would revert the UI; the server change is confirmed (joinAccount did
+      // not throw) and the background revalidation reconciles the cache.
+      const uid = this.auth.currentUser?.uid;
+      this.account.set({
+        ...a,
+        members: (a.members ?? []).map((m) =>
+          m.memberId === uid ? { ...m, isJoined: true, isActive: true } : m,
+        ),
+      });
       this.notifier.success('Invitation accepted — you have joined this account.');
     } catch (e) {
       console.error(e);
