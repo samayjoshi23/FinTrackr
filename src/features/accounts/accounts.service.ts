@@ -28,7 +28,10 @@ import { NotifierService } from '../../shared/components/notifier/notifier.servi
 import { OfflineCrudService } from '../../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.service';
 import { NetworkService } from '../../core/offline/network.service';
-import { REVALIDATION_TTL_MS } from '../../core/offline/revalidation-tracker.service';
+import {
+  REVALIDATION_TTL_MS,
+  RevalidationTrackerService,
+} from '../../core/offline/revalidation-tracker.service';
 import { date, docCalendarDate } from '../../core/date';
 
 const ACCOUNTS_COLLECTION = 'accounts';
@@ -59,6 +62,7 @@ export class AccountsService {
   private readonly cache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
   private readonly functions = inject(Functions);
+  private readonly tracker = inject(RevalidationTrackerService);
 
   /**
    * Session memo for the accounts list. `getSelectedAccount()` is called from nearly
@@ -251,6 +255,14 @@ export class AccountsService {
     await this.reconcileAccountsCache(uid, merged, canPrune);
     this.clearSessionCache();
     await this.hydrateAccountsFromCache();
+
+    // Once the live snapshot is complete it IS the authoritative cache state, so
+    // mark the accounts slice fresh — this suppresses the offline-crud background
+    // revalidation (getAccounts → fetchAll) that would otherwise re-fetch the same
+    // data on every navigation while the listeners already keep it current.
+    if (canPrune) {
+      await this.tracker.markFresh('accounts', { indexName: 'viewerUid', value: uid });
+    }
   }
 
   /**
@@ -335,11 +347,6 @@ export class AccountsService {
     this._myAccounts.set(rows);
     const sel = this.pickSelected(uid, rows);
     if (sel) this.selectedAccount.set(sel);
-  }
-
-  /** Stamp the local user's uid so the row lands in the `viewerUid` cache index. */
-  private withViewer(account: Account, uid: string): Account {
-    return { ...account, viewerUid: uid };
   }
 
   /** Explicit refresh: seed from cache, then re-fetch via the offline layer. */
@@ -661,7 +668,8 @@ export class AccountsService {
     const push = (id: string, data: unknown) => {
       if (seen.has(id)) return;
       seen.add(id);
-      out.push(this.withViewer(this.mapAccount(id, data), uid));
+      // mapAccount stamps viewerUid = current uid, so rows land in the cache index.
+      out.push(this.mapAccount(id, data));
     };
 
     for (const d of ownedSnap.docs) push(d.id, d.data());
