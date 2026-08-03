@@ -6,6 +6,7 @@ import {
   Firestore,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   collection,
   serverTimestamp,
@@ -76,6 +77,29 @@ export class AccountsService {
   readonly myAccounts = this._myAccounts.asReadonly();
   readonly selectedAccount = signal<Account | null>(null);
 
+  /**
+   * Signed-in uid that drives the realtime listeners. Set via {@link initRealtime}
+   * on login and cleared via {@link stopRealtime} on logout (both from AuthService),
+   * so listeners attach/detach with the auth session — no page refresh needed.
+   */
+  private readonly _userId = signal<string | null>(null);
+
+  /** Live Firestore unsubscribe handles (owner query, member query, primary doc). */
+  private unsubAccounts: Array<() => void> = [];
+  /** Latest snapshot from each source, merged on every change. */
+  private snapOwned = new Map<string, Account>();
+  private snapMember = new Map<string, Account>();
+  private snapPrimary: Account | null = null;
+  /**
+   * Whether each source has delivered its first snapshot. Cache pruning waits
+   * until all three are ready, so a slow listener can't transiently delete an
+   * account the others haven't reported yet (initial-load flicker).
+   */
+  private snapReady = { owned: false, member: false, primary: false };
+  /** Coalescing guard so overlapping snapshot callbacks never reconcile the cache concurrently. */
+  private publishing = false;
+  private publishQueued = false;
+
   constructor() {
     effect(() => {
       const _stamp = this.offlineCrud.revalidationCounts()['accounts'] ?? 0;
@@ -84,6 +108,175 @@ export class AccountsService {
         void this.hydrateAccountsFromCache();
       });
     });
+
+    // Realtime sync: attach Firestore listeners while signed-in AND online; detach
+    // when offline (cache + background revalidation take over) or on logout. Any
+    // remote change — a new shared account, an accept/reject, a balance update, or
+    // being removed from an account — reflects live across devices.
+    effect(() => {
+      const uid = this._userId();
+      const online = this.network.isOnline();
+      untracked(() => {
+        if (uid && online) {
+          this.startAccountListeners(uid);
+        } else {
+          this.stopAccountListeners();
+          if (!uid) this._myAccounts.set([]);
+        }
+      });
+    });
+  }
+
+  /** Begin realtime account sync for a signed-in user (called from AuthService). */
+  initRealtime(uid: string): void {
+    if (this._userId() === uid) return;
+    this._userId.set(uid);
+  }
+
+  /** Tear down realtime account sync (called from AuthService on logout). */
+  stopRealtime(): void {
+    this._userId.set(null);
+  }
+
+  // ─── Realtime listeners ───────────────────────────────────────────────────
+
+  /**
+   * Attach the three listeners that together cover every account the user can
+   * see, matching {@link fetchMyAccountsFromFirestore}: owned (`ownerId == uid`),
+   * the legacy primary doc (`accounts/{uid}`), and shared (`memberIds`
+   * array-contains uid). Each fires independently; {@link publishRealtime} merges
+   * their latest snapshots. Idempotent — a no-op if already listening.
+   */
+  private startAccountListeners(uid: string): void {
+    if (this.unsubAccounts.length) return;
+
+    const col = collection(this.firestore, ACCOUNTS_COLLECTION);
+    // Keep cached data on error; the effect re-attaches when connectivity returns.
+    const onErr = () => {};
+
+    const unsubOwned = onSnapshot(
+      query(col, where('ownerId', '==', uid)),
+      (snap) => {
+        this.snapOwned = new Map(snap.docs.map((d) => [d.id, this.mapAccount(d.id, d.data())]));
+        this.snapReady.owned = true;
+        void this.publishRealtime(uid);
+      },
+      onErr,
+    );
+
+    const unsubMember = onSnapshot(
+      query(col, where('memberIds', 'array-contains', uid)),
+      (snap) => {
+        this.snapMember = new Map(snap.docs.map((d) => [d.id, this.mapAccount(d.id, d.data())]));
+        this.snapReady.member = true;
+        void this.publishRealtime(uid);
+      },
+      onErr,
+    );
+
+    const unsubPrimary = onSnapshot(
+      this.accountDocRef(uid),
+      (snap) => {
+        this.snapPrimary = snap.exists() ? this.mapAccount(snap.id, snap.data()) : null;
+        this.snapReady.primary = true;
+        void this.publishRealtime(uid);
+      },
+      onErr,
+    );
+
+    this.unsubAccounts = [unsubOwned, unsubMember, unsubPrimary];
+  }
+
+  private stopAccountListeners(): void {
+    for (const unsub of this.unsubAccounts) {
+      try {
+        unsub();
+      } catch {
+        /* already detached */
+      }
+    }
+    this.unsubAccounts = [];
+    this.snapOwned.clear();
+    this.snapMember.clear();
+    this.snapPrimary = null;
+    this.snapReady = { owned: false, member: false, primary: false };
+    this.publishing = false;
+    this.publishQueued = false;
+  }
+
+  /**
+   * Reconcile the cache with the merged live snapshots, then re-hydrate the
+   * signal from cache. Going through the cache (rather than setting the signal
+   * from `merged` directly) keeps locally-pending optimistic rows visible —
+   * `reconcileAccountsCache` preserves `_pendingSync` rows, and
+   * `hydrateAccountsFromCache` reads the whole `viewerUid` slice and applies the
+   * per-user selection.
+   */
+  private async publishRealtime(uid: string): Promise<void> {
+    if (this._userId() !== uid) return; // stale callback after teardown / user switch
+
+    // Coalesce overlapping callbacks: while one publish runs, later ones just
+    // flag a re-run, so reconciles never interleave and the final pass reflects
+    // the latest snapshot maps.
+    if (this.publishing) {
+      this.publishQueued = true;
+      return;
+    }
+    this.publishing = true;
+    try {
+      do {
+        this.publishQueued = false;
+        await this.doPublishRealtime(uid);
+      } while (this.publishQueued && this._userId() === uid);
+    } finally {
+      this.publishing = false;
+    }
+  }
+
+  private async doPublishRealtime(uid: string): Promise<void> {
+    const seen = new Set<string>();
+    const merged: Account[] = [];
+    const push = (a: Account | null | undefined) => {
+      if (!a || seen.has(a.id)) return;
+      seen.add(a.id);
+      merged.push(a);
+    };
+    for (const a of this.snapOwned.values()) push(a);
+    push(this.snapPrimary);
+    for (const a of this.snapMember.values()) push(a);
+
+    // Only prune once every source has reported, so a slow listener can't delete
+    // an account the others haven't delivered yet.
+    const canPrune = this.snapReady.owned && this.snapReady.member && this.snapReady.primary;
+    await this.reconcileAccountsCache(uid, merged, canPrune);
+    this.clearSessionCache();
+    await this.hydrateAccountsFromCache();
+  }
+
+  /**
+   * Upsert the merged live rows into the cache. When `prune` is set, also delete
+   * rows no longer present on the server — except local pending writes not yet
+   * synced, which must survive until they reach Firestore.
+   */
+  private async reconcileAccountsCache(
+    uid: string,
+    merged: Account[],
+    prune: boolean,
+  ): Promise<void> {
+    const keep = new Set(merged.map((a) => a.id));
+    try {
+      if (prune) {
+        const existing = await this.cache.getAllByIndex<Account>('accounts', 'viewerUid', uid);
+        for (const row of existing) {
+          if (!keep.has(row.id) && row._pendingSync !== true) {
+            await this.cache.delete('accounts', row.id).catch(() => {});
+          }
+        }
+      }
+      await this.cache.putAll('accounts', merged);
+    } catch {
+      /* IndexedDB unavailable — the signal still refreshes on the next hydrate */
+    }
   }
 
   /** Drop the in-memory accounts memo (mutations + logout). */
