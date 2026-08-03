@@ -611,6 +611,13 @@ export class AccountsService {
       createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
       date: docCalendarDate(d, created),
+      // Stamp the local viewer so EVERY cache write (getAccount/fetchOne/
+      // revalidateOne, not just the list fetch) lands in the `viewerUid` index.
+      // Without this, viewing an account's details (getAccount → revalidateOne)
+      // would overwrite its stamped row with an unstamped one and drop it from
+      // the accounts list. Always the current user — accounts are only ever
+      // read/cached in that user's own session.
+      viewerUid: this.auth.currentUser?.uid,
     };
   }
 }
