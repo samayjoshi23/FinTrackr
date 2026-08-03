@@ -91,6 +91,48 @@ export class AccountsService {
     this.accountsMemo = null;
   }
 
+  /**
+   * Per-user "active account" selection.
+   *
+   * `isSelected`/`isActive` live on the shared account document, so on a
+   * multi-user account they reflect the OWNER's choice and are overwritten for
+   * members on every background revalidation (a member selecting the shared
+   * account would lose that choice, and could even have their own primary
+   * de-selected). The device's actual selection is therefore stored locally,
+   * keyed by uid, and is the source of truth for which account is active for
+   * THIS user. The doc flags remain a best-effort fallback (owner / legacy).
+   */
+  private selectedIdKey(uid: string): string {
+    return `fintrackr-selected-account:${uid}`;
+  }
+
+  private readSelectedId(uid: string): string | null {
+    try {
+      return localStorage.getItem(this.selectedIdKey(uid));
+    } catch {
+      return null;
+    }
+  }
+
+  private writeSelectedId(uid: string, accountId: string): void {
+    try {
+      localStorage.setItem(this.selectedIdKey(uid), accountId);
+    } catch {
+      /* storage unavailable (private mode / SSR) — fall back to doc flags */
+    }
+  }
+
+  /** Resolve the active account for `uid`: local selection first, then doc flags, then first. */
+  private pickSelected(uid: string, accounts: Account[]): Account | null {
+    if (accounts.length === 0) return null;
+    const storedId = this.readSelectedId(uid);
+    return (
+      (storedId ? accounts.find((a) => a.id === storedId) : undefined) ??
+      accounts.find((a) => a.isSelected) ??
+      accounts[0]
+    );
+  }
+
   private async hydrateAccountsFromCache(): Promise<void> {
     const uid = this.auth.currentUser?.uid;
     if (!uid) return;
@@ -98,7 +140,7 @@ export class AccountsService {
     // because each row is stamped with `viewerUid = uid` when cached.
     const rows = await this.cache.getAllByIndex<Account>('accounts', 'viewerUid', uid);
     this._myAccounts.set(rows);
-    const sel = rows.find((a) => a.isSelected) ?? rows[0] ?? null;
+    const sel = this.pickSelected(uid, rows);
     if (sel) this.selectedAccount.set(sel);
   }
 
@@ -112,7 +154,8 @@ export class AccountsService {
     try {
       const list = await this.getAccounts();
       this._myAccounts.set(list);
-      const sel = list.find((a) => a.isSelected) ?? list[0] ?? null;
+      const uid = this.auth.currentUser?.uid;
+      const sel = uid ? this.pickSelected(uid, list) : (list[0] ?? null);
       if (sel) this.selectedAccount.set(sel);
     } catch (e) {
       console.warn('refreshMyAccounts failed', e);
@@ -356,7 +399,7 @@ export class AccountsService {
     if (!uid) return null;
     const accounts = await this.getAccounts(uid);
     if (accounts.length === 0) return null;
-    return accounts.find((a) => a.isSelected) ?? accounts[0];
+    return this.pickSelected(uid, accounts);
   }
 
   /** Persist an account row to the local cache (e.g. optimistic balance after a local-first save). */
@@ -459,6 +502,9 @@ export class AccountsService {
 
     const selectedDocId = selected.id;
     const uid = this.requireUid();
+
+    // Durable, per-user selection (survives revalidation clobbering doc flags).
+    this.writeSelectedId(uid, selectedDocId);
 
     // Update Firestore only for owned accounts — members can't write to the account doc
     const ownedAccounts = accounts.filter((a) => a.ownerId === uid);
@@ -611,6 +657,13 @@ export class AccountsService {
       createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,
       date: docCalendarDate(d, created),
+      // Stamp the local viewer so EVERY cache write (getAccount/fetchOne/
+      // revalidateOne, not just the list fetch) lands in the `viewerUid` index.
+      // Without this, viewing an account's details (getAccount → revalidateOne)
+      // would overwrite its stamped row with an unstamped one and drop it from
+      // the accounts list. Always the current user — accounts are only ever
+      // read/cached in that user's own session.
+      viewerUid: this.auth.currentUser?.uid,
     };
   }
 }

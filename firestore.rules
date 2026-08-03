@@ -56,10 +56,18 @@ service cloud.firestore {
       );
     }
 
-    function isAccountOwner() {
+   function isAccountOwner() {
       return isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
-
+    // Active (accepted) member of the existing account doc — excludes pending
+    // invitees and non-members. Used to let members adjust the running balance
+    // for transactions they post (they already have full transaction write
+    // access), without granting any other account-doc mutation.
+    function isActiveMemberOfExisting() {
+      return isSignedIn()
+        && resource.data.activeMemberIds is list
+        && resource.data.activeMemberIds.hasAny([request.auth.uid]);
+    }
     // True only for the OWNER of `accountId` (not members). Mirrors the owner
     // clauses of `canAccessAccount`: the account doc's `ownerId`, or the legacy
     // primary whose doc id IS the owner's uid. Used to gate owner-only child
@@ -128,16 +136,25 @@ service cloud.firestore {
         || accountId == request.auth.uid
         || (isSignedIn() && resource.data.memberIds is list && resource.data.memberIds.hasAny([request.auth.uid]));
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isAccountOwner()
-        && onlyUpdatingAllowedFields([
-          'name', 'balance', 'currency', 'isSelected', 'isActive',
-          'members', 'accountType', 'updatedAt', 'date'
-        ])
-        && unchanged('ownerId')
-        && unchanged('memberIds')
-        && unchanged('activeMemberIds')
-        && unchanged('createdAt')
-        && unchanged('initialBalance');
+      allow update: if (
+          // Owner: full allowlist with identity/membership fields frozen.
+          isAccountOwner()
+          && onlyUpdatingAllowedFields([
+            'name', 'balance', 'currency', 'isSelected', 'isActive',
+            'members', 'accountType', 'updatedAt', 'date'
+          ])
+          && unchanged('ownerId')
+          && unchanged('memberIds')
+          && unchanged('activeMemberIds')
+          && unchanged('createdAt')
+          && unchanged('initialBalance')
+        ) || (
+          // Active member: may ONLY move the running balance (from posting
+          // transactions). onlyUpdatingAllowedFields guarantees nothing else —
+          // name, members, ownerId, flags, etc. — can change in the same write.
+          isActiveMemberOfExisting()
+          && onlyUpdatingAllowedFields(['balance', 'updatedAt'])
+        );
       allow delete: if isAccountOwner() || accountId == request.auth.uid;
     }
 
