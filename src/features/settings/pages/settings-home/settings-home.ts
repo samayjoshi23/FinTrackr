@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { Auth } from '@angular/fire/auth';
 import { UserProfile } from 'firebase/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { Modal } from '../../../../shared/components/modal/modal';
@@ -25,11 +26,14 @@ const THEME_KEY = 'fintrackr-theme';
   styleUrl: './settings-home.css',
 })
 export class SettingsHome {
+  private readonly auth = inject(Auth);
   private readonly accountsService = inject(AccountsService);
   private readonly transactionsService = inject(TransactionsService);
   private readonly authService = inject(AuthService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
+
+  readonly currentUid = signal('');
 
   userProfile = signal<UserProfile | null>(null);
   accounts = signal<Account[]>([]);
@@ -57,6 +61,7 @@ export class SettingsHome {
 
   async ngOnInit() {
     this.isDataLoading.set(true);
+    this.currentUid.set(this.auth.currentUser?.uid ?? '');
 
     try {
       const stored = (localStorage.getItem(THEME_KEY) as ThemePreference) || 'light';

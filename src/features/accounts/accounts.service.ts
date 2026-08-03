@@ -94,7 +94,10 @@ export class AccountsService {
   private async hydrateAccountsFromCache(): Promise<void> {
     const uid = this.auth.currentUser?.uid;
     if (!uid) return;
-    const rows = await this.cache.getAllByIndex<Account>('accounts', 'ownerId', uid);
+    const allRows = await this.cache.getAll<Account>('accounts');
+    const rows = allRows.filter(
+      (a) => a.ownerId === uid || (a.members ?? []).some((m) => m.memberId === uid),
+    );
     this._myAccounts.set(rows);
     const sel = rows.find((a) => a.isSelected) ?? rows[0] ?? null;
     if (sel) this.selectedAccount.set(sel);
@@ -357,28 +360,72 @@ export class AccountsService {
     );
   }
 
-  /** For now, this returns a single-element list because we store one account per uid. */
+  /** Returns all accounts the user owns **and** accounts they've been invited to / joined. */
   async getAccounts(userId?: string): Promise<Account[]> {
     const uid = userId ?? this.requireUid();
 
     const memo = this.accountsMemo;
     if (memo && memo.uid === uid && Date.now() - memo.at < REVALIDATION_TTL_MS['accounts']) {
-      // Return a copy so callers can't mutate the memoized array.
       return [...memo.accounts];
     }
 
-    const accounts = await this.offlineCrud.fetchAll<Account>(
+    // Owned accounts — full offline-crud pipeline (cache-first + background revalidation)
+    const owned = await this.offlineCrud.fetchAll<Account>(
       'accounts',
       async () => {
-        const accountsSnap = await getDocs(
+        const snap = await getDocs(
           query(collection(this.firestore, 'accounts'), where('ownerId', '==', uid)),
         );
-        return accountsSnap.docs.map((docSnap) => this.mapAccount(docSnap.id, docSnap.data()));
+        return snap.docs.map((docSnap) => this.mapAccount(docSnap.id, docSnap.data()));
       },
       { indexName: 'ownerId', value: uid },
     );
+
+    // Member accounts — lightweight IDB scan + background Firestore refresh
+    const ownedIds = new Set(owned.map((a) => a.id));
+    const memberAccounts = await this.getMemberAccountsCached(uid, ownedIds);
+
+    const accounts = [...owned, ...memberAccounts];
     this.accountsMemo = { uid, accounts: [...accounts], at: Date.now() };
     return accounts;
+  }
+
+  private async getMemberAccountsCached(
+    uid: string,
+    ownedIds: Set<string>,
+  ): Promise<Account[]> {
+    const allCached = await this.cache.getAll<Account>('accounts');
+    const cached = allCached.filter(
+      (a) => !ownedIds.has(a.id) && (a.members ?? []).some((m) => m.memberId === uid),
+    );
+
+    if (this.network.isOnline()) {
+      void this.refreshMemberAccounts(uid, ownedIds);
+    }
+
+    return cached;
+  }
+
+  private async refreshMemberAccounts(uid: string, ownedIds: Set<string>): Promise<void> {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(this.firestore, 'accounts'),
+          where('memberIds', 'array-contains', uid),
+        ),
+      );
+      const results = snap.docs
+        .map((d) => this.mapAccount(d.id, d.data()))
+        .filter((a) => !ownedIds.has(a.id));
+
+      for (const acc of results) {
+        await this.cache.put('accounts', acc);
+      }
+      this.clearSessionCache();
+      await this.hydrateAccountsFromCache();
+    } catch (e) {
+      console.warn('refreshMemberAccounts failed', e);
+    }
   }
 
   /**
@@ -405,15 +452,31 @@ export class AccountsService {
     }
 
     const selectedDocId = selected.id;
+    const uid = this.requireUid();
 
+    // Update Firestore only for owned accounts — members can't write to the account doc
+    const ownedAccounts = accounts.filter((a) => a.ownerId === uid);
     await Promise.all(
-      accounts.map((account) =>
+      ownedAccounts.map((account) =>
         this.updateAccount(account.id, {
           isSelected: account.id === selectedDocId,
           isActive: account.id === selectedDocId,
         }),
       ),
     );
+
+    // Update IDB cache for member accounts (local-only selection state)
+    const memberAccounts = accounts.filter((a) => a.ownerId !== uid);
+    for (const account of memberAccounts) {
+      const updated: Account = {
+        ...account,
+        isSelected: account.id === selectedDocId,
+        isActive: account.id === selectedDocId,
+      };
+      await this.cache.put('accounts', updated);
+    }
+
+    this.clearSessionCache();
 
     const refreshed = await this.getAccount(selectedDocId);
     if (!refreshed) {
@@ -459,6 +522,30 @@ export class AccountsService {
     // Server has already deleted the Firestore doc + cascade; now drop the local
     // IDB row so cache-first reads don't resurrect it, and refresh signals.
     await this.cache.delete('accounts', accountDocId).catch(() => {});
+    this.clearSessionCache();
+    await this.refreshMyAccounts();
+    await this.selectAccount(null);
+  }
+
+  /** Accept the invite and become an active member of a shared account. */
+  async joinAccount(accountId: string): Promise<void> {
+    const fn = httpsCallable<{ accountId: string; accept: boolean }, { ok: boolean }>(
+      this.functions,
+      'respondAccountInvite',
+    );
+    await fn({ accountId, accept: true });
+    this.clearSessionCache();
+    await this.refreshMyAccounts();
+  }
+
+  /** Leave a shared account (removes the current user from the members list). */
+  async leaveAccount(accountId: string): Promise<void> {
+    const fn = httpsCallable<{ accountId: string; accept: boolean }, { ok: boolean }>(
+      this.functions,
+      'respondAccountInvite',
+    );
+    await fn({ accountId, accept: false });
+    await this.cache.delete('accounts', accountId).catch(() => {});
     this.clearSessionCache();
     await this.refreshMyAccounts();
     await this.selectAccount(null);

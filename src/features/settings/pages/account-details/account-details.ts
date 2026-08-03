@@ -84,6 +84,29 @@ export class AccountDetails {
   /** True when this account is shared (multi-user); drives the members strip. */
   readonly isMultiUser = computed(() => this.account()?.accountType === 'multi-user');
 
+  /** True when the current user owns this account (can edit, delete, etc.). */
+  readonly isOwner = computed(() => {
+    const acc = this.account();
+    const uid = this.auth.currentUser?.uid;
+    return !!acc && !!uid && acc.ownerId === uid;
+  });
+
+  /** The current user's membership entry in this account (null for owners / single-user). */
+  readonly myMembership = computed(() => {
+    const acc = this.account();
+    const uid = this.auth.currentUser?.uid;
+    if (!acc || !uid || acc.ownerId === uid) return null;
+    return (acc.members ?? []).find((m) => m.memberId === uid) ?? null;
+  });
+
+  /** True when the member has joined (isJoined && isActive). */
+  readonly hasJoined = computed(() => {
+    const m = this.myMembership();
+    return !!m && m.isJoined && m.isActive;
+  });
+
+  joiningOrLeaving = signal(false);
+
   /**
    * Ordered list of everyone who has any relationship with this account:
    *   1. The owner (always first, always shown as Active).
@@ -293,6 +316,39 @@ export class AccountDetails {
   openTransactionDetail(t: TransactionRecord): void {
     this.selectedTransaction.set(t);
     this.txDetailOpen.set(true);
+  }
+
+  async onJoinAccount(): Promise<void> {
+    const a = this.account();
+    if (!a) return;
+    this.joiningOrLeaving.set(true);
+    try {
+      await this.accountsService.joinAccount(a.id);
+      const fresh = await this.accountsService.getAccount(a.id);
+      if (fresh) this.account.set(fresh);
+      this.notifier.success('You have joined this account.');
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not join account. Please try again.');
+    } finally {
+      this.joiningOrLeaving.set(false);
+    }
+  }
+
+  async onLeaveAccount(): Promise<void> {
+    const a = this.account();
+    if (!a) return;
+    this.joiningOrLeaving.set(true);
+    try {
+      await this.accountsService.leaveAccount(a.id);
+      this.notifier.success('You have left this account.');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not leave account. Please try again.');
+    } finally {
+      this.joiningOrLeaving.set(false);
+    }
   }
 
   onRemoveAccount() {

@@ -112,7 +112,9 @@ service cloud.firestore {
     // through respondAccountInvite (Admin SDK). This closes the member-DoS
     // finding (any member flipping isActive) and the ownership-transfer gap.
     match /accounts/{accountId} {
-      allow read: if canAccessExistingAccount() || accountId == request.auth.uid;
+      allow read: if canAccessExistingAccount()
+        || accountId == request.auth.uid
+        || (isSignedIn() && resource.data.memberIds is list && resource.data.memberIds.hasAny([request.auth.uid]));
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isAccountOwner()
         && onlyUpdatingAllowedFields([

@@ -8,7 +8,7 @@
       <ico name="left-arrow" size="sm"></ico>
     </div>
     <h1 class="text-lg font-semibold title-font flex-1">Account Details</h1>
-    @if (!isCurrentAccount()) {
+    @if (!isCurrentAccount() && (isOwner() || hasJoined())) {
       <button
         type="button"
         class="button-primary rounded-xl py-1.5 px-3 disabled:opacity-60"
@@ -33,13 +33,15 @@
           </div>
           <span class="text-base font-semibold title-font truncate">{{ acc.name }}</span>
         </div>
-        <div
-          class="text-sm text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer shrink-0"
-          (click)="openEditModal()"
-        >
-          <ico name="pencil" size="sm"></ico>
-          Edit
-        </div>
+        @if (isOwner()) {
+          <div
+            class="text-sm text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer shrink-0"
+            (click)="openEditModal()"
+          >
+            <ico name="pencil" size="sm"></ico>
+            Edit
+          </div>
+        }
       </div>
       <div class="rounded-xl flex flex-col card">
         <div class="flex items-end justify-between gap-2 px-3 py-2">
@@ -147,21 +149,23 @@
       </div>
     }
 
-    <div class="flex flex-col gap-2">
-      <h2 class="text-base font-semibold title-font">Account settings</h2>
-      <p class="text-xs text-secondary">Currency for this account</p>
-      <div class="flex flex-wrap gap-2">
-        @for (c of currencies; track c.code) {
-          <div
-            class="card rounded-full py-2 px-3 text-xs font-medium transition-colors"
-            [ngClass]="{ 'selected-card font-semibold': isCurrencyActive(c.code) }"
-            (click)="onSelectCurrency(c.code)"
-          >
-            {{ c.label }}
-          </div>
-        }
+    @if (isOwner()) {
+      <div class="flex flex-col gap-2">
+        <h2 class="text-base font-semibold title-font">Account settings</h2>
+        <p class="text-xs text-secondary">Currency for this account</p>
+        <div class="flex flex-wrap gap-2">
+          @for (c of currencies; track c.code) {
+            <div
+              class="card rounded-full py-2 px-3 text-xs font-medium transition-colors"
+              [ngClass]="{ 'selected-card font-semibold': isCurrencyActive(c.code) }"
+              (click)="onSelectCurrency(c.code)"
+            >
+              {{ c.label }}
+            </div>
+          }
+        </div>
       </div>
-    </div>
+    }
 
     <div class="flex flex-col gap-2">
       <h2 class="text-base font-semibold title-font">Recent Activity</h2>
@@ -195,15 +199,37 @@
     </div>
 
     <div class="flex flex-col gap-3 mt-2">
-      <button
-        type="button"
-        class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
-        [disabled]="removing()"
-        (click)="onRemoveAccount()"
-      >
-        <ico name="trash" size="sm"></ico>
-        <span>{{ removing() ? 'Removing…' : 'Remove Account' }}</span>
-      </button>
+      @if (isOwner()) {
+        <button
+          type="button"
+          class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+          [disabled]="removing()"
+          (click)="onRemoveAccount()"
+        >
+          <ico name="trash" size="sm"></ico>
+          <span>{{ removing() ? 'Removing…' : 'Remove Account' }}</span>
+        </button>
+      } @else if (hasJoined()) {
+        <button
+          type="button"
+          class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+          [disabled]="joiningOrLeaving()"
+          (click)="onLeaveAccount()"
+        >
+          <ico name="arrow-right-from-bracket" size="sm"></ico>
+          <span>{{ joiningOrLeaving() ? 'Leaving…' : 'Leave Account' }}</span>
+        </button>
+      } @else {
+        <button
+          type="button"
+          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+          [disabled]="joiningOrLeaving()"
+          (click)="onJoinAccount()"
+        >
+          <ico name="user" size="sm"></ico>
+          <span>{{ joiningOrLeaving() ? 'Joining…' : 'Join Account' }}</span>
+        </button>
+      }
     </div>
   }
 

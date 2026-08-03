@@ -151,7 +151,14 @@
               <ico name="bank" size="md" class="text-secondary"></ico>
             </div>
             <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span class="text-sm font-semibold">{{ a.name }}</span>
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="text-sm font-semibold truncate">{{ a.name }}</span>
+                @if (a.accountType === 'multi-user' && a.ownerId !== currentUid()) {
+                  <span class="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-primary-light text-primary shrink-0">
+                    Shared
+                  </span>
+                }
+              </div>
               <span class="text-xs text-secondary font-light">{{ a.currency }}</span>
             </div>
             <div class="flex flex-col items-end gap-0.5 shrink-0">
