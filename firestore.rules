@@ -56,10 +56,9 @@ service cloud.firestore {
       );
     }
 
-    function isAccountOwner() {
+   function isAccountOwner() {
       return isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
-
     // Active (accepted) member of the existing account doc — excludes pending
     // invitees and non-members. Used to let members adjust the running balance
     // for transactions they post (they already have full transaction write
@@ -68,6 +67,17 @@ service cloud.firestore {
       return isSignedIn()
         && resource.data.activeMemberIds is list
         && resource.data.activeMemberIds.hasAny([request.auth.uid]);
+    }
+    // True only for the OWNER of `accountId` (not members). Mirrors the owner
+    // clauses of `canAccessAccount`: the account doc's `ownerId`, or the legacy
+    // primary whose doc id IS the owner's uid. Used to gate owner-only child
+    // collections (budgets, budgetPlans, categories) where members read only.
+    function isOwnerOfAccount(accountId) {
+      let account = get(/databases/$(database)/documents/accounts/$(accountId)).data;
+      return isSignedIn() && (
+        accountId == request.auth.uid ||
+        account.ownerId == request.auth.uid
+      );
     }
 
     // ─── User profile & subcollections ──────────────────────────────────────
@@ -183,40 +193,44 @@ service cloud.firestore {
       allow delete: if canAccessAccount(resource.data.accountId);
     }
 
-    // ─── Budgets / budgetPlans / goals / categories (account-scoped) ───────
+    // ─── Budgets / budgetPlans / categories — OWNER-ONLY writes ────────────
+    // Any active member may READ (shared visibility), but only the account owner
+    // may create/update/delete. Members collaborate on transactions, recurring,
+    // and goals (below) — not on budgets, budget plans, or categories.
     match /budgets/{budgetId} {
       allow read: if canAccessAccount(resource.data.accountId);
-      allow create: if canAccessAccount(request.resource.data.accountId);
-      allow update: if canAccessAccount(resource.data.accountId)
+      allow create: if isOwnerOfAccount(request.resource.data.accountId);
+      allow update: if isOwnerOfAccount(resource.data.accountId)
         && unchanged('accountId')
         && unchanged('ownerId')
         && unchanged('createdAt');
-      allow delete: if canAccessAccount(resource.data.accountId);
+      allow delete: if isOwnerOfAccount(resource.data.accountId);
     }
 
     // Single recurring budget plan per account (doc id == accountId).
     match /budgetPlans/{accountId} {
       allow read: if canAccessAccount(resource.data.accountId);
-      allow create: if canAccessAccount(request.resource.data.accountId)
+      allow create: if isOwnerOfAccount(request.resource.data.accountId)
         && request.resource.data.accountId == accountId;
-      allow update: if canAccessAccount(resource.data.accountId)
+      allow update: if isOwnerOfAccount(resource.data.accountId)
         && unchanged('accountId')
         && unchanged('ownerId')
         && unchanged('createdAt');
-      allow delete: if canAccessAccount(resource.data.accountId);
-    }
-
-    match /goals/{goalId} {
-      allow read: if canAccessAccount(resource.data.accountId);
-      allow create: if canAccessAccount(request.resource.data.accountId);
-      allow update: if canAccessAccount(resource.data.accountId)
-        && unchanged('accountId')
-        && unchanged('ownerId')
-        && unchanged('createdAt');
-      allow delete: if canAccessAccount(resource.data.accountId);
+      allow delete: if isOwnerOfAccount(resource.data.accountId);
     }
 
     match /categories/{categoryId} {
+      allow read: if canAccessAccount(resource.data.accountId);
+      allow create: if isOwnerOfAccount(request.resource.data.accountId);
+      allow update: if isOwnerOfAccount(resource.data.accountId)
+        && unchanged('accountId')
+        && unchanged('ownerId')
+        && unchanged('createdAt');
+      allow delete: if isOwnerOfAccount(resource.data.accountId);
+    }
+
+    // ─── Goals (account-scoped) — any active member may write ──────────────
+    match /goals/{goalId} {
       allow read: if canAccessAccount(resource.data.accountId);
       allow create: if canAccessAccount(request.resource.data.accountId);
       allow update: if canAccessAccount(resource.data.accountId)
