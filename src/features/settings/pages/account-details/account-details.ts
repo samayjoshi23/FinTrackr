@@ -26,6 +26,8 @@ export interface AccountMemberRow {
   displayName: string;
   status: MemberStatus;
   isOwner: boolean;
+  /** True for the row representing the signed-in user (rendered as "You"). */
+  isMe: boolean;
 }
 
 @Component({
@@ -118,12 +120,14 @@ export class AccountDetails {
   readonly memberRows = computed<AccountMemberRow[]>(() => {
     const acc = this.account();
     if (!acc) return [];
+    const uid = this.auth.currentUser?.uid;
     const rows: AccountMemberRow[] = [
       {
         memberId: acc.ownerId ?? '',
         displayName: this.ownerDisplayName(),
         status: 'active',
         isOwner: true,
+        isMe: !!uid && acc.ownerId === uid,
       },
     ];
     for (const m of acc.members ?? []) {
@@ -137,9 +141,16 @@ export class AccountDetails {
         displayName: m.memberDisplayName?.trim() || 'Member',
         status,
         isOwner: false,
+        isMe: !!uid && m.memberId === uid,
       });
     }
     return rows;
+  });
+
+  /** True when the signed-in user is an invitee who hasn't responded yet. */
+  readonly isPendingInvitee = computed(() => {
+    const m = this.myMembership();
+    return !!m && !m.isJoined;
   });
 
   /** Gain/loss relative to initialBalance. Null when initialBalance is not set. */
@@ -318,7 +329,8 @@ export class AccountDetails {
     this.txDetailOpen.set(true);
   }
 
-  async onJoinAccount(): Promise<void> {
+  /** Accept a pending invite: become an active member and notify the owner. */
+  async onAcceptInvite(): Promise<void> {
     const a = this.account();
     if (!a) return;
     this.joiningOrLeaving.set(true);
@@ -326,10 +338,32 @@ export class AccountDetails {
       await this.accountsService.joinAccount(a.id);
       const fresh = await this.accountsService.getAccount(a.id);
       if (fresh) this.account.set(fresh);
-      this.notifier.success('You have joined this account.');
+      this.notifier.success('Invitation accepted — you have joined this account.');
     } catch (e) {
       console.error(e);
-      this.notifier.error('Could not join account. Please try again.');
+      this.notifier.error('Could not accept the invitation. Please try again.');
+    } finally {
+      this.joiningOrLeaving.set(false);
+    }
+  }
+
+  /**
+   * Reject a pending invite: declines and removes the current user from the
+   * account, notifying the owner (both go through `respondAccountInvite`, same
+   * server path as leaving). Navigates back to settings since the account is no
+   * longer visible to the user afterwards.
+   */
+  async onRejectInvite(): Promise<void> {
+    const a = this.account();
+    if (!a) return;
+    this.joiningOrLeaving.set(true);
+    try {
+      await this.accountsService.leaveAccount(a.id);
+      this.notifier.success('Invitation declined.');
+      await this.router.navigateByUrl('/user/settings', { replaceUrl: true });
+    } catch (e) {
+      console.error(e);
+      this.notifier.error('Could not decline the invitation. Please try again.');
     } finally {
       this.joiningOrLeaving.set(false);
     }
