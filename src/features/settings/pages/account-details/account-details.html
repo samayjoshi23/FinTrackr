@@ -116,7 +116,7 @@
               <div class="flex-1 min-w-0 flex flex-col">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="text-sm font-medium title-font truncate">
-                    {{ m.displayName }} {{ m.isOwner ? '(Owner)' : '' }}
+                    {{ m.displayName }}{{ m.isOwner ? ' (Owner)' : '' }}{{ m.isMe ? ' (You)' : '' }}
                   </span>
                 </div>
               </div>
@@ -219,16 +219,30 @@
           <ico name="arrow-right-from-bracket" size="sm"></ico>
           <span>{{ joiningOrLeaving() ? 'Leaving…' : 'Leave Account' }}</span>
         </button>
-      } @else {
-        <button
-          type="button"
-          class="button-primary rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
-          [disabled]="joiningOrLeaving()"
-          (click)="onJoinAccount()"
-        >
-          <ico name="user" size="sm"></ico>
-          <span>{{ joiningOrLeaving() ? 'Joining…' : 'Join Account' }}</span>
-        </button>
+      } @else if (isPendingInvitee()) {
+        <p class="text-xs text-secondary text-center">
+          You've been invited to this shared account.
+        </p>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            class="button-red rounded-xl py-3 flex-1 flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+            [disabled]="joiningOrLeaving()"
+            (click)="onRejectInvite()"
+          >
+            <ico name="times" size="sm"></ico>
+            <span>{{ joiningOrLeaving() ? 'Please wait…' : 'Reject' }}</span>
+          </button>
+          <button
+            type="button"
+            class="button-primary rounded-xl py-3 flex-1 flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
+            [disabled]="joiningOrLeaving()"
+            (click)="onAcceptInvite()"
+          >
+            <ico name="tick" size="sm"></ico>
+            <span>{{ joiningOrLeaving() ? 'Please wait…' : 'Accept' }}</span>
+          </button>
+        </div>
       }
     </div>
   }
