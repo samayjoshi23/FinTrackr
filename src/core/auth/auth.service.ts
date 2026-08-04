@@ -27,6 +27,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SyncService } from '../offline/sync.service';
 import { FcmService } from '../../features/notifications/fcm.service';
 import { NotificationService } from '../../features/notifications/notification.service';
+import { AccountsService } from '../../features/accounts/accounts.service';
 import { UsersLookupService } from '../../services/users-lookup.service';
 import { NotificationPreferencesService } from '../../features/notifications/notification-preferences.service';
 import { date } from '../date';
@@ -73,6 +74,7 @@ export class AuthService {
   private readonly syncService = inject(SyncService);
   private readonly fcmService = inject(FcmService);
   private readonly notificationService = inject(NotificationService);
+  private readonly accountsService = inject(AccountsService);
   private readonly usersLookup = inject(UsersLookupService);
   private readonly notificationPrefs = inject(NotificationPreferencesService);
 
@@ -98,8 +100,10 @@ export class AuthService {
         void this.notificationService.init(u.uid);
         void this.notificationPrefs.init(u.uid);
         void this.fcmService.initForUser(u.uid);
+        this.accountsService.initRealtime(u.uid);
       } else {
         void this.notificationService.clearAll();
+        this.accountsService.stopRealtime();
       }
     });
   }
