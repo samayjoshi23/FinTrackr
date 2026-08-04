@@ -95,15 +95,18 @@ export class IndexedDbCacheService {
   /**
    * Non-fatal IndexedDB diagnostics — never throws to the caller.
    *
-   * If the failure looks structural (wrong version / missing store), hand it to the
-   * recovery service, which will delete + reload to rebuild a clean DB (guarded by a
-   * cooldown so it can't loop). The startup probe catches most of these before the
-   * session begins; this is the safety net for faults that surface mid-session.
+   * If the failure looks structural (missing store / index), hand it to the recovery
+   * service, which repairs the schema IN PLACE — no delete, no reload — so the next
+   * cache read succeeds. The startup barrier catches most of these before the session
+   * begins; this is the safety net for faults that surface mid-session. Concurrent
+   * failures in the same tick are coalesced onto a single repair.
    */
   private warn(op: string, target: string, err: unknown): void {
     console.warn(`IndexedDbCacheService: ${op}(${target}) failed — falling back gracefully`, err);
     if (this.recovery.isStructuralFault(err)) {
-      void this.recovery.recover(`${op}(${target}): ${err instanceof Error ? err.message : String(err)}`);
+      void this.recovery.repairInPlaceOnce(
+        `${op}(${target}): ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

@@ -2,8 +2,17 @@ import { DBConfig } from 'ngx-indexed-db';
 
 export const indexedDbConfig: DBConfig = {
   name: 'FinTrackrDB',
-  /** Bump when adding object stores or indexes so existing DBs run upgrade (e.g. `notifications`). */
-  version: 8,
+  /**
+   * Bump when adding object stores or indexes so existing DBs run an upgrade.
+   *
+   * IMPORTANT: `IndexedDbRecoveryService.ensureSchema()` runs before ngx opens the
+   * DB and idempotently creates any missing store OR index for this version —
+   * including indexes added to *existing* stores, which ngx-indexed-db itself does
+   * NOT create on upgrade. So a version bump here reliably reaches existing users
+   * without a data wipe. (v9 added repair-in-place for the `accounts.viewerUid`
+   * index that pre-v9 clients never received.)
+   */
+  version: 9,
   objectStoresMeta: [
     {
       store: 'accounts',

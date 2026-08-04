@@ -34,15 +34,17 @@ import { AppVersionService } from '../core/updates/app-version.service';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    // Self-heal a structurally broken local IndexedDB (wrong version / missing stores)
-    // BEFORE ngx-indexed-db opens it. Runs first, uses the native IndexedDB API only,
-    // and reloads after deleting a broken DB so a clean one is rebuilt at the configured
-    // version. See IndexedDbRecoveryService.
+    // Bring the local IndexedDB schema up to `indexedDbConfig` BEFORE ngx-indexed-db
+    // opens it. Runs first, uses the native IndexedDB API only, and repairs any missing
+    // store/index IN PLACE (no data wipe, no reload) — see IndexedDbRecoveryService.
+    // Awaited as a hard barrier so ngx never opens a half-built DB; capped by a timeout
+    // purely so a blocked open (another tab mid-upgrade) can't hang boot — in that case
+    // the app proceeds on the Firestore fallback and repairs on the next clean load.
     provideAppInitializer(() => {
       const recovery = inject(IndexedDbRecoveryService);
       return Promise.race([
         recovery.checkAndRecover(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }),
     // Compare the served /version.json's `breakingBuild` to the last one this
