@@ -15,6 +15,7 @@
         [disabled]="selecting()"
         (click)="onSelectThisAccount()"
       >
+        <ico name="arrow-right-left" size="sm"></ico>
         <span>{{ selecting() ? 'Switching…' : 'Switch to this account' }}</span>
       </button>
     }
@@ -104,36 +105,38 @@
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <h2 class="text-base font-semibold title-font">Members ({{ memberRows().length }})</h2>
-          @if (isOwner()) {
-            <button
-              type="button"
-              class="text-sm text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer shrink-0 disabled:opacity-60"
-              [disabled]="memberBusy()"
+          @if (isOwner() && !memberBusy()) {
+            <div
+              class="text-xs text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer shrink-0 disabled:opacity-60"
               (click)="openAddMember()"
             >
-              <ico name="plus" size="sm"></ico>
+              <ico name="plus" size="xs"></ico>
               Add member
-            </button>
+            </div>
           }
         </div>
         <div class="flex flex-col gap-2">
           @for (m of memberRows(); track m.memberId) {
             <div
               class="card rounded-xl p-3 flex items-center gap-3"
-              [class.cursor-pointer]="isOwner() && !m.isOwner"
+              [ngClass]="isOwner() && !m.isOwner ? 'cursor-pointer clickable' : ''"
               [attr.role]="isOwner() && !m.isOwner ? 'button' : null"
               [attr.tabindex]="isOwner() && !m.isOwner ? 0 : null"
               (click)="openMemberActions(m)"
               (keydown.enter)="openMemberActions(m)"
             >
               <div
-                class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-primary-light text-primary"
+                class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
+                [ngClass]="isOwner() && !m.isOwner ? 'text-primary bg-secondary-light' : 'text-secondary bg-gray-300'"
               >
                 {{ (m.displayName || '?').slice(0, 1).toUpperCase() }}
               </div>
               <div class="flex-1 min-w-0 flex flex-col">
                 <div class="flex items-center gap-2 min-w-0">
-                  <span class="text-sm font-medium title-font truncate">
+                  <span 
+                    class="text-sm font-medium title-font truncate"
+                    [ngClass]="isOwner() && !m.isOwner ? '' : 'text-secondary'"
+                  >
                     {{ m.displayName }}{{ m.isOwner ? ' (Owner)' : '' }}{{ m.isMe ? ' (You)' : '' }}
                   </span>
                 </div>
@@ -160,9 +163,6 @@
                     Invited
                   </span>
                 }
-              }
-              @if (isOwner() && !m.isOwner) {
-                <ico name="right-arrow" size="xs" class="text-secondary shrink-0"></ico>
               }
             </div>
           }
@@ -365,58 +365,66 @@
   ></app-modal>
 
   <ng-template #memberActionTpl>
-    <div class="flex flex-col gap-3">
-      @if (selectedMemberStatus() === 'invited') {
+    <div class="flex flex-col gap-5">
+      <p class="text-sm mb-5">What would you like to do with this member?</p>
+      <div class="flex items-center gap-2">
         <button
           type="button"
-          class="button-secondary rounded-xl py-3 w-full font-semibold disabled:opacity-60"
-          [disabled]="memberBusy()"
-          (click)="onResendInvite()"
+          class="button-secondary rounded-xl py-3 w-full font-semibold"
+          (click)="memberActionOpen.set(false)"
         >
-          Resend invite
+          Close
         </button>
-        <button
-          type="button"
-          class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
-          [disabled]="memberBusy()"
-          (click)="requestRemoveMember(false)"
-        >
-          Cancel invite
-        </button>
-      } @else if (selectedMemberStatus() === 'active') {
-        <button
-          type="button"
-          class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
-          [disabled]="memberBusy()"
-          (click)="requestRemoveMember(false)"
-        >
-          Remove from account
-        </button>
-      } @else if (selectedMemberStatus() === 'inactive') {
-        <button
-          type="button"
-          class="button-primary rounded-xl py-3 w-full font-semibold disabled:opacity-60"
-          [disabled]="memberBusy()"
-          (click)="onReInvite()"
-        >
-          Re-invite
-        </button>
-        <button
-          type="button"
-          class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
-          [disabled]="memberBusy()"
-          (click)="requestRemoveMember(true)"
-        >
-          Remove permanently
-        </button>
-      }
-      <button
-        type="button"
-        class="button-secondary rounded-xl py-3 w-full font-semibold"
-        (click)="memberActionOpen.set(false)"
-      >
-        Close
-      </button>
+        @if (selectedMemberStatus() === 'invited') {
+            <button
+              type="button"
+              class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+              [disabled]="memberBusy()"
+              (click)="requestRemoveMember(false)"
+            >
+              Cancel invite
+              <ico name="calendar-xmark" size="sm"></ico>
+            </button>
+          <button
+            type="button"
+            class="button-blue rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+            [disabled]="memberBusy()"
+            (click)="onResendInvite()"
+          >
+            Resend invite
+            <ico name="paper-airplane" size="sm"></ico>
+          </button>
+        } @else if (selectedMemberStatus() === 'active') {
+          <button
+            type="button"
+            class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+            [disabled]="memberBusy()"
+            (click)="requestRemoveMember(false)"
+          >
+            Remove from account
+            <ico name="trash" size="sm"></ico>
+          </button>
+        } @else if (selectedMemberStatus() === 'inactive') {
+          <button
+            type="button"
+            class="button-blue rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+            [disabled]="memberBusy()"
+            (click)="onReInvite()"
+          >
+            Re-invite
+            <ico name="paper-airplane" size="sm"></ico>
+          </button>
+          <button
+            type="button"
+            class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+            [disabled]="memberBusy()"
+            (click)="requestRemoveMember(true)"
+          >
+            Remove permanently
+            <ico name="trash" size="sm"></ico>
+          </button>
+        }
+      </div>
     </div>
   </ng-template>
 
