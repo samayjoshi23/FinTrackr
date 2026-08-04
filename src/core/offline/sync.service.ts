@@ -352,6 +352,15 @@ export class SyncService {
     const pre = this.extractPreassignedCreate(p);
     let created = false;
 
+    // Every queued create MUST carry a preassigned doc id (`_syncPreassignedId`);
+    // the worker replays it idempotently via applyPendingXCreate. Applying one
+    // WITHOUT it by calling the public createX() would re-route through
+    // offlineCrud.create, which ENQUEUES A BRAND-NEW entry (fresh id, retryCount 0)
+    // on failure. A retryCount-0 entry is always "ready" and gets zero backoff, and
+    // enqueue bumps pendingSyncCount which re-triggers syncAll — an infinite,
+    // MAX_RETRIES-bypassing re-enqueue loop that hammers Firestore. So the `!pre`
+    // path fails the entry (return false → markFailed) instead of retrying via the
+    // enqueuing method.
     switch (entry.storeName) {
       case 'transactions': {
         let syncedRow: TransactionRecord | null = null;
@@ -362,9 +371,7 @@ export class SyncService {
           );
           syncedRow = await this.transactionsService.getTransaction(pre.id);
         } else {
-          syncedRow = await this.transactionsService.createTransaction(
-            p as unknown as TransactionCreateInput,
-          );
+          return false;
         }
         if (syncedRow) {
           this.pendingReportMonths.add(this.reportsService.monthKeyForTransaction(syncedRow));
@@ -376,7 +383,7 @@ export class SyncService {
         if (pre) {
           await this.budgetsService.applyPendingBudgetCreate(pre.id, pre.rest as unknown as BudgetCreateInput);
         } else {
-          await this.budgetsService.createBudget(p as unknown as BudgetCreateInput);
+          return false;
         }
         created = true;
         break;
@@ -393,7 +400,7 @@ export class SyncService {
         if (pre) {
           await this.goalsService.applyPendingGoalCreate(pre.id, pre.rest as unknown as GoalCreateInput);
         } else {
-          await this.goalsService.createGoal(p as unknown as GoalCreateInput);
+          return false;
         }
         created = true;
         break;
@@ -404,7 +411,7 @@ export class SyncService {
             pre.rest as unknown as CategoryCreateInput,
           );
         } else {
-          await this.categoriesService.createCategory(p as unknown as CategoryCreateInput);
+          return false;
         }
         created = true;
         break;
@@ -412,7 +419,7 @@ export class SyncService {
         if (pre) {
           await this.accountsService.applyPendingAccountCreate(pre.id, pre.rest as unknown as AccountCreateInput);
         } else {
-          await this.accountsService.createAccount(p as unknown as AccountCreateInput);
+          return false;
         }
         created = true;
         break;
@@ -423,9 +430,7 @@ export class SyncService {
             pre.rest as unknown as RecurringTransactionCreateInput,
           );
         } else {
-          await this.transactionsService.createRecurringTransaction(
-            p as unknown as RecurringTransactionCreateInput,
-          );
+          return false;
         }
         created = true;
         break;
