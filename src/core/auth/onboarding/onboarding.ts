@@ -553,6 +553,7 @@ export class Onboarding {
     return this.invitedMembers().map((m) => ({
       memberId: m.uid,
       memberDisplayName: m.displayName || m.email || 'Member',
+      status: 'invited' as const,
       isJoined: false,
       isActive: false,
     }));
@@ -591,8 +592,14 @@ export class Onboarding {
         isSelected: true,
         isActive: true,
         accountType: accountData.accountType,
-        members: accountData.members,
       });
+      // Membership can't be set through updateAccount (rules freeze memberIds on client
+      // owner updates) — invite each member via the Admin-SDK callable instead.
+      for (const m of accountData.members) {
+        await this.accountsService
+          .addMember(existing.id, { memberId: m.memberId, memberDisplayName: m.memberDisplayName })
+          .catch((e) => console.error('Failed to invite member during onboarding', e));
+      }
       account = await this.accountsService.getAccount(existing.id);
       this.ids.update((s) => ({ ...s, accountId: existing.id }));
     } else {

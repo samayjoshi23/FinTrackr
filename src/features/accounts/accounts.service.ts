@@ -22,6 +22,8 @@ import {
   AccountMember,
   AccountType,
   AccountUpdateInput,
+  memberFlagsForStatus,
+  memberStatusOf,
 } from '../../shared/models/account.model';
 import { Router } from '@angular/router';
 import { NotifierService } from '../../shared/components/notifier/notifier.service';
@@ -40,11 +42,21 @@ function deriveAccountMemberIndexes(members: AccountMember[]): {
   memberIds: string[];
   activeMemberIds: string[];
 } {
-  const memberIds = Array.from(new Set(members.map((m) => m.memberId).filter(Boolean)));
+  // `inactive` members (left / declined / removed) are excluded from memberIds so the
+  // `array-contains` listener drops the account for them — they lose access while their
+  // row is kept for the owner. `invited` stays in memberIds so they can still accept.
+  const memberIds = Array.from(
+    new Set(
+      members
+        .filter((m) => memberStatusOf(m) !== 'inactive')
+        .map((m) => m.memberId)
+        .filter(Boolean),
+    ),
+  );
   const activeMemberIds = Array.from(
     new Set(
       members
-        .filter((m) => m.isActive && m.isJoined)
+        .filter((m) => memberStatusOf(m) === 'active')
         .map((m) => m.memberId)
         .filter(Boolean),
     ),
@@ -103,6 +115,20 @@ export class AccountsService {
   /** Coalescing guard so overlapping snapshot callbacks never reconcile the cache concurrently. */
   private publishing = false;
   private publishQueued = false;
+
+  /**
+   * Tombstones for accounts just deleted/left on this device (id → time added).
+   *
+   * A delete removes the row from the cache immediately, but the Firestore listeners
+   * still hold the account in their in-memory snapshot maps until the removal
+   * propagates. Without this, a snapshot callback firing in that window re-adds the
+   * account via `putAll(merged)` and it reappears in the list. Every read path
+   * (`doPublishRealtime`, `fetchMyAccountsFromFirestore`) filters tombstoned ids, and
+   * `doPublishRealtime` clears a tombstone once the deletion has reached the snapshots
+   * (or after {@link TOMBSTONE_TTL_MS}, so a re-created id can never stay hidden).
+   */
+  private readonly deletedIds = new Map<string, number>();
+  private static readonly TOMBSTONE_TTL_MS = 10_000;
 
   constructor() {
     effect(() => {
@@ -238,10 +264,25 @@ export class AccountsService {
   }
 
   private async doPublishRealtime(uid: string): Promise<void> {
+    // Retire tombstones whose deletion has now reached the live snapshots (the account
+    // is genuinely gone, so stop suppressing it), or that have outlived the TTL (a
+    // safety valve so a re-created id can never stay hidden). Any tombstone still
+    // present in a snapshot is an in-flight delete we must keep filtering.
+    if (this.deletedIds.size) {
+      const now = Date.now();
+      for (const [id, at] of this.deletedIds) {
+        const stillLive =
+          this.snapOwned.has(id) || this.snapMember.has(id) || this.snapPrimary?.id === id;
+        if (!stillLive || now - at > AccountsService.TOMBSTONE_TTL_MS) {
+          this.deletedIds.delete(id);
+        }
+      }
+    }
+
     const seen = new Set<string>();
     const merged: Account[] = [];
     const push = (a: Account | null | undefined) => {
-      if (!a || seen.has(a.id)) return;
+      if (!a || seen.has(a.id) || this.deletedIds.has(a.id)) return;
       seen.add(a.id);
       merged.push(a);
     };
@@ -280,7 +321,10 @@ export class AccountsService {
       if (prune) {
         const existing = await this.cache.getAllByIndex<Account>('accounts', 'viewerUid', uid);
         for (const row of existing) {
-          if (!keep.has(row.id) && row._pendingSync !== true) {
+          if (keep.has(row.id)) continue;
+          // A tombstoned account was deleted/left server-side, so evict it even if a
+          // stale `_pendingSync` flag lingers; otherwise keep unsynced local writes.
+          if (this.deletedIds.has(row.id) || row._pendingSync !== true) {
             await this.cache.delete('accounts', row.id).catch(() => {});
           }
         }
@@ -562,13 +606,6 @@ export class AccountsService {
     if (patch.currency !== undefined) patchRecord['currency'] = patch.currency;
     if (patch.isSelected !== undefined) patchRecord['isSelected'] = patch.isSelected;
     if (patch.isActive !== undefined) patchRecord['isActive'] = patch.isActive;
-    if (patch.members !== undefined) {
-      const nextMembers = patch.members as AccountMember[];
-      patchRecord['members'] = serializeMembersForWrite(nextMembers);
-      const memberIndex = deriveAccountMemberIndexes(nextMembers);
-      patchRecord['memberIds'] = memberIndex.memberIds;
-      patchRecord['activeMemberIds'] = memberIndex.activeMemberIds;
-    }
     if (patch.accountType !== undefined) patchRecord['accountType'] = patch.accountType;
 
     await this.offlineCrud.update<Account>(
@@ -666,7 +703,9 @@ export class AccountsService {
     const seen = new Set<string>();
     const out: Account[] = [];
     const push = (id: string, data: unknown) => {
-      if (seen.has(id)) return;
+      // Skip an account deleted/left on this device whose removal Firestore hasn't
+      // propagated yet, so a background revalidation can't resurrect it in the cache.
+      if (seen.has(id) || this.deletedIds.has(id)) return;
       seen.add(id);
       // mapAccount stamps viewerUid = current uid, so rows land in the cache index.
       out.push(this.mapAccount(id, data));
@@ -772,12 +811,28 @@ export class AccountsService {
     >(this.functions, 'deleteAccountCascade');
     await call({ accountId: accountDocId });
 
-    // Server has already deleted the Firestore doc + cascade; now drop the local
-    // IDB row so cache-first reads don't resurrect it, and refresh signals.
+    // Server has already deleted the Firestore doc + cascade. Tombstone the id and
+    // evict it from the live snapshot maps so an in-flight listener callback can't
+    // re-add it before the removal propagates, then drop the local IDB row and refresh.
+    this.forgetAccountLocally(accountDocId);
     await this.cache.delete('accounts', accountDocId).catch(() => {});
     this.clearSessionCache();
     await this.refreshMyAccounts();
     await this.selectAccount(null);
+  }
+
+  /**
+   * Optimistically remove an account from every local view (tombstone, live snapshot
+   * maps, and the `myAccounts` signal) after a delete/leave, so it disappears
+   * immediately and can't be resurrected by a stale realtime callback or a background
+   * revalidation racing the server-side removal.
+   */
+  private forgetAccountLocally(accountId: string): void {
+    this.deletedIds.set(accountId, Date.now());
+    this.snapOwned.delete(accountId);
+    this.snapMember.delete(accountId);
+    if (this.snapPrimary?.id === accountId) this.snapPrimary = null;
+    this._myAccounts.update((list) => list.filter((a) => a.id !== accountId));
   }
 
   /** Accept the invite and become an active member of a shared account. */
@@ -798,10 +853,61 @@ export class AccountsService {
       'respondAccountInvite',
     );
     await fn({ accountId, accept: false });
+    this.forgetAccountLocally(accountId);
     await this.cache.delete('accounts', accountId).catch(() => {});
     this.clearSessionCache();
     await this.refreshMyAccounts();
     await this.selectAccount(null);
+  }
+
+  // ─── Owner-side member management (all Admin-SDK callables) ──────────────────
+  // Rules forbid the client from changing `memberIds`/`activeMemberIds` directly,
+  // so add/remove/resend go through Cloud Functions, like `respondAccountInvite`.
+
+  /**
+   * Owner: invite a user to this shared account (or re-invite a previously-inactive
+   * one). The member lands in `invited` status; the `onAccountUpdated` trigger fires
+   * the ACCOUNT_INVITE notification.
+   */
+  async addMember(
+    accountId: string,
+    member: { memberId: string; memberDisplayName: string },
+  ): Promise<void> {
+    const fn = httpsCallable<
+      { accountId: string; memberId: string; memberDisplayName: string },
+      { ok: boolean }
+    >(this.functions, 'addAccountMember');
+    await fn({
+      accountId,
+      memberId: member.memberId,
+      memberDisplayName: member.memberDisplayName,
+    });
+    this.clearSessionCache();
+    await this.refreshMyAccounts();
+  }
+
+  /**
+   * Owner: remove a member. `permanent: false` (default) sets them `inactive` — kept
+   * as a record, but dropped from `memberIds` so they lose access. `permanent: true`
+   * deletes the row entirely. The removed member is notified server-side.
+   */
+  async removeMember(accountId: string, memberId: string, permanent = false): Promise<void> {
+    const fn = httpsCallable<
+      { accountId: string; memberId: string; permanent: boolean },
+      { ok: boolean }
+    >(this.functions, 'removeAccountMember');
+    await fn({ accountId, memberId, permanent });
+    this.clearSessionCache();
+    await this.refreshMyAccounts();
+  }
+
+  /** Owner: re-send the ACCOUNT_INVITE notification to a still-pending (`invited`) member. */
+  async resendInvite(accountId: string, memberId: string): Promise<void> {
+    const fn = httpsCallable<{ accountId: string; memberId: string }, { ok: boolean }>(
+      this.functions,
+      'resendAccountInvite',
+    );
+    await fn({ accountId, memberId });
   }
 
   // --- User profile (existing helper; kept for onboarding) ---
@@ -870,12 +976,17 @@ export class AccountsService {
 }
 
 function serializeMembersForWrite(members: AccountMember[]): Record<string, unknown>[] {
-  return members.map((m) => ({
-    memberId: m.memberId.trim(),
-    memberDisplayName: (m.memberDisplayName ?? '').trim(),
-    isJoined: Boolean(m.isJoined),
-    isActive: Boolean(m.isActive),
-  }));
+  return members.map((m) => {
+    const status = memberStatusOf(m);
+    const flags = memberFlagsForStatus(status);
+    return {
+      memberId: m.memberId.trim(),
+      memberDisplayName: (m.memberDisplayName ?? '').trim(),
+      status,
+      isJoined: flags.isJoined,
+      isActive: flags.isActive,
+    };
+  });
 }
 
 function normalizeMembersFromFirestore(raw: unknown): AccountMember[] | undefined {
@@ -886,14 +997,21 @@ function normalizeMembersFromFirestore(raw: unknown): AccountMember[] | undefine
     return (raw as string[]).map((memberId) => ({
       memberId: memberId,
       memberDisplayName: '',
+      status: 'invited' as const,
       isJoined: false,
       isActive: false,
     }));
   }
-  return (raw as Record<string, unknown>[]).map((row) => ({
-    memberId: String(row['memberId'] ?? ''),
-    memberDisplayName: String(row['memberDisplayName'] ?? ''),
-    isJoined: Boolean(row['isJoined']),
-    isActive: Boolean(row['isActive']),
-  }));
+  return (raw as Record<string, unknown>[]).map((row) => {
+    const isJoined = Boolean(row['isJoined']);
+    const isActive = Boolean(row['isActive']);
+    const status = memberStatusOf({ status: row['status'], isJoined, isActive });
+    return {
+      memberId: String(row['memberId'] ?? ''),
+      memberDisplayName: String(row['memberDisplayName'] ?? ''),
+      status,
+      isJoined,
+      isActive,
+    };
+  });
 }

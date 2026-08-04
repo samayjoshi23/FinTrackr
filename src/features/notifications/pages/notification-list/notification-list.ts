@@ -157,6 +157,7 @@ export class NotificationList implements OnInit {
         return 'bar-graph';
       case 'ACCOUNT_INVITE_ACCEPTED':
       case 'ACCOUNT_INVITE_DECLINED':
+      case 'ACCOUNT_MEMBER_REMOVED':
         return 'user-group';
       default:
         return 'bell';
@@ -180,6 +181,7 @@ export class NotificationList implements OnInit {
       case 'ACCOUNT_INVITE':
       case 'ACCOUNT_INVITE_ACCEPTED':
       case 'ACCOUNT_INVITE_DECLINED':
+      case 'ACCOUNT_MEMBER_REMOVED':
         return 'notif-tonic--group';
       case 'MONTH_END_SUMMARY':
         return 'notif-tonic--income';

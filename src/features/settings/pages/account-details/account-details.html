@@ -104,10 +104,28 @@
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <h2 class="text-base font-semibold title-font">Members ({{ memberRows().length }})</h2>
+          @if (isOwner()) {
+            <button
+              type="button"
+              class="text-sm text-primary flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer shrink-0 disabled:opacity-60"
+              [disabled]="memberBusy()"
+              (click)="openAddMember()"
+            >
+              <ico name="plus" size="sm"></ico>
+              Add member
+            </button>
+          }
         </div>
         <div class="flex flex-col gap-2">
           @for (m of memberRows(); track m.memberId) {
-            <div class="card rounded-xl p-3 flex items-center gap-3">
+            <div
+              class="card rounded-xl p-3 flex items-center gap-3"
+              [class.cursor-pointer]="isOwner() && !m.isOwner"
+              [attr.role]="isOwner() && !m.isOwner ? 'button' : null"
+              [attr.tabindex]="isOwner() && !m.isOwner ? 0 : null"
+              (click)="openMemberActions(m)"
+              (keydown.enter)="openMemberActions(m)"
+            >
               <div
                 class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-primary-light text-primary"
               >
@@ -142,6 +160,9 @@
                     Invited
                   </span>
                 }
+              }
+              @if (isOwner() && !m.isOwner) {
+                <ico name="right-arrow" size="xs" class="text-secondary shrink-0"></ico>
               }
             </div>
           }
@@ -214,7 +235,7 @@
           type="button"
           class="button-red rounded-xl py-3 w-full flex items-center justify-center gap-2 font-semibold disabled:opacity-60"
           [disabled]="joiningOrLeaving()"
-          (click)="onLeaveAccount()"
+          (click)="requestLeave()"
         >
           <ico name="arrow-right-from-bracket" size="sm"></ico>
           <span>{{ joiningOrLeaving() ? 'Leaving…' : 'Leave Account' }}</span>
@@ -257,6 +278,147 @@
     severity="danger"
     (confirmed)="onRemoveConfirmed($event)"
   />
+
+  <app-confirm-prompt
+    [(open)]="leaveConfirmOpen"
+    [title]="'Leave “' + (account()?.name ?? 'account') + '”?'"
+    message="You'll lose access to this shared account and its transactions. The owner can invite you again later."
+    confirmText="Leave"
+    cancelText="Cancel"
+    icon="arrow-right-from-bracket"
+    severity="danger"
+    (confirmed)="onLeaveConfirmed($event)"
+  />
+
+  <app-confirm-prompt
+    [(open)]="memberRemoveConfirmOpen"
+    title="Remove member?"
+    [message]="
+      (pendingRemovePermanent()
+        ? 'This permanently deletes the member from the account. '
+        : 'This removes their access to the account. They will be kept as an inactive member and can be re-invited. ') +
+      'They will be notified.'
+    "
+    confirmText="Remove"
+    cancelText="Cancel"
+    icon="trash"
+    severity="danger"
+    (confirmed)="onRemoveMemberConfirmed($event)"
+  />
+
+  <app-modal [(open)]="addMemberOpen" title="Add member" [bodyTemplate]="addMemberTpl"></app-modal>
+
+  <ng-template #addMemberTpl>
+    <div class="flex flex-col gap-3">
+      <p class="text-xs text-secondary">
+        Enter the exact email of a registered FinTrackr user to invite them.
+      </p>
+      <div class="field-wrapper before">
+        <span class="field-icon before"><ico name="envelope" size="sm"></ico></span>
+        <input
+          name="memberSearch"
+          type="email"
+          class="w-full"
+          placeholder="name@example.com"
+          autocomplete="off"
+          [(ngModel)]="memberSearchQuery"
+          (ngModelChange)="onMemberSearch()"
+        />
+      </div>
+
+      @if (usersLookup.directoryLoading()) {
+        <p class="text-xs text-secondary">Searching…</p>
+      } @else if (usersLookup.directoryUsers().length) {
+        <div class="flex flex-col gap-2">
+          @for (hit of usersLookup.directoryUsers(); track hit.uid) {
+            <button
+              type="button"
+              class="card rounded-xl p-3 flex items-center gap-3 text-left disabled:opacity-60"
+              [disabled]="memberBusy()"
+              (click)="pickNewMember(hit)"
+            >
+              <div
+                class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-primary-light text-primary"
+              >
+                {{ (hit.displayName || hit.email || '?').slice(0, 1).toUpperCase() }}
+              </div>
+              <div class="flex-1 min-w-0 flex flex-col">
+                <span class="text-sm font-medium title-font truncate">{{
+                  hit.displayName || 'FinTrackr user'
+                }}</span>
+                <span class="text-xs text-secondary truncate">{{ hit.email }}</span>
+              </div>
+              <ico name="plus" size="sm" class="text-primary shrink-0"></ico>
+            </button>
+          }
+        </div>
+      } @else if (usersLookup.directoryLoaded()) {
+        <p class="text-xs text-secondary">No registered user found with that email.</p>
+      }
+    </div>
+  </ng-template>
+
+  <app-modal
+    [(open)]="memberActionOpen"
+    [title]="selectedMember()?.displayName ?? 'Member'"
+    [bodyTemplate]="memberActionTpl"
+  ></app-modal>
+
+  <ng-template #memberActionTpl>
+    <div class="flex flex-col gap-3">
+      @if (selectedMemberStatus() === 'invited') {
+        <button
+          type="button"
+          class="button-secondary rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+          [disabled]="memberBusy()"
+          (click)="onResendInvite()"
+        >
+          Resend invite
+        </button>
+        <button
+          type="button"
+          class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+          [disabled]="memberBusy()"
+          (click)="requestRemoveMember(false)"
+        >
+          Cancel invite
+        </button>
+      } @else if (selectedMemberStatus() === 'active') {
+        <button
+          type="button"
+          class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+          [disabled]="memberBusy()"
+          (click)="requestRemoveMember(false)"
+        >
+          Remove from account
+        </button>
+      } @else if (selectedMemberStatus() === 'inactive') {
+        <button
+          type="button"
+          class="button-primary rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+          [disabled]="memberBusy()"
+          (click)="onReInvite()"
+        >
+          Re-invite
+        </button>
+        <button
+          type="button"
+          class="button-red rounded-xl py-3 w-full font-semibold disabled:opacity-60"
+          [disabled]="memberBusy()"
+          (click)="requestRemoveMember(true)"
+        >
+          Remove permanently
+        </button>
+      }
+      <button
+        type="button"
+        class="button-secondary rounded-xl py-3 w-full font-semibold"
+        (click)="memberActionOpen.set(false)"
+      >
+        Close
+      </button>
+    </div>
+  </ng-template>
 
   <app-transaction-detail-modal
     [(open)]="txDetailOpen"

@@ -379,6 +379,7 @@ export class CreateAccount {
     return this.invitedMembers().map((m) => ({
       memberId: m.uid,
       memberDisplayName: m.displayName || m.email || 'Member',
+      status: 'invited' as const,
       isJoined: false,
       isActive: false,
     }));

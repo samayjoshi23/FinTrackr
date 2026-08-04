@@ -13,7 +13,14 @@ initializeApp();
 
 export { onNotificationCreate } from './notification-trigger';
 export { scheduledDailyNotifications } from './scheduled-notifications';
-export { onAccountCreated, onAccountUpdated, respondAccountInvite } from './account-invites';
+export {
+  onAccountCreated,
+  onAccountUpdated,
+  respondAccountInvite,
+  addAccountMember,
+  removeAccountMember,
+  resendAccountInvite,
+} from './account-invites';
 export { sendGroupInvite, respondGroupInvite } from './group-invites';
 export { recordGroupSettlement, recordTransactionForUser, notifyGroupExpense } from './group-transactions';
 export { onUserProfileWrite } from './user-directory';

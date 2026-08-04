@@ -1,5 +1,5 @@
 import { CommonModule, Location } from '@angular/common';
-import { Component, computed, effect, inject, model, signal } from '@angular/core';
+import { Component, computed, effect, inject, model, signal, untracked } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
@@ -9,7 +9,8 @@ import { AccountsService } from '../../../../services/accounts.service';
 import { TransactionsService } from '../../../../services/transactions.service';
 import { ReportsService } from '../../../../services/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
-import { Account } from '../../../../shared/models/account.model';
+import { UsersLookupService, UserLookupHit } from '../../../../services/users-lookup.service';
+import { Account, MemberStatus, memberStatusOf } from '../../../../shared/models/account.model';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { SETTINGS_CURRENCIES } from '../../settings-currencies';
@@ -17,8 +18,6 @@ import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 import { Modal } from '../../../../shared/components/modal/modal';
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
-
-type MemberStatus = 'active' | 'inactive' | 'invited';
 
 /** Single-row view model for the members strip on multi-user account details. */
 export interface AccountMemberRow {
@@ -46,6 +45,7 @@ export class AccountDetails {
   private readonly transactionsService = inject(TransactionsService);
   private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
+  readonly usersLookup = inject(UsersLookupService);
 
   readonly currencies = SETTINGS_CURRENCIES;
   readonly limits = FORM_LIMITS;
@@ -101,10 +101,10 @@ export class AccountDetails {
     return (acc.members ?? []).find((m) => m.memberId === uid) ?? null;
   });
 
-  /** True when the member has joined (isJoined && isActive). */
+  /** True when the current user is an active member of this account. */
   readonly hasJoined = computed(() => {
     const m = this.myMembership();
-    return !!m && m.isJoined && m.isActive;
+    return !!m && memberStatusOf(m) === 'active';
   });
 
   joiningOrLeaving = signal(false);
@@ -132,14 +132,10 @@ export class AccountDetails {
     ];
     for (const m of acc.members ?? []) {
       if (!m.memberId || m.memberId === acc.ownerId) continue;
-      let status: MemberStatus;
-      if (m.isJoined && m.isActive) status = 'active';
-      else if (m.isJoined) status = 'inactive';
-      else status = 'invited';
       rows.push({
         memberId: m.memberId,
         displayName: m.memberDisplayName?.trim() || 'Member',
-        status,
+        status: memberStatusOf(m),
         isOwner: false,
         isMe: !!uid && m.memberId === uid,
       });
@@ -150,8 +146,20 @@ export class AccountDetails {
   /** True when the signed-in user is an invitee who hasn't responded yet. */
   readonly isPendingInvitee = computed(() => {
     const m = this.myMembership();
-    return !!m && !m.isJoined;
+    return !!m && memberStatusOf(m) === 'invited';
   });
+
+  // ─── Member management (owner) + leave (member) ─────────────────────────────
+  memberBusy = signal(false);
+  addMemberOpen = signal(false);
+  memberSearchQuery = '';
+  memberActionOpen = signal(false);
+  selectedMember = signal<AccountMemberRow | null>(null);
+  leaveConfirmOpen = signal(false);
+  memberRemoveConfirmOpen = signal(false);
+  /** Drives the wording of the member-remove confirm dialog. */
+  readonly pendingRemovePermanent = signal(false);
+  private pendingRemove: { memberId: string; permanent: boolean } | null = null;
 
   /** Gain/loss relative to initialBalance. Null when initialBalance is not set. */
   readonly balanceChange = computed(() => {
@@ -168,6 +176,48 @@ export class AccountDetails {
     effect(() => {
       if (!this.txDetailOpen()) this.selectedTransaction.set(null);
     });
+
+    // Live-sync the detail view from the realtime accounts list, so membership and
+    // balance changes made on THIS device or ANOTHER device (a member accepting or
+    // leaving, the owner adding/removing) reflect here without a manual refresh.
+    effect(() => {
+      const list = this.accountsService.myAccounts();
+      untracked(() => {
+        const id = this.route.snapshot.paramMap.get('id');
+        if (!id) return;
+        const fresh = list.find((a) => a.id === id);
+        if (fresh) {
+          // Seen live at least once — safe to treat a later disappearance as real.
+          this.sawAccountInList = true;
+          // Don't stomp an in-progress edit with an unrelated list emission (e.g. a
+          // member posting a transaction bumps the balance mid-edit).
+          if (!this.editModalOpen) this.account.set(fresh);
+        } else if (this.sawAccountInList && !this.exiting) {
+          // It was in our visible set and dropped out because of an EXTERNAL change
+          // (the owner removed us / deleted it on another device). Self-initiated
+          // leaves/deletes set `exiting` and handle their own toast + navigation.
+          this.handleLostAccess();
+        }
+      });
+    });
+  }
+
+  /** Set once this account has appeared in the realtime list — gates loss-of-access. */
+  private sawAccountInList = false;
+  /** True while a self-initiated leave / decline / delete is navigating away. */
+  private exiting = false;
+
+  /**
+   * The account left the user's visible set due to an EXTERNAL change (removed by the
+   * owner elsewhere, or deleted on another device). Navigate back to settings so the
+   * user isn't stuck on a dead page.
+   */
+  private handleLostAccess(): void {
+    if (this.exiting || !this.account()) return; // deliberate exit / already handled
+    this.sawAccountInList = false;
+    this.account.set(null);
+    this.notifier.show('This account is no longer available.');
+    void this.router.navigateByUrl('/user/settings', { replaceUrl: true });
   }
 
   async ngOnInit() {
@@ -356,6 +406,7 @@ export class AccountDetails {
   async onRejectInvite(): Promise<void> {
     const a = this.account();
     if (!a) return;
+    this.exiting = true;
     this.joiningOrLeaving.set(true);
     try {
       await this.accountsService.leaveAccount(a.id);
@@ -372,6 +423,7 @@ export class AccountDetails {
   async onLeaveAccount(): Promise<void> {
     const a = this.account();
     if (!a) return;
+    this.exiting = true;
     this.joiningOrLeaving.set(true);
     try {
       await this.accountsService.leaveAccount(a.id);
@@ -385,6 +437,143 @@ export class AccountDetails {
     }
   }
 
+  // ─── Owner: add / resend / re-invite / remove members ──────────────────────
+
+  openAddMember(): void {
+    this.usersLookup.resetDirectory();
+    this.memberSearchQuery = '';
+    this.addMemberOpen.set(true);
+  }
+
+  onMemberSearch(): void {
+    void this.usersLookup.searchByEmail(this.memberSearchQuery.trim());
+  }
+
+  async pickNewMember(hit: UserLookupHit): Promise<void> {
+    const a = this.account();
+    if (!a) return;
+    const existing = (a.members ?? []).find((m) => m.memberId === hit.uid);
+    const existingStatus = existing ? memberStatusOf(existing) : null;
+    if (existingStatus === 'active') {
+      this.notifier.show('That person is already an active member.');
+      return;
+    }
+    this.memberBusy.set(true);
+    try {
+      if (existingStatus === 'invited') {
+        // Already pending — re-adding is a no-op the trigger won't notify on, so
+        // re-send the invite instead of falsely reporting "sent".
+        await this.accountsService.resendInvite(a.id, hit.uid);
+        this.notifier.success('Invitation re-sent.');
+      } else {
+        await this.accountsService.addMember(a.id, {
+          memberId: hit.uid,
+          memberDisplayName: hit.displayName || hit.email,
+        });
+        this.notifier.success('Invitation sent.');
+      }
+      this.addMemberOpen.set(false);
+      this.memberSearchQuery = '';
+      this.usersLookup.resetDirectory();
+    } catch (e) {
+      console.error(e);
+      this.notifier.error(this.callableError(e, 'Could not add member.'));
+    } finally {
+      this.memberBusy.set(false);
+    }
+  }
+
+  openMemberActions(row: AccountMemberRow): void {
+    if (!this.isOwner() || row.isOwner) return;
+    this.selectedMember.set(row);
+    this.memberActionOpen.set(true);
+  }
+
+  async onResendInvite(): Promise<void> {
+    const a = this.account();
+    const m = this.selectedMember();
+    if (!a || !m) return;
+    this.memberBusy.set(true);
+    try {
+      await this.accountsService.resendInvite(a.id, m.memberId);
+      this.notifier.success('Invitation re-sent.');
+      this.memberActionOpen.set(false);
+    } catch (e) {
+      console.error(e);
+      this.notifier.error(this.callableError(e, 'Could not resend invite.'));
+    } finally {
+      this.memberBusy.set(false);
+    }
+  }
+
+  /** Re-invite a member who had left / been removed (inactive → invited). */
+  async onReInvite(): Promise<void> {
+    const a = this.account();
+    const m = this.selectedMember();
+    if (!a || !m) return;
+    this.memberBusy.set(true);
+    try {
+      await this.accountsService.addMember(a.id, {
+        memberId: m.memberId,
+        memberDisplayName: m.displayName,
+      });
+      this.notifier.success('Invitation sent.');
+      this.memberActionOpen.set(false);
+    } catch (e) {
+      console.error(e);
+      this.notifier.error(this.callableError(e, 'Could not re-invite member.'));
+    } finally {
+      this.memberBusy.set(false);
+    }
+  }
+
+  requestRemoveMember(permanent: boolean): void {
+    const m = this.selectedMember();
+    if (!m) return;
+    this.pendingRemove = { memberId: m.memberId, permanent };
+    this.pendingRemovePermanent.set(permanent);
+    this.memberActionOpen.set(false);
+    this.memberRemoveConfirmOpen.set(true);
+  }
+
+  async onRemoveMemberConfirmed(confirmed: boolean): Promise<void> {
+    this.memberRemoveConfirmOpen.set(false);
+    const pending = this.pendingRemove;
+    this.pendingRemove = null;
+    const a = this.account();
+    if (!confirmed || !pending || !a) return;
+    this.memberBusy.set(true);
+    try {
+      await this.accountsService.removeMember(a.id, pending.memberId, pending.permanent);
+      this.notifier.success(pending.permanent ? 'Member removed from the account.' : 'Member deactivated.');
+    } catch (e) {
+      console.error(e);
+      this.notifier.error(this.callableError(e, 'Could not remove member.'));
+    } finally {
+      this.memberBusy.set(false);
+    }
+  }
+
+  /** The status of the member currently selected in the action sheet. */
+  readonly selectedMemberStatus = computed<MemberStatus | null>(() => this.selectedMember()?.status ?? null);
+
+  private callableError(e: unknown, fallback: string): string {
+    const msg = (e as { message?: string } | null)?.message;
+    return typeof msg === 'string' && msg.trim() ? msg : fallback;
+  }
+
+  // ─── Member: leave (with confirmation) ─────────────────────────────────────
+
+  requestLeave(): void {
+    this.leaveConfirmOpen.set(true);
+  }
+
+  async onLeaveConfirmed(confirmed: boolean): Promise<void> {
+    this.leaveConfirmOpen.set(false);
+    if (!confirmed) return;
+    await this.onLeaveAccount();
+  }
+
   onRemoveAccount() {
     this.removeConfirmOpen.set(true);
   }
@@ -394,6 +583,7 @@ export class AccountDetails {
     if (!confirmed) return;
     const a = this.account();
     if (!a) return;
+    this.exiting = true;
     this.removing.set(true);
     try {
       await this.accountsService.deleteAccount(a.id);

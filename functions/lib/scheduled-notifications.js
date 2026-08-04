@@ -62,22 +62,30 @@ function normalizeMembers(raw) {
         return raw.map((memberId) => ({
             memberId,
             memberDisplayName: '',
+            status: 'invited',
             isJoined: false,
             isActive: false,
         }));
     }
-    return raw.map((m) => ({
-        memberId: String(m.memberId ?? ''),
-        memberDisplayName: String(m.memberDisplayName ?? ''),
-        isJoined: Boolean(m.isJoined),
-        isActive: Boolean(m.isActive),
-    }));
+    return raw.map((m) => {
+        const isJoined = Boolean(m['isJoined']);
+        const isActive = Boolean(m['isActive']);
+        const raw = m['status'];
+        const status = raw === 'invited' || raw === 'active' || raw === 'inactive' ? raw : isJoined ? 'active' : 'invited';
+        return {
+            memberId: String(m['memberId'] ?? ''),
+            memberDisplayName: String(m['memberDisplayName'] ?? ''),
+            status,
+            isJoined,
+            isActive,
+        };
+    });
 }
 /** Owner + members who have joined and are active. */
 function getRecipientUserIds(account, ownerId) {
     const ids = new Set([ownerId]);
     for (const m of normalizeMembers(account['members'])) {
-        if (m.memberId && m.isJoined && m.isActive)
+        if (m.memberId && m.status === 'active')
             ids.add(m.memberId);
     }
     return [...ids];

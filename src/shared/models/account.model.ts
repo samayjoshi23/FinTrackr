@@ -2,11 +2,40 @@ import { Timestamp } from 'firebase/firestore';
 
 export type AccountType = 'single-user' | 'multi-user';
 
+/**
+ * Membership state, the source of truth for a shared-account member:
+ *   - `invited`  — asked to join, not yet accepted (still in `memberIds` so they can act).
+ *   - `active`   — joined and participating (in `memberIds` AND `activeMemberIds`).
+ *   - `inactive` — left / declined / removed by the owner. Kept as a record for the
+ *      owner but EXCLUDED from `memberIds`, so they lose access to the account.
+ */
+export type MemberStatus = 'invited' | 'active' | 'inactive';
+
 export interface AccountMember {
   memberId: string;
   memberDisplayName: string;
+  /** Source of truth. Legacy docs without it infer status from the booleans below. */
+  status: MemberStatus;
+  /** @deprecated legacy mirrors of {@link status}, written in sync for old readers/rules. */
   isJoined: boolean;
   isActive: boolean;
+}
+
+/** Resolve a member's status, tolerating legacy docs that only had the booleans. */
+export function memberStatusOf(m: {
+  status?: unknown;
+  isJoined?: unknown;
+  isActive?: unknown;
+}): MemberStatus {
+  if (m.status === 'invited' || m.status === 'active' || m.status === 'inactive') return m.status;
+  // Legacy docs (no `status`): `inactive` never existed, so any joined member had
+  // access → treat as active. Never strip access purely from a boolean inference.
+  return m.isJoined ? 'active' : 'invited';
+}
+
+/** Legacy boolean mirrors kept in sync with a status (only `active` is joined+active). */
+export function memberFlagsForStatus(status: MemberStatus): { isJoined: boolean; isActive: boolean } {
+  return status === 'active' ? { isJoined: true, isActive: true } : { isJoined: false, isActive: false };
 }
 
 /**
@@ -58,15 +87,12 @@ export interface AccountCreateInput {
   accountType?: AccountType;
 }
 
+// NOTE: `members` is intentionally excluded — membership is mutated only through the
+// Admin-SDK callables (addAccountMember / removeAccountMember / respondAccountInvite),
+// because the security rules freeze `memberIds`/`activeMemberIds` on client owner updates.
 export type AccountUpdateInput = Partial<
   Pick<
     AccountDocument,
-    | 'name'
-    | 'balance'
-    | 'currency'
-    | 'isSelected'
-    | 'isActive'
-    | 'members'
-    | 'accountType'
+    'name' | 'balance' | 'currency' | 'isSelected' | 'isActive' | 'accountType'
   >
 >;

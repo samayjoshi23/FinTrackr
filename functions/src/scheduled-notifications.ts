@@ -19,6 +19,7 @@ import {
   BudgetDocument,
   GoalDocument,
   AccountMember,
+  MemberStatus,
 } from './types';
 import {
   istDateKey,
@@ -100,23 +101,32 @@ function normalizeMembers(raw: unknown): AccountMember[] {
     return (raw as string[]).map((memberId) => ({
       memberId,
       memberDisplayName: '',
+      status: 'invited' as MemberStatus,
       isJoined: false,
       isActive: false,
     }));
   }
-  return (raw as AccountMember[]).map((m) => ({
-    memberId: String(m.memberId ?? ''),
-    memberDisplayName: String(m.memberDisplayName ?? ''),
-    isJoined: Boolean(m.isJoined),
-    isActive: Boolean(m.isActive),
-  }));
+  return (raw as Record<string, unknown>[]).map((m) => {
+    const isJoined = Boolean(m['isJoined']);
+    const isActive = Boolean(m['isActive']);
+    const raw = m['status'];
+    const status: MemberStatus =
+      raw === 'invited' || raw === 'active' || raw === 'inactive' ? raw : isJoined ? 'active' : 'invited';
+    return {
+      memberId: String(m['memberId'] ?? ''),
+      memberDisplayName: String(m['memberDisplayName'] ?? ''),
+      status,
+      isJoined,
+      isActive,
+    };
+  });
 }
 
 /** Owner + members who have joined and are active. */
 function getRecipientUserIds(account: FirebaseFirestore.DocumentData, ownerId: string): string[] {
   const ids = new Set<string>([ownerId]);
   for (const m of normalizeMembers(account['members'])) {
-    if (m.memberId && m.isJoined && m.isActive) ids.add(m.memberId);
+    if (m.memberId && m.status === 'active') ids.add(m.memberId);
   }
   return [...ids];
 }

@@ -5,6 +5,7 @@ export type NotificationType =
   | 'ACCOUNT_INVITE'
   | 'ACCOUNT_INVITE_ACCEPTED'
   | 'ACCOUNT_INVITE_DECLINED'
+  | 'ACCOUNT_MEMBER_REMOVED'
   | 'ACCOUNT_DELETED'
   | 'PAYMENT_SENT'
   | 'PAYMENT_REQUEST'
@@ -110,9 +111,14 @@ export interface GoalDocument {
   isCompleted?: boolean;
 }
 
+export type MemberStatus = 'invited' | 'active' | 'inactive';
+
 export interface AccountMember {
   memberId: string;
   memberDisplayName: string;
+  /** Source of truth; legacy docs without it infer from the booleans below. */
+  status: MemberStatus;
+  /** @deprecated legacy mirrors of {@link status}, kept in sync for old readers/rules. */
   isJoined: boolean;
   isActive: boolean;
 }
@@ -146,5 +152,6 @@ export const NOTIFICATION_TYPE_TO_PREF_KEY: Partial<Record<NotificationType, key
   ACCOUNT_INVITE: 'transactionUpdates',
   ACCOUNT_INVITE_ACCEPTED: 'transactionUpdates',
   ACCOUNT_INVITE_DECLINED: 'transactionUpdates',
+  ACCOUNT_MEMBER_REMOVED: 'transactionUpdates',
   ACCOUNT_DELETED: 'transactionUpdates',
 };
