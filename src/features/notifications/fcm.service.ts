@@ -57,6 +57,14 @@ export class FcmService {
         swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
           scope: '/firebase-cloud-messaging-push-scope',
         });
+        // `register()` resolves as soon as the registration exists — the worker
+        // may still be installing/waiting. `getToken` calls PushManager.subscribe,
+        // which needs an *active* worker, else it throws
+        // `AbortError: ... no active Service Worker`. Wait for activation here.
+        // (We can't use `navigator.serviceWorker.ready`: the FCM SW is on a
+        // sub-scope that doesn't control the page, and in dev ngsw is disabled,
+        // so `.ready` would never resolve.)
+        await waitForServiceWorkerActivation(swRegistration);
       }
 
       const token = await getToken(messaging, {
@@ -160,6 +168,39 @@ export class FcmService {
 function isPlausibleVapidKey(key: string): boolean {
   const trimmed = key.trim();
   return trimmed.length === 87 && /^[A-Za-z0-9_-]+$/.test(trimmed) && trimmed.startsWith('B');
+}
+
+/**
+ * Resolves once the registration has an *active* service worker.
+ *
+ * A freshly registered SW is `installing`/`waiting` before it becomes
+ * `activated`; PushManager.subscribe (invoked inside FCM `getToken`) rejects
+ * with `AbortError: ... no active Service Worker` until then. The firebase
+ * messaging SW has no install/activate handlers, so activation is near-instant,
+ * but we still race a timeout so a stuck SW can never hang `initForUser`.
+ */
+function waitForServiceWorkerActivation(reg: ServiceWorkerRegistration): Promise<void> {
+  if (reg.active) return Promise.resolve();
+
+  const sw = reg.installing ?? reg.waiting;
+  if (!sw) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      sw.removeEventListener('statechange', onChange);
+      resolve(); // best-effort: let getToken try (and surface its own error) rather than hang
+    }, 5000);
+
+    function onChange(): void {
+      if (sw!.state === 'activated') {
+        clearTimeout(timer);
+        sw!.removeEventListener('statechange', onChange);
+        resolve();
+      }
+    }
+
+    sw.addEventListener('statechange', onChange);
+  });
 }
 
 function randomUuid(): string {
