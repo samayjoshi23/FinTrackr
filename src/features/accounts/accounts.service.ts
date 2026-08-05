@@ -1,4 +1,4 @@
-import { effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
@@ -96,6 +96,11 @@ export class AccountsService {
 
   /** Signed-in uid guard so account priming runs once per session (set from AuthService). */
   private readonly _userId = signal<string | null>(null);
+  public readonly isOwnerOfSelectedAccount = computed(() => {
+    const acc = this.selectedAccount();
+    const uid = this.auth.currentUser?.uid;
+    return !!acc && !!uid && acc.ownerId === uid;
+  });
 
   constructor() {
     // Re-hydrate the visible accounts whenever a network-first read writes fresh

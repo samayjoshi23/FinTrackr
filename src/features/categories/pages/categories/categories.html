@@ -9,13 +9,15 @@
       </div>
       <h1 class="text-xl font-semibold title-font">Categories</h1>
     </div>
-    <div
-      class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
-      (click)="onNew()"
-      aria-label="New category"
-    >
-      <ico name="plus" size="md"></ico>
-    </div>
+    @if(isAccountOwner()) {
+      <div
+        class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
+        (click)="onNew()"
+        aria-label="New category"
+      >
+        <ico name="plus" size="md"></ico>
+      </div>
+    }
   </div>
 
   @if (loading()) {
@@ -29,6 +31,9 @@
     </div>
   } @else {
     <div class="flex flex-col gap-3">
+      @if(!isAccountOwner()) {
+        <p class="text-sm text-secondary">Categories can be modified by the account owner.</p>
+      }
       @for (c of categories(); track c.uid) {
         <div class="card rounded-xl p-4 flex items-center gap-3 w-full text-left border-0">
           <!-- Icon -->
@@ -48,23 +53,25 @@
 
           <!-- Action buttons -->
           <div class="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              title="Edit category"
-              class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
-              (click)="$event.stopPropagation(); onEdit(c)"
-            >
-              <ico name="pencil" size="sm"></ico>
-            </button>
-            <button
-              type="button"
-              title="Delete category"
-              class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-red"
-              [disabled]="deleting()"
-              (click)="onDeleteRequest($event, c)"
-            >
-              <ico name="trash" size="sm"></ico>
-            </button>
+            @if(isAccountOwner()) {
+              <button
+                type="button"
+                title="Edit category"
+                class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-yellow"
+                (click)="$event.stopPropagation(); onEdit(c)"
+              >
+                <ico name="pencil" size="sm"></ico>
+              </button>
+              <button
+                type="button"
+                title="Delete category"
+                class="h-8 w-8 rounded-lg flex items-center justify-center text-secondary button-red"
+                [disabled]="deleting()"
+                (click)="onDeleteRequest($event, c)"
+              >
+                <ico name="trash" size="sm"></ico>
+              </button>
+            }
           </div>
         </div>
       }

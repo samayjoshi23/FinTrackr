@@ -50,6 +50,7 @@ export class Budgets {
   budgetPlan = signal<BudgetPlan | null>(null);
   transactions = signal<TransactionRecord[]>([]);
   categories = signal<Category[]>([]);
+  isAccountOwner = signal<boolean>(this.accountsService.isOwnerOfSelectedAccount() ?? false);
 
   /** Firestore account key used for report lookups. */
   private accountKey = signal<string>('');

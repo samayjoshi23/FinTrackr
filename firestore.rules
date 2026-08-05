@@ -132,9 +132,16 @@ service cloud.firestore {
     // through respondAccountInvite (Admin SDK). This closes the member-DoS
     // finding (any member flipping isActive) and the ownership-transfer gap.
     match /accounts/{accountId} {
+      // NOTE: the member clause MUST use `uid in resource.data.memberIds`, not
+      // `memberIds.hasAny([uid])`. Queries are authorized statically: Firestore has to
+      // prove from the query's constraints alone that every possible result satisfies
+      // the rule. It cannot do that through `is list` + `hasAny()`, so the client's
+      // `where('memberIds','array-contains',uid)` query gets denied wholesale even
+      // though a single-doc get of the same account is allowed. `in` is the documented
+      // idiom that pairs with array-contains.
       allow read: if canAccessExistingAccount()
         || accountId == request.auth.uid
-        || (isSignedIn() && resource.data.memberIds is list && resource.data.memberIds.hasAny([request.auth.uid]));
+        || (isSignedIn() && request.auth.uid in resource.data.memberIds);
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if (
           // Owner: full allowlist with identity/membership fields frozen.
@@ -209,7 +216,10 @@ service cloud.firestore {
 
     // Single recurring budget plan per account (doc id == accountId).
     match /budgetPlans/{accountId} {
-      allow read: if canAccessAccount(resource.data.accountId);
+      // Gate on the PATH's accountId, not `resource.data.accountId`: the doc id already
+      // IS the account id, and reading `resource.data` on a missing doc errors, which
+      // surfaces to the client as permission-denied instead of a clean "not found".
+      allow read: if canAccessAccount(accountId);
       allow create: if isOwnerOfAccount(request.resource.data.accountId)
         && request.resource.data.accountId == accountId;
       allow update: if isOwnerOfAccount(resource.data.accountId)
@@ -241,10 +251,12 @@ service cloud.firestore {
     }
 
     // ─── Groups ─────────────────────────────────────────────────────────────
+    // Same constraint as the accounts read rule: `in` (not `hasAny`) so the client's
+    // `where('memberIds','array-contains',uid)` group query is statically authorizable.
     function canReadGroupData(groupData) {
       return isSignedIn() && (
         groupData.creatorId == request.auth.uid ||
-        (groupData.memberIds is list && groupData.memberIds.hasAny([request.auth.uid]))
+        request.auth.uid in groupData.memberIds
       );
     }
 

@@ -21,7 +21,8 @@ export class Categories {
   private readonly categoriesService = inject(CategoriesService);
   private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
-
+  
+  isAccountOwner = signal<boolean>(this.accountsService.isOwnerOfSelectedAccount() ?? false);
   categories = signal<Category[]>([]);
   loading = signal(true);
   deletePromptOpen = signal(false);

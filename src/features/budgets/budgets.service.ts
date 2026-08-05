@@ -163,29 +163,32 @@ export class BudgetsService {
       'budgets',
       budgetId,
       async () => {
-        const uid = this.requireUid();
+        this.requireUid(); // auth guard
         const snap = await getDoc(doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`));
         if (!snap.exists()) return null;
-        const data = snap.data();
-        if (data['ownerId'] !== uid) return null;
-        return this.mapBudget(snap.id, data);
+        // No `ownerId == me` check: a shared account's budgets are readable by every
+        // active member, and the rules already enforce that via
+        // `canAccessAccount(resource.data.accountId)` — a user without access gets
+        // permission-denied from the server rather than a silent null here.
+        return this.mapBudget(snap.id, snap.data());
       },
     );
   }
 
   async getBudgets(): Promise<Budget[]> {
-    const uid = this.requireUid();
+    this.requireUid(); // auth guard
     const accountId = await this.selectedAccountKey();
     if (!accountId) return [];
     return this.offlineCrud.fetchAll<Budget>(
       'budgets',
       async () => {
         const base = collection(this.firestore, BUDGETS_COLLECTION);
-        const constraints = [
-          where('ownerId', '==', uid),
-          where('accountId', '==', accountId),
-        ];
-        const snap = await getDocs(query(base, ...constraints));
+        // Scope by ACCOUNT only, never by ownerId: budgets belong to the account and
+        // every active member must see them. Rules let only the owner CREATE a budget,
+        // so all rows for an account share one ownerId — dropping the filter returns the
+        // identical set for the owner while making the list visible to members (an
+        // `ownerId == me` filter silently matched nothing for them).
+        const snap = await getDocs(query(base, where('accountId', '==', accountId)));
         return snap.docs.map((d) => this.mapBudget(d.id, d.data()));
       },
       { indexName: 'accountId', value: accountId },
@@ -338,11 +341,13 @@ export class BudgetsService {
   }
 
   private async fetchBudgetPlanDirect(accountId: string, uid: string): Promise<BudgetPlan | null> {
+    void uid; // kept for call-site compatibility; access is enforced by Firestore rules
     const snap = await getDoc(doc(this.firestore, `${BUDGET_PLANS_COLLECTION}/${accountId}`));
     if (!snap.exists()) return null;
-    const data = snap.data();
-    if (data['ownerId'] !== uid) return null;
-    return this.mapBudgetPlan(snap.id, data);
+    // The plan belongs to the ACCOUNT, so every active member may read it (rules gate on
+    // `canAccessAccount(accountId)`). An `ownerId == me` check here hid the whole budget
+    // plan from members of a shared account.
+    return this.mapBudgetPlan(snap.id, snap.data());
   }
 
   private async migrateLegacyBudgetsToPlan(accountId: string): Promise<BudgetPlan | null> {

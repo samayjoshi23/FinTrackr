@@ -70,7 +70,7 @@ export class CategoriesService {
   }
 
   async getCategories(): Promise<Category[]> {
-    const uid = this.requireUid();
+    this.requireUid(); // auth guard
     const accountId = await this.selectedAccountKey();
     if (!accountId) return [];
 
@@ -87,8 +87,10 @@ export class CategoriesService {
       'categories',
       async () => {
         const base = collection(this.firestore, CATEGORIES_COLLECTION);
-        const constraints = [where('ownerId', '==', uid), where('accountId', '==', accountId)];
-        const snap = await getDocs(query(base, ...constraints));
+        // Scope by ACCOUNT only, never by ownerId — categories belong to the account and
+        // every active member must see them (rules keep creation owner-only, so all rows
+        // for an account share one ownerId). See the same note in budgets.getBudgets.
+        const snap = await getDocs(query(base, where('accountId', '==', accountId)));
         return snap.docs.map((d) => this.mapCategory(d.id, d.data()));
       },
       { indexName: 'accountId', value: accountId },
@@ -113,12 +115,12 @@ export class CategoriesService {
 
   async getCategory(categoryId: string): Promise<Category | null> {
     return this.offlineCrud.fetchOne<Category>('categories', categoryId, async () => {
-      const uid = this.requireUid();
+      this.requireUid(); // auth guard
       const snap = await getDoc(doc(this.firestore, `${CATEGORIES_COLLECTION}/${categoryId}`));
       if (!snap.exists()) return null;
-      const data = snap.data();
-      if (data['ownerId'] !== uid) return null;
-      return this.mapCategory(snap.id, data);
+      // Account-scoped, not user-scoped: active members read the account's categories.
+      // Rules enforce access via `canAccessAccount(resource.data.accountId)`.
+      return this.mapCategory(snap.id, snap.data());
     });
   }
 

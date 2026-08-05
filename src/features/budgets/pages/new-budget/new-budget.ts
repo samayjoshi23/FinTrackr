@@ -40,6 +40,7 @@ export class NewBudget {
   /** categoryId → limit input. */
   categoryBudgets: Record<string, number | null> = {};
   monthLabel = new Date().toLocaleString('en-US', { month: 'long' });
+  isAccountOwner = signal<boolean>(this.accountsService.isOwnerOfSelectedAccount() ?? false);
   readonly limits = FORM_LIMITS;
 
   async ngOnInit() {

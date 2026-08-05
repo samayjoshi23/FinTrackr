@@ -10,7 +10,7 @@
       </div>
       <h1 class="text-xl font-semibold title-font">Budgets</h1>
     </div>
-    @if (isCurrentMonth()) {
+    @if (isCurrentMonth() && isAccountOwner()) {
       <div
         class="h-9 w-9 rounded-full bg-primary-light clickable text-primary"
         (click)="onNewBudget()"
@@ -51,10 +51,15 @@
   } @else if (!hasBudget()) {
     @if (isCurrentMonth()) {
       <div class="card-light rounded-2xl p-4 flex flex-col gap-2">
-        <p class="text-sm font-light">No budget set yet</p>
-        <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
-          Set your monthly budget
-        </button>
+        @if(isAccountOwner()) {
+          <p class="text-sm font-light">No budget set yet</p>
+          <button type="button" class="button-primary rounded-xl py-2" (click)="onNewBudget()">
+            Set your monthly budget
+          </button>
+        }
+        @else {
+          <p class="text-sm font-light">The account owner hasn't set a budget for this month yet. Please ask account owner to set a budget to view it here.</p>
+        }
       </div>
     } @else {
       <div class="card-light rounded-2xl p-4 flex flex-col items-center gap-2 text-center">
@@ -235,7 +240,7 @@
                   <ico name="arrow-right-left" size="sm"></ico>
                   <span>See transactions</span>
                 </div>
-                @if (!card.isOther) {
+                @if (!card.isOther && isAccountOwner()) {
                   <div class="flex gap-2">
                     <button
                       type="button"

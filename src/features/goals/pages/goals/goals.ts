@@ -28,6 +28,7 @@ export class Goals {
   deletePromptOpen = signal(false);
   deletingGoal = signal<GoalCardModel | null>(null);
   deleting = signal(false);
+  isAccountOwner = signal<boolean>(this.accountsService.isOwnerOfSelectedAccount() ?? false);
 
   async ngOnInit() {
     const account = await this.accountsService.getSelectedAccount();

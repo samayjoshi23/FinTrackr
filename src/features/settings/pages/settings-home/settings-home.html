@@ -144,7 +144,7 @@
         @for (a of accounts(); track a.id) {
           <div
             class="card rounded-2xl p-4 flex items-center gap-3 w-full text-left border-0 cursor-pointer clickable"
-            [class.selected-card]="a.isSelected"
+            [class.selected-card]="currentAccount()?.uid === a.uid"
             (click)="openAccount(a)"
           >
             <div class="flex items-center justify-center">

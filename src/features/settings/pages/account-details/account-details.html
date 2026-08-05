@@ -8,7 +8,7 @@
       <ico name="left-arrow" size="sm"></ico>
     </div>
     <h1 class="text-lg font-semibold title-font flex-1">Account Details</h1>
-    @if (!isCurrentAccount() && (isOwner() || hasJoined())) {
+    @if (!isCurrentAccount() && (isOwner() || hasJoined()) && !loading()) {
       <button
         type="button"
         class="button-primary rounded-xl py-1.5 px-3 disabled:opacity-60"
