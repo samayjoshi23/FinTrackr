@@ -181,6 +181,20 @@ export class SyncQueueService {
     return pending.some((e) => e.storeName === storeName);
   }
 
+  /**
+   * Doc ids for a store that have a pending offline `delete` not yet synced.
+   * A network-first read must NOT resurrect these from the server response until
+   * the queued delete reaches Firestore.
+   */
+  async pendingDeleteIdsForStore(storeName: string): Promise<Set<string>> {
+    const pending = await this.getAllPending();
+    const ids = new Set<string>();
+    for (const e of pending) {
+      if (e.storeName === storeName && e.operation === 'delete' && e.docId) ids.add(e.docId);
+    }
+    return ids;
+  }
+
   /** Entries that exhausted their retries — excluded from normal flushes. */
   async getFailedEntries(): Promise<SyncQueueEntry[]> {
     const all = await this.cache.getAll<SyncQueueEntry>(STORE);

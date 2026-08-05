@@ -2,7 +2,6 @@ import { Injectable, NgZone, inject, effect, signal } from '@angular/core';
 import { NetworkService } from './network.service';
 import { SyncQueueService } from './sync-queue.service';
 import { IndexedDbCacheService } from './indexed-db-cache.service';
-import { RevalidationTrackerService } from './revalidation-tracker.service';
 import { NotifierService } from '../../shared/components/notifier/notifier.service';
 import { SyncLoggerService } from './sync-logger.service';
 import { StorageQuotaService } from './storage-quota.service';
@@ -52,7 +51,6 @@ export class SyncService {
   private readonly network = inject(NetworkService);
   private readonly syncQueue = inject(SyncQueueService);
   private readonly cache = inject(IndexedDbCacheService);
-  private readonly tracker = inject(RevalidationTrackerService);
   private readonly notifier = inject(NotifierService);
   private readonly zone = inject(NgZone);
   private readonly logger = inject(SyncLoggerService);
@@ -179,9 +177,7 @@ export class SyncService {
           for (const id of entry.sourceIds) {
             await this.syncQueue.dequeue(id);
           }
-          // Server now holds canonical data (timestamps, ids) — force the next
-          // read of this store to revalidate.
-          this.tracker.markStale(entry.storeName);
+          // Network-first reads always re-fetch when online, so nothing to mark stale.
           successCount++;
         } else {
           // `processEntry` returned false without throwing — a data-inconsistency
@@ -617,7 +613,6 @@ export class SyncService {
 
   /** Clear all cached data and sync queue (call on logout). */
   async clearAllData(): Promise<void> {
-    this.tracker.reset();
     // Re-arm the quota warning: this wipe frees up significant storage, so a
     // future usage climb during the next session should be able to warn again
     // without waiting for a page reload.

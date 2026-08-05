@@ -25,15 +25,14 @@ import { OfflineCrudService } from '../../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.service';
 import { NetworkService } from '../../core/offline/network.service';
 import { SyncQueueService } from '../../core/offline/sync-queue.service';
-import {
-  REVALIDATION_TTL_MS,
-  RevalidationTrackerService,
-} from '../../core/offline/revalidation-tracker.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { BudgetsService } from '../budgets/budgets.service';
 import { date, docCalendarDate } from '../../core/date';
 
 const CATEGORIES_COLLECTION = 'categories';
+
+/** Short in-memory dedupe window for `getCategories()` (13+ call sites per render). */
+const CATEGORIES_MEMO_TTL_MS = 10_000;
 
 @Injectable({ providedIn: 'root' })
 export class CategoriesService {
@@ -43,7 +42,6 @@ export class CategoriesService {
   private readonly idbCache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
   private readonly syncQueue = inject(SyncQueueService);
-  private readonly tracker = inject(RevalidationTrackerService);
   private readonly accountsService = inject(AccountsService);
   private readonly budgetsService = inject(BudgetsService);
 
@@ -80,7 +78,7 @@ export class CategoriesService {
     if (
       memo &&
       memo.accountId === accountId &&
-      Date.now() - memo.at < REVALIDATION_TTL_MS['categories']
+      Date.now() - memo.at < CATEGORIES_MEMO_TTL_MS
     ) {
       return [...memo.rows, this.syntheticOtherCategory(accountId)];
     }
@@ -325,7 +323,6 @@ export class CategoriesService {
         await batch.commit();
         const rows = prepared.map((p) => ({ ...p.row, _pendingSync: false }));
         await this.idbCache.putAll('categories', rows);
-        this.tracker.markStale('categories');
         this.clearSessionCache();
         return rows;
       } catch {
@@ -345,7 +342,6 @@ export class CategoriesService {
     }
     const rows = prepared.map((p) => ({ ...p.row, _pendingSync: true }));
     await this.idbCache.putAll('categories', rows);
-    this.tracker.markStale('categories');
     this.clearSessionCache();
     return rows;
   }

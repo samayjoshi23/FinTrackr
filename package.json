@@ -9,7 +9,11 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "audit:fix": "npm audit fix"
+    "audit:fix": "npm audit fix",
+    "deploy:rules": "npx -y firebase-tools@latest deploy --only firestore",
+    "deploy:hosting": "npm run build && npx -y firebase-tools@latest deploy --only hosting",
+    "deploy:functions": "npx -y firebase-tools@latest deploy --only functions",
+    "deploy:all": "npm run build && npx -y firebase-tools@latest deploy --only firestore,functions,hosting"
   },
   "private": true,
   "packageManager": "npm@11.11.1",

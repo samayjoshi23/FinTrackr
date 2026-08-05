@@ -177,47 +177,19 @@ export class AccountDetails {
       if (!this.txDetailOpen()) this.selectedTransaction.set(null);
     });
 
-    // Live-sync the detail view from the realtime accounts list, so membership and
-    // balance changes made on THIS device or ANOTHER device (a member accepting or
-    // leaving, the owner adding/removing) reflect here without a manual refresh.
+    // Mirror the detail view from the accounts list so a local mutation (owner
+    // add/remove member, a balance change) reflects here after `refreshMyAccounts`
+    // re-reads Firestore. Network-first: cross-device changes surface on navigation.
     effect(() => {
       const list = this.accountsService.myAccounts();
       untracked(() => {
         const id = this.route.snapshot.paramMap.get('id');
         if (!id) return;
         const fresh = list.find((a) => a.id === id);
-        if (fresh) {
-          // Seen live at least once — safe to treat a later disappearance as real.
-          this.sawAccountInList = true;
-          // Don't stomp an in-progress edit with an unrelated list emission (e.g. a
-          // member posting a transaction bumps the balance mid-edit).
-          if (!this.editModalOpen) this.account.set(fresh);
-        } else if (this.sawAccountInList && !this.exiting) {
-          // It was in our visible set and dropped out because of an EXTERNAL change
-          // (the owner removed us / deleted it on another device). Self-initiated
-          // leaves/deletes set `exiting` and handle their own toast + navigation.
-          this.handleLostAccess();
-        }
+        // Don't stomp an in-progress edit with an unrelated list emission.
+        if (fresh && !this.editModalOpen) this.account.set(fresh);
       });
     });
-  }
-
-  /** Set once this account has appeared in the realtime list — gates loss-of-access. */
-  private sawAccountInList = false;
-  /** True while a self-initiated leave / decline / delete is navigating away. */
-  private exiting = false;
-
-  /**
-   * The account left the user's visible set due to an EXTERNAL change (removed by the
-   * owner elsewhere, or deleted on another device). Navigate back to settings so the
-   * user isn't stuck on a dead page.
-   */
-  private handleLostAccess(): void {
-    if (this.exiting || !this.account()) return; // deliberate exit / already handled
-    this.sawAccountInList = false;
-    this.account.set(null);
-    this.notifier.show('This account is no longer available.');
-    void this.router.navigateByUrl('/user/settings', { replaceUrl: true });
   }
 
   async ngOnInit() {
@@ -406,7 +378,6 @@ export class AccountDetails {
   async onRejectInvite(): Promise<void> {
     const a = this.account();
     if (!a) return;
-    this.exiting = true;
     this.joiningOrLeaving.set(true);
     try {
       await this.accountsService.leaveAccount(a.id);
@@ -423,7 +394,6 @@ export class AccountDetails {
   async onLeaveAccount(): Promise<void> {
     const a = this.account();
     if (!a) return;
-    this.exiting = true;
     this.joiningOrLeaving.set(true);
     try {
       await this.accountsService.leaveAccount(a.id);
@@ -583,7 +553,6 @@ export class AccountDetails {
     if (!confirmed) return;
     const a = this.account();
     if (!a) return;
-    this.exiting = true;
     this.removing.set(true);
     try {
       await this.accountsService.deleteAccount(a.id);

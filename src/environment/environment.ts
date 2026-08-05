@@ -12,7 +12,7 @@ export const environment = {
     appId: '1:300103064560:web:f0112747f57677f5d99b35',
     measurementId: 'G-LRNSETP3XK',
     /** Replace with your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging */
-    vapidKey: 'BHVmj7cdCA7CTF42Hu9jlHD4R6lxuGrqogoSxQ4BZTnwHKVNk2ljvemXl5389MAONP5BU__rEFDgzeLX60bGJr4',
+    vapidKey: 'BD_57snv7kssI688u1L2-7zWcJy1IiBy19rkeMnKlSxPh6MRXB2brQq7rexBIHl0h-yf0NQBuq0HSWLt_zBEApU',
   },
   /**
    * reCAPTCHA v3 site key for App Check. Replace with the value from Firebase
