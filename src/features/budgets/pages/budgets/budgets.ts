@@ -182,21 +182,24 @@ export class Budgets {
     const plan = this.budgetPlan();
     if (!plan) return [];
 
-    const catById = new Map(this.categories().map((c) => [c.uid, c]));
     const spendByName = this.monthSpendByCategory();
-
     const cards: CategoryBudgetCardModel[] = [];
     let budgetedLimitTotal = 0;
     let budgetedSpendTotal = 0;
-    for (const [categoryId, rawLimit] of Object.entries(plan.categoryBudgets)) {
-      const limit = Number(rawLimit ?? 0);
-      if (!(limit > 0)) continue;
-      const cat = catById.get(categoryId);
-      const name = cat?.name ?? 'Category';
-      const spent = spendByName.get(name.trim().toLowerCase()) ?? 0;
-      budgetedLimitTotal += limit;
-      budgetedSpendTotal += spent;
-      cards.push(this.toCard(name, categoryId, cat?.icon ?? 'tags', spent, limit, false));
+
+    // Iterate ALL expense categories, not just those with a set limit. Users need to see
+    // every category (with its month spend) to know which ones might need a budget. Income
+    // is filtered out here — it's the allocation pool, not an expense category.
+    for (const cat of this.categories()) {
+      const name = (cat.name ?? 'Category').trim();
+      if (this.isIncomeCategory(name)) continue;
+      const limit = Number(plan.categoryBudgets[cat.uid] ?? 0);
+      const spent = spendByName.get(name.toLowerCase()) ?? 0;
+      if (limit > 0) {
+        budgetedLimitTotal += limit;
+        budgetedSpendTotal += spent;
+      }
+      cards.push(this.toCard(name || 'Category', cat.uid, cat.icon ?? 'tags', spent, limit, false));
     }
 
     const otherLimit = Math.max(0, (plan.monthlyBudget ?? 0) - budgetedLimitTotal);
@@ -205,6 +208,11 @@ export class Budgets {
       cards.push(this.toCard('Other', '', 'other', otherSpent, otherLimit, true));
     }
     return this.sortCards(cards);
+  }
+
+  /** True when a category name should be treated as the "income" bucket (case-insensitive). */
+  private isIncomeCategory(name: string): boolean {
+    return name.trim().toLowerCase() === 'income';
   }
 
   // ─── Past-month (snapshot) view models ────────────────────────────
@@ -241,6 +249,8 @@ export class Budgets {
       const limit = entry.budget ?? 0;
       // Skip categories that neither had a budget nor any spend this month.
       if (!isOther && limit <= 0 && entry.amount <= 0) continue;
+      // Never show the Income bucket as a budget card — it isn't an expense category.
+      if (!isOther && this.isIncomeCategory(entry.name)) continue;
       const categoryId = isOther ? '' : key.replace(/^cat_/, '');
       const icon = isOther ? 'other' : (catByName.get(entry.name.trim().toLowerCase())?.icon ?? 'tags');
       cards.push(this.toCard(entry.name, categoryId, icon, entry.amount, limit, isOther));
@@ -258,16 +268,30 @@ export class Budgets {
     limit: number,
     isOther: boolean,
   ): CategoryBudgetCardModel {
-    const percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
-    const status: ProgressStatus = spent <= limit ? 'under' : 'over';
-    const overAmount = spent > limit ? spent - limit : 0;
-    return { category, categoryId, isOther, icon, spent, limit, percent, status, overAmount };
+    // No limit set → don't imply a state ("under"/"over") the user hasn't opted into.
+    // The card is informational only (shows spend); status is `unset` so the template
+    // renders a neutral progress bar and hides the percent chip.
+    const hasNoLimit = limit <= 0;
+    const percent = hasNoLimit ? 0 : Math.round((spent / limit) * 100);
+    const status: ProgressStatus = hasNoLimit ? 'unset' : spent <= limit ? 'under' : 'over';
+    const overAmount = !hasNoLimit && spent > limit ? spent - limit : 0;
+    return {
+      category, categoryId, isOther, icon, spent, limit, percent, status, hasNoLimit, overAmount,
+    };
   }
 
   private sortCards(cards: CategoryBudgetCardModel[]): CategoryBudgetCardModel[] {
+    // Grouping: (1) budgeted categories, (2) categories with no limit, (3) any "Other"
+    // bucket — either the derived leftover card (isOther) or a real category literally
+    // named "Other" from the default seed. Both play the "misc" role and belong last.
+    const isOtherBucket = (c: CategoryBudgetCardModel) =>
+      c.isOther || c.category.trim().toLowerCase() === 'other';
+    const rank = (c: CategoryBudgetCardModel) =>
+      isOtherBucket(c) ? 2 : c.hasNoLimit ? 1 : 0;
     return cards.sort((a, b) => {
-      if (a.isOther && !b.isOther) return 1;
-      if (!a.isOther && b.isOther) return -1;
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return a.category.localeCompare(b.category);
     });
   }
@@ -486,6 +510,9 @@ export class Budgets {
   }
 
   categoryBarClass(card: CategoryBudgetCardModel): string {
+    // No limit set → render the bar as a neutral placeholder (no state color) so we
+    // don't imply progress the user hasn't opted into.
+    if (card.hasNoLimit) return 'bg-[var(--color-border)]';
     return categoryBudgetBarClass(card.percent, card.status === 'over');
   }
 

@@ -10,7 +10,29 @@
   </header>
 
   @if (loading()) {
-    <p class="text-sm text-secondary font-light">Loading…</p>
+    <div
+      class="flex flex-col gap-4 animate-pulse"
+      aria-busy="true"
+      aria-label="Loading edit-category form"
+    >
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-16 rounded-md bg-secondary-light"></div>
+        <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-24 rounded-md bg-secondary-light"></div>
+        <div class="h-20 w-full rounded-xl bg-secondary-light"></div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-20 rounded-md bg-secondary-light"></div>
+        <div class="grid grid-cols-6 gap-2">
+          @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) {
+            <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+          }
+        </div>
+      </div>
+      <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+    </div>
   } @else {
     <form class="flex flex-col gap-4" #catForm="ngForm" (ngSubmit)="onSave(catForm)">
       <div class="flex flex-col gap-2">
@@ -76,7 +98,7 @@
             >
               <ico
                 [name]="iconId"
-                size="sm"
+                size="md"
                 [class.text-primary]="selectedIcon === iconId"
                 [class.text-secondary]="selectedIcon !== iconId"
               ></ico>

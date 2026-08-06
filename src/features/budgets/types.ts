@@ -1,4 +1,4 @@
-export type ProgressStatus = 'under' | 'over';
+export type ProgressStatus = 'under' | 'over' | 'unset';
 
 export interface SummaryCardModel {
   monthLabel: string;
@@ -29,6 +29,8 @@ export interface CategoryBudgetCardModel {
   limit: number;
   percent: number;
   status: ProgressStatus;
+  /** True when the user has NOT set a limit for this category (limit == 0). */
+  hasNoLimit: boolean;
   /** Amount past limit when status is `over`. */
   overAmount: number;
 }

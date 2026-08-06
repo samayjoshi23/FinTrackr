@@ -10,7 +10,32 @@
     <h1 class="text-xl font-semibold title-font">Monthly Budget</h1>
   </header>
 
-  @if (!isAccountOwner()) {
+  @if (loading()) {
+    <div
+      class="flex flex-col gap-4 mt-4 animate-pulse"
+      aria-busy="true"
+      aria-label="Loading budget editor"
+    >
+      <div class="h-3 w-3/4 rounded-md bg-secondary-light"></div>
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-40 rounded-md bg-secondary-light"></div>
+        <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-56 rounded-md bg-secondary-light"></div>
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="flex items-center justify-between gap-3 card rounded-xl p-3">
+            <div class="flex items-center gap-2">
+              <div class="h-8 w-8 rounded-lg bg-secondary-light"></div>
+              <div class="h-4 w-24 rounded-md bg-secondary-light"></div>
+            </div>
+            <div class="h-8 w-24 rounded-md bg-secondary-light"></div>
+          </div>
+        }
+      </div>
+      <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+    </div>
+  } @else if (!isAccountOwner()) {
     <div class="card-light rounded-2xl p-4 flex flex-col gap-2 mt-4">
       <p class="text-sm text-secondary font-light">
         Only the account owner can create or edit budgets.

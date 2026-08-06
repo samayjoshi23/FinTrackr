@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, effect, inject, input, model, output, signal } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
 import { FormsModule } from '@angular/forms';
 import { TransactionRecord } from '../../models/transaction.model';
 import { Icon } from '../icon/icon';
@@ -25,6 +26,7 @@ export class TransactionDetailModal {
   private readonly reportsService = inject(ReportsService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
+  private readonly auth = inject(Auth);
 
   open = model(false);
   transaction = input<TransactionRecord | null>(null);
@@ -43,6 +45,12 @@ export class TransactionDetailModal {
   saving = signal(false);
   /** When the selected account is multi-user and the transaction has `paidBy`. */
   showPaidByRow = signal(false);
+  /**
+   * Human-readable "Paid by" label. `tx.paidBy` is a uid; resolve it via the current
+   * account's owner + members list so the modal shows a name instead of a raw uid.
+   * Falls back to a short-form uid so we never render nothing.
+   */
+  paidByLabel = signal<string>('');
 
   constructor() {
     effect(() => {
@@ -50,14 +58,40 @@ export class TransactionDetailModal {
       const tx = this.transaction();
       if (!open || !tx) {
         this.showPaidByRow.set(false);
+        this.paidByLabel.set('');
         return;
       }
       void this.accountsService.getSelectedAccount().then((acc) => {
         const multi = acc?.accountType === 'multi-user';
-        const has = Boolean((tx.paidBy ?? '').trim());
-        this.showPaidByRow.set(Boolean(multi && has));
+        const paidByUid = (tx.paidBy ?? '').trim();
+        this.showPaidByRow.set(Boolean(multi && paidByUid));
+        this.paidByLabel.set(paidByUid ? this.resolvePaidByLabel(paidByUid, acc) : '');
       });
     });
+  }
+
+  /**
+   * Resolve a paidBy uid to a display label. Device-relative: the signed-in user is
+   * always "You", every other user is their plain name. No role suffix — role is a
+   * separate concept from identity, and the "Owner" chip already lives elsewhere.
+   *
+   *   1. If it's the signed-in user on THIS device → "You".
+   *   2. If it's a listed member (any status) → their memberDisplayName.
+   *   3. If it's the account owner (not in `members`) → "Owner" as a name fallback.
+   *   4. Fallback → the last 4 chars of the uid, so the row is never empty.
+   */
+  private resolvePaidByLabel(
+    paidByUid: string,
+    account: { ownerId?: string; members?: Array<{ memberId: string; memberDisplayName: string; status?: unknown; isJoined?: unknown; isActive?: unknown }> } | null | undefined,
+  ): string {
+    const myUid = this.auth.currentUser?.uid;
+    if (myUid && paidByUid === myUid) return 'You';
+    const members = Array.isArray(account?.members) ? account!.members! : [];
+    const hit = members.find((m) => m?.memberId === paidByUid);
+    if (hit?.memberDisplayName?.trim()) return hit.memberDisplayName.trim();
+    if (account?.ownerId === paidByUid) return 'Owner';
+    // Last resort — a short-form uid keeps the row informative and not a raw 28-char id.
+    return `User ${paidByUid.slice(-4)}`;
   }
 
   protected iconFor(t: TransactionRecord): string {

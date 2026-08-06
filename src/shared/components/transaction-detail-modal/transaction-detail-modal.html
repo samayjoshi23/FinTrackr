@@ -145,7 +145,7 @@
           @if (showPaidByRow()) {
             <div class="flex justify-between gap-4">
               <dt class="text-secondary shrink-0">Paid by</dt>
-              <dd class="min-w-0 text-right font-medium">{{ tx.paidBy }}</dd>
+              <dd class="min-w-0 text-right font-medium">{{ paidByLabel() }}</dd>
             </div>
           }
           @if (tx.date?.trim()) {

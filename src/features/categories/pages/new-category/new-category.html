@@ -9,6 +9,33 @@
     <h1 class="text-xl font-semibold title-font">New category</h1>
   </header>
 
+  @if (loading()) {
+    <div
+      class="flex flex-col gap-4 animate-pulse"
+      aria-busy="true"
+      aria-label="Loading new-category form"
+    >
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-16 rounded-md bg-secondary-light"></div>
+        <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-24 rounded-md bg-secondary-light"></div>
+        <div class="h-20 w-full rounded-xl bg-secondary-light"></div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="h-3 w-20 rounded-md bg-secondary-light"></div>
+        <div class="grid grid-cols-6 gap-2">
+          @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) {
+            <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+          }
+        </div>
+      </div>
+      <div class="h-10 w-full rounded-xl bg-secondary-light"></div>
+    </div>
+  }
+
+  @if (!loading()) {
   <form class="flex flex-col gap-4" #catForm="ngForm" (ngSubmit)="onCreate(catForm)">
     <div class="flex flex-col gap-2">
       <label for="categoryName" class="text-xs text-gray-400">Name</label>
@@ -101,4 +128,5 @@
       </button>
     </div>
   </form>
+  }
 </div>

@@ -33,19 +33,25 @@ export class NewCategory {
   categoryName = '';
   description = '';
   selectedIcon = 'tags';
+  /** True while the initial account + categories read is in flight (drives skeleton). */
+  loading = signal(true);
   saving = signal(false);
 
   async ngOnInit() {
-    const account = await this.accountsService.getSelectedAccount();
-    this.selectedAccount.set(account);
     try {
-      const list = await this.categoriesService.getCategories();
-      this.existingCategories.set(list ?? []);
-      const taken = new Set((list ?? []).map((c) => (c.icon || '').trim()));
-      const firstFree = CATEGORY_ICON_OPTIONS.find((id) => !taken.has(id));
-      if (firstFree) this.selectedIcon = firstFree;
-    } catch {
-      this.existingCategories.set([]);
+      const account = await this.accountsService.getSelectedAccount();
+      this.selectedAccount.set(account);
+      try {
+        const list = await this.categoriesService.getCategories();
+        this.existingCategories.set(list ?? []);
+        const taken = new Set((list ?? []).map((c) => (c.icon || '').trim()));
+        const firstFree = CATEGORY_ICON_OPTIONS.find((id) => !taken.has(id));
+        if (firstFree) this.selectedIcon = firstFree;
+      } catch {
+        this.existingCategories.set([]);
+      }
+    } finally {
+      this.loading.set(false);
     }
   }
 

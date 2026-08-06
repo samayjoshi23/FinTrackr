@@ -188,13 +188,15 @@
                 <p class="text-sm font-semibold title-font">{{ card.category }}</p>
               </div>
               <div class="flex items-center gap-2">
-                <p
-                  class="text-sm title-font font-semibold"
-                  [class.text-amber-700]="card.status === 'under'"
-                  [class.text-red-600]="card.status === 'over'"
-                >
-                  {{ card.percent }}%
-                </p>
+                @if (!card.hasNoLimit) {
+                  <p
+                    class="text-sm title-font font-semibold"
+                    [class.text-amber-700]="card.status === 'under'"
+                    [class.text-red-600]="card.status === 'over'"
+                  >
+                    {{ card.percent }}%
+                  </p>
+                }
                 <ico
                   name="chevron-right"
                   size="sm"
@@ -208,13 +210,22 @@
               <div
                 class="h-full rounded-full min-w-0 budget-progress-fill"
                 [style.width.%]="
-                  progressBarsShown() ? (card.percent > 100 ? 100 : card.percent) : 0
+                  card.hasNoLimit
+                    ? 0
+                    : progressBarsShown()
+                      ? (card.percent > 100 ? 100 : card.percent)
+                      : 0
                 "
                 [ngClass]="categoryBarClass(card)"
               ></div>
             </div>
 
-            @if (card.status === 'over' && card.overAmount > 0) {
+            @if (card.hasNoLimit) {
+              <div class="flex justify-between text-xs text-secondary font-light">
+                <span>{{ card.spent | signedAmount: null : currency() : '1.0-0' }} spent</span>
+                <span>No limit set</span>
+              </div>
+            } @else if (card.status === 'over' && card.overAmount > 0) {
               <p class="text-xs text-red-600 title-font font-medium">
                 {{ card.overAmount | signedAmount: null : currency() : '1.0-0' }} over this
                 category's budget

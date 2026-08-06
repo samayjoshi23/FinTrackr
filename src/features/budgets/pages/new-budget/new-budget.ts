@@ -35,6 +35,8 @@ export class NewBudget {
   selectedAccount = signal<Account | null>(null);
   categories = signal<Category[]>([]);
 
+  /** True until the account + categories + plan initial reads resolve (drives skeleton). */
+  loading = signal(true);
   saving = signal(false);
   monthlyLimit: number | string = '';
   /** categoryId → limit input. */
@@ -44,23 +46,30 @@ export class NewBudget {
   readonly limits = FORM_LIMITS;
 
   async ngOnInit() {
-    const account = await this.accountsService.getSelectedAccount();
-    this.selectedAccount.set(account);
+    try {
+      const account = await this.accountsService.getSelectedAccount();
+      this.selectedAccount.set(account);
 
-    const [cats, plan] = await Promise.all([
-      this.categoriesService.getCategories().catch(() => [] as Category[]),
-      this.budgetsService.getBudgetPlan().catch(() => null),
-    ]);
-    this.categories.set(cats ?? []);
+      const [cats, plan] = await Promise.all([
+        this.categoriesService.getCategories().catch(() => [] as Category[]),
+        this.budgetsService.getBudgetPlan().catch(() => null),
+      ]);
+      // Income is the allocation POOL for zero-based budgeting, not a spending category —
+      // don't offer a limit row for it (the summary already treats income separately).
+      const expenseCats = (cats ?? []).filter((c) => (c.name ?? '').trim().toLowerCase() !== 'income');
+      this.categories.set(expenseCats);
 
-    if (plan) {
-      if (plan.monthlyBudget > 0) this.monthlyLimit = plan.monthlyBudget;
-      const draft: Record<string, number | null> = {};
-      for (const c of cats ?? []) {
-        const v = plan.categoryBudgets[c.uid];
-        draft[c.uid] = v && v > 0 ? v : null;
+      if (plan) {
+        if (plan.monthlyBudget > 0) this.monthlyLimit = plan.monthlyBudget;
+        const draft: Record<string, number | null> = {};
+        for (const c of expenseCats) {
+          const v = plan.categoryBudgets[c.uid];
+          draft[c.uid] = v && v > 0 ? v : null;
+        }
+        this.categoryBudgets = draft;
       }
-      this.categoryBudgets = draft;
+    } finally {
+      this.loading.set(false);
     }
   }
 

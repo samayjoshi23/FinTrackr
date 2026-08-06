@@ -300,23 +300,50 @@ export class ReportsService {
     }
 
     const month = this.toMonthKey(date().toDate());
-    const cached = await this.findReportForMonthInCacheOnly(accountId, month);
-    if (cached) {
+
+    // Offline → cache is the best we can do.
+    if (!this.network.isOnline()) {
+      const cached = await this.findReportForMonthInCacheOnly(accountId, month);
       this.dashboardMonthReport.set(cached);
       return cached;
     }
-    if (!this.network.isOnline()) {
-      this.dashboardMonthReport.set(null);
-      return null;
-    }
+
+    // Online → network-first. This is the fix for cross-device sync: another device
+    // (or a previous session) may have posted transactions that already updated the
+    // report doc in Firestore; a cache-only read here would show stale numbers on the
+    // dashboard until the next mutation. Pull the current doc, mirror it into IDB, and
+    // fall back to cache only on network failure.
     try {
-      await this.createOrUpdateMonthlyReport(month);
-    } catch {
-      /* offline / sync error */
+      const snap = await getDocs(
+        query(
+          collection(this.firestore, COLLECTION),
+          where('accountId', '==', accountId),
+          where('month', '==', month),
+        ),
+      );
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const mapped = this.mapReport(d.id, d.data() as Record<string, unknown>);
+        await this.cache.put(STORE, mapped);
+        this.dashboardMonthReport.set(mapped);
+        return mapped;
+      }
+      // Doc missing on the server → build it once from the current data (this seeds
+      // the report so other devices see the same view on their next network-first read).
+      try {
+        await this.createOrUpdateMonthlyReport(month);
+      } catch {
+        /* build failed — fall through to cache */
+      }
+      const built = await this.findReportForMonthInCacheOnly(accountId, month);
+      this.dashboardMonthReport.set(built);
+      return built;
+    } catch (e) {
+      console.warn('ensureCurrentMonthReport: Firestore read failed, serving cache', e);
+      const cached = await this.findReportForMonthInCacheOnly(accountId, month);
+      this.dashboardMonthReport.set(cached);
+      return cached;
     }
-    const built = await this.findReportForMonthInCacheOnly(accountId, month);
-    this.dashboardMonthReport.set(built);
-    return built;
   }
 
   /**

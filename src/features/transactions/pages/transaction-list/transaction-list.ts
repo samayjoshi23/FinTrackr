@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, inject, model, signal } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
-import { AccountMember } from '../../../../shared/models/account.model';
+import { Account, AccountMember, memberStatusOf } from '../../../../shared/models/account.model';
 import { TransactionsService } from '../../../../services/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Category } from '../../../categories/types';
@@ -38,6 +39,7 @@ export class TransactionList {
   private readonly notifier = inject(NotifierService);
   private readonly accountsService = inject(AccountsService);
   private readonly categoriesService = inject(CategoriesService);
+  private readonly auth = inject(Auth);
 
   private readonly pageSize = 25;
   private searchDebounceHandle?: ReturnType<typeof setTimeout>;
@@ -165,13 +167,53 @@ export class TransactionList {
     if (paidBy?.trim()) this.paidByFilter.set(paidBy.trim());
   }
 
-  /** Joined + active non-owner members surface for the "By user" filter. Empty on single-user accounts. */
+  /**
+   * Users who can appear as `paidBy` on a multi-user account.
+   *
+   * Device-relative: the signed-in user's chip is always labeled **"You"** and sits
+   * right after the fixed "All" chip; every other user's chip shows their plain name
+   * (no role suffix — that would double-label the owner). Owner + all non-inactive
+   * members are included, so both the owner's device and a member's device see the
+   * same set of users, just with "You" pointing at whichever one is signed in.
+   *
+   * Empty for single-user accounts.
+   */
   private resolveJoinedMembers(
-    account: { members?: AccountMember[]; accountType?: string; ownerId?: string } | null | undefined,
+    account: Account | null | undefined,
   ): AccountMember[] {
     if (!account || account.accountType !== 'multi-user') return [];
-    const members = Array.isArray(account.members) ? account.members : [];
-    return members.filter((m) => m && m.memberId && m.isJoined && m.isActive);
+    const myUid = this.auth.currentUser?.uid ?? null;
+
+    // Build (uid, name) pairs deduped by uid, including the owner (who isn't in
+    // `account.members`) and every non-inactive listed member.
+    const byUid = new Map<string, string>();
+    if (account.ownerId) {
+      const ownerHit = (account.members ?? []).find((m) => m?.memberId === account.ownerId);
+      byUid.set(account.ownerId, ownerHit?.memberDisplayName?.trim() || 'Owner');
+    }
+    for (const m of account.members ?? []) {
+      if (!m?.memberId) continue;
+      if (memberStatusOf(m) === 'inactive') continue;
+      if (byUid.has(m.memberId)) continue;
+      byUid.set(m.memberId, (m.memberDisplayName || 'Member').trim());
+    }
+
+    // Sort: "You" first (signed-in user), then everyone else alphabetically by name.
+    const rows: AccountMember[] = [...byUid.entries()]
+      .map(([uid, name]) => ({ uid, name }))
+      .sort((a, b) => {
+        if (a.uid === myUid) return -1;
+        if (b.uid === myUid) return 1;
+        return a.name.localeCompare(b.name);
+      })
+      .map(({ uid, name }) => ({
+        memberId: uid,
+        memberDisplayName: uid === myUid ? 'You' : name,
+        status: 'active',
+        isJoined: true,
+        isActive: true,
+      }));
+    return rows;
   }
 
   onBack() {
