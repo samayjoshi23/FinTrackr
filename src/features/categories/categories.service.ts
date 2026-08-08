@@ -31,9 +31,6 @@ import { date, docCalendarDate } from '../../core/date';
 
 const CATEGORIES_COLLECTION = 'categories';
 
-/** Short in-memory dedupe window for `getCategories()` (13+ call sites per render). */
-const CATEGORIES_MEMO_TTL_MS = 10_000;
-
 @Injectable({ providedIn: 'root' })
 export class CategoriesService {
   private readonly firestore = inject(Firestore);
@@ -46,16 +43,13 @@ export class CategoriesService {
   private readonly budgetsService = inject(BudgetsService);
 
   /**
-   * Session memo of the base category rows per account (WITHOUT the synthetic
-   * "Other" row, which is appended fresh on every return). `getCategories()` has
-   * 13+ call sites across pages; without this each one re-reads IndexedDB and can
-   * trigger a background Firestore query. Invalidated on every category mutation.
+   * Retained for source-compatibility with the many call sites that used to invalidate
+   * the in-memory categories memo. TTL invalidation now happens centrally in
+   * `OfflineCrudService.create/update/remove`, so this is a no-op. Call sites are left
+   * in place — deleting them all would be a churny rename with no behavior change.
    */
-  private categoriesMemo: { accountId: string; rows: Category[]; at: number } | null = null;
-
-  /** Drop the in-memory categories memo (mutations + logout). */
   clearSessionCache(): void {
-    this.categoriesMemo = null;
+    /* no-op — see doc comment */
   }
 
   private async selectedAccountKey(): Promise<string | null> {
@@ -74,15 +68,9 @@ export class CategoriesService {
     const accountId = await this.selectedAccountKey();
     if (!accountId) return [];
 
-    const memo = this.categoriesMemo;
-    if (
-      memo &&
-      memo.accountId === accountId &&
-      Date.now() - memo.at < CATEGORIES_MEMO_TTL_MS
-    ) {
-      return [...memo.rows, this.syntheticOtherCategory(accountId)];
-    }
-
+    // Categories are near-static; TTL default (5m) collapses the 13+ per-render call
+    // sites into a single Firestore read per account per window. The synthetic "Other"
+    // row is appended per call, never cached, so category deletes don't ghost it.
     const rows = await this.offlineCrud.fetchAll<Category>(
       'categories',
       async () => {
@@ -95,8 +83,6 @@ export class CategoriesService {
       },
       { indexName: 'accountId', value: accountId },
     );
-    this.categoriesMemo = { accountId, rows: [...rows], at: Date.now() };
-
     return [...rows, this.syntheticOtherCategory(accountId)];
   }
 

@@ -177,7 +177,9 @@ export class SyncService {
           for (const id of entry.sourceIds) {
             await this.syncQueue.dequeue(id);
           }
-          // Network-first reads always re-fetch when online, so nothing to mark stale.
+          // Cache-policy invalidation already happened when the write was queued
+          // (create/update/remove → policy.invalidateStore), so the next SWR read
+          // for this store will hit network and reconcile server truth.
           successCount++;
         } else {
           // `processEntry` returned false without throwing — a data-inconsistency

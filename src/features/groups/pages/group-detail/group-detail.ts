@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
@@ -49,6 +49,7 @@ export class GroupDetail implements OnInit {
   private readonly settlementsService = inject(GroupSettlementsService);
   private readonly notifier = inject(NotifierService);
   private readonly privacyPrefs = inject(PrivacyPreferencesService);
+  private readonly destroyRef = inject(DestroyRef);
 
   loading = signal(true);
   group = signal<Group | null>(null);
@@ -182,6 +183,15 @@ export class GroupDetail implements OnInit {
     const groupId = this.route.snapshot.paramMap.get('id') ?? '';
     const uid = this.auth.currentUser?.uid ?? '';
     this.currentUserId.set(uid);
+
+    // Start a live listener for THIS group's expenses while the detail page is open.
+    // Cross-device edits (a co-member adding an expense from their phone) surface
+    // immediately. Released via DestroyRef when the page navigates away — ref-counted
+    // in the service so multiple simultaneous subscribers share ONE listener.
+    if (groupId) {
+      const releaseListener = this.expensesService.subscribeGroup(groupId);
+      this.destroyRef.onDestroy(releaseListener);
+    }
 
     try {
       const [group, expenses, settlements] = await Promise.all([

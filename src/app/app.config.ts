@@ -13,7 +13,14 @@ import {
   ReCaptchaV3Provider,
 } from '@angular/fire/app-check';
 import { provideAuth, getAuth } from '@angular/fire/auth';
-import { provideFirestore, getFirestore } from '@angular/fire/firestore';
+import { getApp } from '@angular/fire/app';
+import {
+  provideFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  CACHE_SIZE_UNLIMITED,
+} from '@angular/fire/firestore';
 import { provideFunctions, getFunctions } from '@angular/fire/functions';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
@@ -85,7 +92,23 @@ export const appConfig: ApplicationConfig = {
         ]
       : []),
     provideAuth(() => getAuth()),
-    provideFirestore(() => getFirestore()),
+    // Enable Firestore SDK's own persistent IndexedDB cache with multi-tab coordination.
+    // This complements — does NOT replace — the offline-crud layer's IndexedDB mirror:
+    //   - The mirror is what feature services read from (populated via `replaceCache`).
+    //     It handles SWR, custom TTL, pending-sync flags, and cross-store consolidation.
+    //   - The SDK cache is what Firestore's own `getDoc`/`getDocs`/`onSnapshot` fall back
+    //     on when the network is unreachable, and what `getDocsFromCache` reads. It also
+    //     de-duplicates identical queries at the SDK layer inside a single tick.
+    // Together: SWR gates whether we even try Firestore; when we do, the SDK cache can
+    // still answer offline and shares one snapshot subscription across tabs.
+    provideFirestore(() =>
+      initializeFirestore(getApp(), {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+        }),
+      }),
+    ),
     provideFunctions(() => getFunctions()),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideServiceWorker('ngsw-worker.js', {

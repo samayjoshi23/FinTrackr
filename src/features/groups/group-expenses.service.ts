@@ -12,6 +12,7 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  where,
 } from '@angular/fire/firestore';
 import {
   GroupExpense,
@@ -61,11 +62,88 @@ export class GroupExpensesService {
    */
   private readonly _expensesByGroup = signal<Record<string, GroupExpense[]>>({});
 
+  /**
+   * Per-group live listeners. Started explicitly via {@link subscribeGroup} from any
+   * page that keeps a group visible (typically `group-detail`). Ref-counted by
+   * groupId so multiple subscribers share ONE Firestore listener and quota cost.
+   * Unsubscribing the last ref tears down the underlying `onSnapshot`.
+   */
+  private readonly listenerHandles = new Map<
+    string,
+    { unsub: () => void; refCount: number }
+  >();
+
   constructor() {
     effect(() => {
       const _stamp = this.offlineCrud.revalidationCounts()[STORE] ?? 0;
       untracked(() => void this.hydrateAllTrackedGroupsFromCache());
     });
+  }
+
+  /**
+   * Start a live listener for `groupId` (or bump its ref count if one exists). Returns
+   * an unsubscribe function — callers MUST invoke it on component destroy to release
+   * the ref. When the last ref is released, the underlying Firestore listener stops.
+   *
+   * While a listener is active for a group, the SWR TTL for `group-expenses` stays
+   * fresh — subsequent `refreshExpenses(groupId)` calls skip Firestore and cross-device
+   * writes surface immediately (the whole point of adding this for shared groups).
+   */
+  subscribeGroup(groupId: string): () => void {
+    if (!groupId) return () => {};
+    const existing = this.listenerHandles.get(groupId);
+    if (existing) {
+      existing.refCount += 1;
+      return () => this.releaseGroupListener(groupId);
+    }
+    const unsub = this.offlineCrud.subscribeQuery<GroupExpense>(
+      STORE,
+      query(collection(this.firestore, expensesPath(groupId))),
+      (id, data) => {
+        const expense = toExpense(id, data as GroupExpenseDocument);
+        // The subcollection docs don't carry `groupId` in every write path (older
+        // rows may lack it) — stamp it so `replaceCache` with the `groupId` index
+        // filter reconciles this group's slice correctly and the reactive
+        // `expensesForGroup` map picks it up on hydration.
+        return { ...expense, groupId } as GroupExpense;
+      },
+      { indexName: 'groupId', value: groupId },
+    );
+    this.listenerHandles.set(groupId, { unsub, refCount: 1 });
+    // Ensure the reactive map has this group tracked so hydrateAllTrackedGroupsFromCache
+    // picks it up on the next revalidation bump.
+    this._expensesByGroup.update((prev) =>
+      Object.prototype.hasOwnProperty.call(prev, groupId) ? prev : { ...prev, [groupId]: [] },
+    );
+    return () => this.releaseGroupListener(groupId);
+  }
+
+  private releaseGroupListener(groupId: string): void {
+    const handle = this.listenerHandles.get(groupId);
+    if (!handle) return;
+    handle.refCount -= 1;
+    if (handle.refCount <= 0) {
+      try {
+        handle.unsub();
+      } catch (e) {
+        console.warn('GroupExpensesService: listener unsubscribe failed', e);
+      }
+      this.listenerHandles.delete(groupId);
+    }
+  }
+
+  /** Tear down every group listener (call on logout to release Firestore quota). */
+  stopAllGroupListeners(): void {
+    for (const [gid] of this.listenerHandles) {
+      const h = this.listenerHandles.get(gid);
+      if (!h) continue;
+      try {
+        h.unsub();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.listenerHandles.clear();
   }
 
   /** Reactive per-group expenses. Empty array until `refreshExpenses(groupId)` runs. */
@@ -150,13 +228,20 @@ export class GroupExpensesService {
       'id',
       async (assignedId) => {
         const ref = doc(this.firestore, expensesPath(input.groupId), assignedId);
+        const now = new Date();
         await setDoc(ref, {
           ...payload,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const snap = await getDoc(ref);
-        return toExpense(assignedId, snap.data() as GroupExpenseDocument);
+        // Client-projected record instead of a getDoc round-trip — same rationale as
+        // TransactionsService.createTransaction. Server timestamps reconcile on the
+        // next SWR revalidation for this group's expenses.
+        return toExpense(assignedId, {
+          ...(payload as unknown as GroupExpenseDocument),
+          createdAt: now as unknown as GroupExpenseDocument['createdAt'],
+          updatedAt: now as unknown as GroupExpenseDocument['updatedAt'],
+        });
       },
       payload,
       {
@@ -233,9 +318,13 @@ export class GroupExpensesService {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    const snap = await getDoc(ref);
-    const expense = toExpense(docId, snap.data() as GroupExpenseDocument);
-    await this.idbCache.put(STORE, { ...expense, _pendingSync: false });
+    // Flip _pendingSync on the row already in cache — no getDoc round-trip.
+    const existing = (await this.idbCache.getByKey<GroupExpense>(STORE, docId)) as
+      | GroupExpense
+      | undefined;
+    if (existing) {
+      await this.idbCache.put(STORE, { ...existing, _pendingSync: false });
+    }
   }
 
   async applyPendingGroupExpenseUpdate(
@@ -245,10 +334,16 @@ export class GroupExpensesService {
   ): Promise<void> {
     const ref = doc(this.firestore, expensesPath(groupId), expenseId);
     await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const expense = toExpense(expenseId, snap.data() as GroupExpenseDocument);
-      await this.idbCache.put(STORE, { ...expense, _pendingSync: false });
+    // Merge the patch into the local cache row instead of re-reading — same rationale.
+    const existing = (await this.idbCache.getByKey<GroupExpense>(STORE, expenseId)) as
+      | GroupExpense
+      | undefined;
+    if (existing) {
+      await this.idbCache.put(STORE, {
+        ...existing,
+        ...(patch as Record<string, unknown>),
+        _pendingSync: false,
+      } as GroupExpense);
     }
   }
 

@@ -258,11 +258,9 @@ export class GroupsService {
       'groups',
       groupId,
       async () => {
+        // No pre-read: rules enforce group access. `updateDoc` surfaces errors natively;
+        // the sync queue handles retry/failure.
         const ref = doc(this.firestore, COLLECTION, groupId);
-        const existing = await getDoc(ref);
-        if (!existing.exists()) {
-          throw new Error('Group not found.');
-        }
         const updates: Record<string, unknown> = {
           updatedAt: serverTimestamp(),
         };
@@ -281,14 +279,10 @@ export class GroupsService {
     );
   }
 
-  /** Sync worker: apply queued patch to Firestore and refresh IndexedDB row. */
+  /** Sync worker: apply queued patch to Firestore. */
   async applyPendingGroupUpdate(docId: string, patch: Record<string, unknown>): Promise<void> {
     const uid = this.requireUid();
     const ref = doc(this.firestore, COLLECTION, docId);
-    const existing = await getDoc(ref);
-    if (!existing.exists()) {
-      throw new Error('Group not found.');
-    }
     const updates: Record<string, unknown> = {
       updatedAt: serverTimestamp(),
     };
@@ -301,9 +295,17 @@ export class GroupsService {
       Object.assign(updates, deriveGroupMemberIndexes(members));
     }
     await updateDoc(ref, updates);
-    const row = await this.getGroupDirect(docId);
-    if (!row) throw new Error('Failed to read group after sync.');
-    await this.idbCache.put('groups', { ...row, viewerUid: uid, _pendingSync: false });
+    // Flip _pendingSync on the row already in cache — no getDoc round-trip. The next
+    // SWR revalidation reconciles server timestamps.
+    const existing = (await this.idbCache.getByKey<Group>('groups', docId)) as Group | undefined;
+    if (existing) {
+      await this.idbCache.put('groups', {
+        ...existing,
+        ...patch,
+        viewerUid: uid,
+        _pendingSync: false,
+      } as Group);
+    }
   }
 
   async deleteGroup(groupId: string): Promise<void> {

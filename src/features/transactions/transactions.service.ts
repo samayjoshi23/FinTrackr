@@ -49,11 +49,43 @@ export class TransactionsService {
   private readonly _myTransactions = signal<TransactionRecord[]>([]);
   readonly myTransactions = this._myTransactions.asReadonly();
 
+  /**
+   * Live listener for the currently-selected account's transactions. Started/stopped
+   * automatically by the effect below, keyed on `AccountsService.selectedAccount()` so
+   * account switches (and logout) rebind cleanly. While the listener is active, the
+   * cache-policy TTL for `transactions` stays fresh — SWR reads skip Firestore and
+   * cross-device writes propagate the moment the server emits them.
+   */
+  private stopTxListener: (() => void) | null = null;
+  private currentListenerKey: string | null = null;
+
   constructor() {
     effect(() => {
       const _stamp = this.offlineCrud.revalidationCounts()['transactions'] ?? 0;
       untracked(() => void this.hydrateFromCache());
     });
+
+    effect(() => {
+      const acc = this.accountsService.selectedAccount();
+      const key = acc?.uid ?? acc?.id ?? null;
+      untracked(() => this.rebindAccountListener(key));
+    });
+  }
+
+  private rebindAccountListener(accountKey: string | null): void {
+    if (accountKey === this.currentListenerKey) return;
+    if (this.stopTxListener) {
+      this.stopTxListener();
+      this.stopTxListener = null;
+    }
+    this.currentListenerKey = accountKey;
+    if (!accountKey) return;
+    this.stopTxListener = this.offlineCrud.subscribeQuery<TransactionRecord>(
+      'transactions',
+      query(collection(this.firestore, TRANSACTIONS_COLLECTION), where('accountId', '==', accountKey)),
+      (id, data) => this.mapTransaction(id, data),
+      { indexName: 'accountId', value: accountKey },
+    );
   }
 
   private async hydrateFromCache(): Promise<void> {
@@ -96,6 +128,7 @@ export class TransactionsService {
       'uid',
       async (assignedId: string) => {
         const ref = doc(this.firestore, TRANSACTIONS_COLLECTION, assignedId);
+        const now = new Date();
         await setDoc(ref, {
           accountId,
           amount: Number(data.amount),
@@ -113,11 +146,28 @@ export class TransactionsService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const row = await this.getTransactionDirect(assignedId);
-        if (!row) {
-          throw new Error('Failed to read transaction after creation.');
-        }
-        return row;
+        // Return the client-projected record instead of a getDoc round-trip. The
+        // offline-crud layer's `mergePendingSyncFlag` uses this only for fields not
+        // already in the local cache row (client patches always win), so exact
+        // serverTimestamp values don't matter — the next SWR revalidation reconciles.
+        return {
+          uid: assignedId,
+          accountId,
+          amount: Number(data.amount),
+          description: data.description?.trim() ?? '',
+          category: data.category?.trim() ?? '',
+          paidBy: data.paidBy != null && String(data.paidBy).trim() ? String(data.paidBy).trim() : null,
+          icon: data.icon ?? null,
+          isRecurring: data.linkedObject?.type === 'recurring',
+          recurringFrequency: null,
+          recurringTransactionId: null,
+          type: data.type,
+          source: data.source,
+          nextPaymentDate: null,
+          createdAt: now,
+          updatedAt: now,
+          date: data.date ?? day,
+        } as TransactionRecord;
       },
       {
         accountId,
@@ -166,16 +216,15 @@ export class TransactionsService {
       'transactions',
       transactionId,
       async () => {
+        // No pre-read existence check — Firestore rules are the source of truth for
+        // access, and the SWR-cached row we already have (`cached`) proves the doc
+        // was visible at read time. `updateDoc` will surface `permission-denied` or
+        // `not-found` natively; the sync queue's retry/failure path handles surfacing.
         const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
-        const existing = await getDoc(transactionRef);
-        if (!existing.exists() || existing.id !== transactionId) {
-          throw new Error('Transaction not found or access denied.');
-        }
-        const updates: Record<string, unknown> = {
+        await updateDoc(transactionRef, {
           updatedAt: serverTimestamp(),
           ...patchRecord,
-        };
-        await updateDoc(transactionRef, updates);
+        });
       },
       patchRecord,
       cached as unknown as Record<string, unknown>,
@@ -184,11 +233,8 @@ export class TransactionsService {
 
   async deleteTransaction(transactionId: string): Promise<void> {
     await this.offlineCrud.remove('transactions', transactionId, async () => {
+      // See `updateTransaction` — no pre-read; rules enforce access.
       const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
-      const existing = await getDoc(transactionRef);
-      if (!existing.exists() || existing.id !== transactionId) {
-        throw new Error('Transaction not found or access denied.');
-      }
       await deleteDoc(transactionRef);
     });
   }
@@ -217,9 +263,16 @@ export class TransactionsService {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    const row = await this.getTransactionDirect(docId);
-    if (!row) throw new Error('Failed to read transaction after pending create sync.');
-    await this.idbCache.put('transactions', { ...row, _pendingSync: false } as TransactionRecord);
+    // Sync worker path — the local cache row was already created by the offline queue
+    // enqueue and carries `_pendingSync: true`. Just flip the flag; do NOT read the doc
+    // back (that used to double the write cost per queued create). The next SWR
+    // revalidation for this account reconciles server timestamps.
+    const existing = (await this.idbCache.getByKey<TransactionRecord>('transactions', docId)) as
+      | TransactionRecord
+      | undefined;
+    if (existing) {
+      await this.idbCache.put('transactions', { ...existing, _pendingSync: false });
+    }
   }
 
   async getTransaction(transactionId: string): Promise<TransactionRecord | null> {

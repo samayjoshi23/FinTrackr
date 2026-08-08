@@ -137,13 +137,19 @@ export class GroupSettlementsService {
       'id',
       async (assignedId) => {
         const ref = doc(this.firestore, settlementsPath(input.groupId), assignedId);
+        const now = new Date();
         await setDoc(ref, {
           ...payload,
           settledAt: serverTimestamp(),
           createdAt: serverTimestamp(),
         });
-        const snap = await getDoc(ref);
-        return toSettlement(assignedId, snap.data() as GroupSettlementDocument);
+        // Client-projected record — no getDoc round-trip. Server timestamps reconcile
+        // on the next SWR revalidation for this group's settlements.
+        return toSettlement(assignedId, {
+          ...(payload as unknown as GroupSettlementDocument),
+          settledAt: now as unknown as GroupSettlementDocument['settledAt'],
+          createdAt: now as unknown as GroupSettlementDocument['createdAt'],
+        });
       },
       payload,
       {
@@ -176,9 +182,13 @@ export class GroupSettlementsService {
       settledAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     });
-    const snap = await getDoc(ref);
-    const settlement = toSettlement(docId, snap.data() as GroupSettlementDocument);
-    await this.idbCache.put(STORE, { ...settlement, _pendingSync: false });
+    // Flip _pendingSync on the row already in cache — no getDoc round-trip.
+    const existing = (await this.idbCache.getByKey<GroupSettlement>(STORE, docId)) as
+      | GroupSettlement
+      | undefined;
+    if (existing) {
+      await this.idbCache.put(STORE, { ...existing, _pendingSync: false });
+    }
   }
 
   // ─── Private ────────────────────────────────────────────────────────────────

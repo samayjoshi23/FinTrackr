@@ -28,6 +28,7 @@ import { SyncService } from '../offline/sync.service';
 import { FcmService } from '../../features/notifications/fcm.service';
 import { NotificationService } from '../../features/notifications/notification.service';
 import { AccountsService } from '../../features/accounts/accounts.service';
+import { GroupExpensesService } from '../../features/groups/group-expenses.service';
 import { UsersLookupService } from '../../services/users-lookup.service';
 import { NotificationPreferencesService } from '../../features/notifications/notification-preferences.service';
 import { date } from '../date';
@@ -75,6 +76,7 @@ export class AuthService {
   private readonly fcmService = inject(FcmService);
   private readonly notificationService = inject(NotificationService);
   private readonly accountsService = inject(AccountsService);
+  private readonly groupExpensesService = inject(GroupExpensesService);
   private readonly usersLookup = inject(UsersLookupService);
   private readonly notificationPrefs = inject(NotificationPreferencesService);
 
@@ -104,6 +106,10 @@ export class AuthService {
       } else {
         void this.notificationService.clearAll();
         this.accountsService.stopRealtime();
+        // Release per-group live listeners so a signed-out session doesn't keep
+        // charging Firestore quota. Transactions/budgets listeners tear down
+        // automatically when `selectedAccount` clears (their effect rebinds to null).
+        this.groupExpensesService.stopAllGroupListeners();
       }
     });
   }

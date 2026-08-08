@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { effect, inject, Injectable, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
@@ -39,6 +39,38 @@ export class BudgetsService {
   private readonly network = inject(NetworkService);
   private readonly accountsService = inject(AccountsService);
 
+  /**
+   * Live listener for the currently-selected account's budgets. Rebinds automatically
+   * when the selection changes. Same design as {@link TransactionsService} — while
+   * active it keeps the `budgets` TTL fresh so cross-device edits propagate instantly.
+   */
+  private stopBudgetsListener: (() => void) | null = null;
+  private currentBudgetsListenerKey: string | null = null;
+
+  constructor() {
+    effect(() => {
+      const acc = this.accountsService.selectedAccount();
+      const key = acc?.uid ?? acc?.id ?? null;
+      untracked(() => this.rebindAccountListener(key));
+    });
+  }
+
+  private rebindAccountListener(accountKey: string | null): void {
+    if (accountKey === this.currentBudgetsListenerKey) return;
+    if (this.stopBudgetsListener) {
+      this.stopBudgetsListener();
+      this.stopBudgetsListener = null;
+    }
+    this.currentBudgetsListenerKey = accountKey;
+    if (!accountKey) return;
+    this.stopBudgetsListener = this.offlineCrud.subscribeQuery<Budget>(
+      'budgets',
+      query(collection(this.firestore, BUDGETS_COLLECTION), where('accountId', '==', accountKey)),
+      (id, data) => this.mapBudget(id, data),
+      { indexName: 'accountId', value: accountKey },
+    );
+  }
+
   private async selectedAccountKey(): Promise<string | null> {
     const a = await this.accountsService.getSelectedAccount();
     return a?.uid ?? a?.id ?? null;
@@ -59,6 +91,7 @@ export class BudgetsService {
       'id',
       async (assignedId: string) => {
         const ref = doc(this.firestore, BUDGETS_COLLECTION, assignedId);
+        const now = new Date();
         await setDoc(ref, {
           ownerId: uid,
           accountId,
@@ -71,11 +104,23 @@ export class BudgetsService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        const budget = await this.getBudgetDirect(assignedId, uid);
-        if (!budget) {
-          throw new Error('Failed to read budget after creation.');
-        }
-        return budget;
+        // Return the client-projected budget instead of re-reading — see the analogous
+        // note in TransactionsService.createTransaction. `mergePendingSyncFlag` will
+        // merge under the local cache row so this shape only needs to be complete
+        // enough for downstream consumers that read the return value directly.
+        return {
+          id: assignedId,
+          ownerId: uid,
+          accountId,
+          limit: Number(data.limit),
+          month: data.month,
+          name: data.name?.trim() || 'Budget',
+          category: data.category?.trim() || '',
+          categoryId: data.categoryId?.trim() || null,
+          date: day,
+          createdAt: now,
+          updatedAt: now,
+        } as unknown as Budget;
       },
       {
         ownerId: uid,
@@ -107,9 +152,14 @@ export class BudgetsService {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    const budget = await this.getBudgetDirect(docId, uid);
-    if (!budget) throw new Error('Failed to read budget after pending create sync.');
-    await this.idbCache.put('budgets', { ...budget, _pendingSync: false });
+    // Same pattern as TransactionsService.applyPendingTransactionCreate: flip the flag
+    // on the row already in cache instead of re-reading the doc.
+    const existing = (await this.idbCache.getByKey<Budget>('budgets', docId)) as
+      | Budget
+      | undefined;
+    if (existing) {
+      await this.idbCache.put('budgets', { ...existing, _pendingSync: false });
+    }
   }
 
   async updateBudget(budgetId: string, patch: BudgetUpdateInput): Promise<void> {
@@ -142,16 +192,13 @@ export class BudgetsService {
       'budgets',
       budgetId,
       async () => {
+        // No pre-read: Firestore rules enforce `ownerId` on updates. `updateDoc` will
+        // surface `permission-denied` natively; the offline layer catches and queues.
         const budgetRef = doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`);
-        const existing = await getDoc(budgetRef);
-        if (!existing.exists() || existing.data()['ownerId'] !== uid) {
-          throw new Error('Budget not found or access denied.');
-        }
-        const updates: Record<string, unknown> = {
+        await updateDoc(budgetRef, {
           updatedAt: serverTimestamp(),
           ...patchRecord,
-        };
-        await updateDoc(budgetRef, updates);
+        });
       },
       patchRecord,
       cached as unknown as Record<string, unknown>,
@@ -197,12 +244,10 @@ export class BudgetsService {
 
   async deleteBudget(budgetId: string): Promise<void> {
     await this.offlineCrud.remove('budgets', budgetId, async () => {
-      const uid = this.requireUid();
+      // No pre-read: rules enforce ownerId. `deleteDoc` surfaces `permission-denied`
+      // natively; the offline layer catches and queues (idempotent delete on retry).
+      this.requireUid(); // auth guard (avoids anon writes even before rules)
       const budgetRef = doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`);
-      const existing = await getDoc(budgetRef);
-      if (!existing.exists() || existing.data()['ownerId'] !== uid) {
-        throw new Error('Budget not found or access denied.');
-      }
       await deleteDoc(budgetRef);
     });
   }

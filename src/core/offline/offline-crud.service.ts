@@ -1,9 +1,17 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Firestore, collection, doc } from '@angular/fire/firestore';
+import {
+  Firestore,
+  collection,
+  doc,
+  onSnapshot,
+  DocumentData,
+  Query,
+} from '@angular/fire/firestore';
 import { NetworkService } from './network.service';
 import { IndexedDbCacheService } from './indexed-db-cache.service';
 import { SyncQueueService } from './sync-queue.service';
 import { PostSyncCallable } from './sync-queue.model';
+import { CachePolicyService, CacheScope, ReadCachePolicy } from './cache-policy.service';
 import { TransactionRecord } from '../../shared/models/transaction.model';
 import {
   applyTransactionFilters,
@@ -32,6 +40,7 @@ export class OfflineCrudService {
   private readonly network = inject(NetworkService);
   private readonly cache = inject(IndexedDbCacheService);
   private readonly syncQueue = inject(SyncQueueService);
+  private readonly policy = inject(CachePolicyService);
 
   /**
    * Per-store "data refreshed" counter, bumped after every successful online read
@@ -74,39 +83,112 @@ export class OfflineCrudService {
   }
 
   /**
-   * READ list — **network-first when online, cache when offline.**
+   * READ list — **stale-while-revalidate with per-store TTL.**
    *
-   * - Online → Firestore is the source of truth: fetch it, mirror it into IndexedDB
-   *   (preserving un-synced local writes), and return the refreshed cache slice. This
-   *   makes every navigation reflect the latest server state, so cross-device changes
-   *   and deletes surface immediately and stale/deleted rows can't linger.
-   * - Offline → serve the IndexedDB slice.
-   * - On a Firestore error → log the cause (esp. `permission-denied`) and fall back to
-   *   cache so the app degrades gracefully instead of blanking.
+   * Behavior matrix:
+   *   - **Offline** → serve IndexedDB, no revalidation attempt.
+   *   - **`cacheOnly: true`** → serve IndexedDB unconditionally (aggregators / bulk report
+   *     rebuilds should not re-hit Firestore for data that's already being kept fresh).
+   *   - **Online + fresh** (last network read within TTL) → serve IndexedDB, no round-trip.
+   *   - **Online + stale** → serve IndexedDB immediately AND kick off a background revalidation.
+   *     When it lands, `revalidationCounts[storeName]` bumps and feature-service effects
+   *     re-hydrate their signals so the UI updates.
+   *
+   * The TTL row lives in the `sync-metadata` IndexedDB store, so freshness survives page
+   * reloads AND is shared across tabs. Concurrent callers for the same fingerprint share
+   * one in-flight promise (see {@link CachePolicyService.coalesce}), so a dashboard mount
+   * + list mount + widget refresh in the same tick collapse to a single Firestore query.
+   *
+   * On a Firestore error the cause is logged (esp. `permission-denied`) and the current
+   * cache slice is what the UI keeps showing — no blanking.
    */
   async fetchAll<T>(
     storeName: string,
     firestoreFn: () => Promise<T[]>,
     indexFilter?: { indexName: string; value: IDBValidKey },
+    policy?: ReadCachePolicy,
   ): Promise<T[]> {
-    if (!this.network.isOnline()) {
-      return this.readFromCache<T>(storeName, indexFilter);
+    const scope: CacheScope = indexFilter
+      ? { kind: 'index', indexName: indexFilter.indexName, value: indexFilter.value }
+      : { kind: 'all' };
+    const key = this.policy.cacheKey(storeName, scope);
+    const ttl = this.policy.ttlFor(storeName, policy?.maxAgeMs);
+
+    // Burst dedup — collapses the many synchronous call sites (e.g. `getCategories()` fired
+    // 13+ times per render) into a single IDB round-trip. Bypass on force-refresh so
+    // `maxAgeMs: 0` always hits the network.
+    if (policy?.maxAgeMs !== 0) {
+      const memoed = this.policy.getBurst<T[]>(key);
+      if (memoed !== undefined) return memoed;
     }
+
+    if (policy?.cacheOnly || !this.network.isOnline()) {
+      const rows = await this.readFromCache<T>(storeName, indexFilter);
+      this.policy.putBurst(key, rows);
+      return rows;
+    }
+
+    const fresh = await this.policy.isFresh(key, ttl);
+    if (fresh) {
+      const rows = await this.readFromCache<T>(storeName, indexFilter);
+      this.policy.putBurst(key, rows);
+      return rows;
+    }
+
+    // Stale + online: return cached NOW, revalidate in background. If the caller
+    // explicitly asked for `maxAgeMs: 0` (pull-to-refresh / post-write refetch) we still
+    // want to AWAIT the network read — that's the whole point of the override.
+    const revalidate = () =>
+      this.policy.coalesce(key, () => this.revalidateList(storeName, firestoreFn, indexFilter, key));
+
+    if (policy?.maxAgeMs === 0) {
+      try {
+        await revalidate();
+      } catch {
+        /* revalidateList already logged and swallowed; fall through to cache read */
+      }
+      const rows = await this.readFromCache<T>(storeName, indexFilter);
+      this.policy.putBurst(key, rows);
+      return rows;
+    }
+
+    void revalidate();
+    const rows = await this.readFromCache<T>(storeName, indexFilter);
+    this.policy.putBurst(key, rows);
+    return rows;
+  }
+
+  /**
+   * Background revalidation body extracted so both blocking + non-blocking paths share it.
+   * Snapshots the store's epoch BEFORE the network call so a racing local-write invalidation
+   * makes `markFresh` no-op — preserving the invalidation instead of silently re-freshening
+   * the cache on top of it.
+   */
+  private async revalidateList<T>(
+    storeName: string,
+    firestoreFn: () => Promise<T[]>,
+    indexFilter: { indexName: string; value: IDBValidKey } | undefined,
+    key: string,
+  ): Promise<void> {
+    const epochAtStart = this.policy.snapshotEpoch(storeName);
     try {
       const results = await this.withTimeout(firestoreFn());
       await this.replaceCache(storeName, results, indexFilter);
+      await this.policy.markFresh(key, storeName, epochAtStart);
       this.emitRefreshed(storeName);
-      // Return the reconciled cache (server truth + any un-synced local pending rows).
-      return this.readFromCache<T>(storeName, indexFilter);
     } catch (e) {
       this.logReadError(storeName, e);
-      return this.readFromCache<T>(storeName, indexFilter);
     }
   }
 
   /**
-   * READ transactions — network-first (same model as {@link fetchAll}), then
-   * filter/sort/paginate in the offline layer so components avoid scanning full lists.
+   * READ transactions — SWR (same model as {@link fetchAll}) with client-side
+   * filter/sort/pagination so components avoid scanning full lists.
+   *
+   * Filter/offset/limit intentionally DO NOT participate in the cache fingerprint: the
+   * server query fetches the full account slice and filtering is done in-memory, so the
+   * TTL is scoped only to the account. That's what collapses "sort by date → filter by
+   * category → change offset" into one Firestore read.
    */
   async fetchTransactionsPage(
     accountKey: string,
@@ -114,58 +196,173 @@ export class OfflineCrudService {
     offset: number,
     limit: number,
     firestoreFn: () => Promise<TransactionRecord[]>,
+    policy?: ReadCachePolicy,
   ): Promise<TransactionPagedResult> {
     const indexFilter = { indexName: 'accountId', value: accountKey };
-    let rows: TransactionRecord[];
-    if (!this.network.isOnline()) {
-      rows = await this.readFromCache<TransactionRecord>('transactions', indexFilter);
-    } else {
-      try {
-        const results = await this.withTimeout(firestoreFn());
-        await this.replaceCache('transactions', results, indexFilter);
-        this.emitRefreshed('transactions');
-        rows = await this.readFromCache<TransactionRecord>('transactions', indexFilter);
-      } catch (e) {
-        this.logReadError('transactions', e);
-        rows = await this.readFromCache<TransactionRecord>('transactions', indexFilter);
-      }
-    }
+    await this.fetchAll<TransactionRecord>('transactions', firestoreFn, indexFilter, policy);
+    const rows = await this.readFromCache<TransactionRecord>('transactions', indexFilter);
     const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(rows, filter));
     return paginateTransactionRows(pipeline, offset, limit);
   }
 
   /**
-   * READ single — network-first when online, cache when offline.
-   * On any Firestore error (incl. `permission-denied`, which is logged distinctly)
-   * it degrades to the cached value or `null` — matching the pre-refactor contract,
-   * so no caller has to handle a new throw.
+   * Subscribe to a Firestore Query and stream every server-side change into the local
+   * cache using the same reconciliation path as SWR reads. This is the "real-time
+   * listener" that closes the cross-device sync-lag gap SWR alone introduces —
+   * particularly for shared-account transactions / budgets.
+   *
+   * Composition with SWR:
+   *   1. On every server snapshot, `replaceCache` reconciles rows (preserving un-synced
+   *      local writes and pending deletes) and `emitRefreshed` bumps the store's
+   *      revalidation counter so feature-service effects re-hydrate.
+   *   2. `markFresh` stamps a fresh TTL so subsequent `fetchAll` calls during the
+   *      listener's lifetime skip Firestore entirely — the listener now owns freshness.
+   *   3. Snapshots with `metadata.fromCache: true` are IGNORED — SWR already handles
+   *      local reads via IndexedDB; the listener's job is to reflect SERVER truth.
+   *      This also avoids a loop with our own optimistic writes.
+   *
+   * Returns the unsubscribe function. Callers MUST call it on account switch / group
+   * close / logout — otherwise listeners leak and quota keeps ticking.
+   *
+   * @param indexFilter same shape as `fetchAll` — needed so `replaceCache` scopes
+   *   the reconciliation to the same slice the query returned. MUST match the query's
+   *   `where(...)` filter or you'll prune rows the query didn't cover.
+   */
+  subscribeQuery<T>(
+    storeName: string,
+    q: Query<DocumentData>,
+    mapper: (id: string, data: DocumentData) => T,
+    indexFilter?: { indexName: string; value: IDBValidKey },
+  ): () => void {
+    const scope: CacheScope = indexFilter
+      ? { kind: 'index', indexName: indexFilter.indexName, value: indexFilter.value }
+      : { kind: 'all' };
+    const key = this.policy.cacheKey(storeName, scope);
+    // We deliberately do NOT ask for metadata changes — `includeMetadataChanges: true`
+    // fires extra events for pending-write state transitions we already track via the
+    // sync queue and `_pendingSync` flag.
+    const unsub = onSnapshot(
+      q,
+      // includeMetadataChanges:false → we only get callbacks when DATA changes, not
+      // metadata alone. That's what makes it safe to consume every snapshot:
+      //   - Firestore SDK persistent cache may emit an initial `fromCache: true`
+      //     snapshot with the same data the server would return. Skipping it (an
+      //     earlier design) meant `markFresh` never ran when the cache was already
+      //     warm — the store's TTL stayed stale for the entire listener session.
+      //   - Our own optimistic writes go through `setDoc`, which triggers the
+      //     listener with the row we just wrote. `replaceCache` respects
+      //     `_pendingSync: true` on the local IDB row, so an echo cannot clobber
+      //     an in-flight local write. Redundant IDB writes here are trivial.
+      { includeMetadataChanges: false },
+      (snap) => {
+        const results = snap.docs.map((d) => mapper(d.id, d.data()));
+        void (async () => {
+          await this.replaceCache(storeName, results, indexFilter);
+          // Safe with no epoch guard: a concurrent local write invalidates the
+          // store on its own path (`create`/`update`/`remove` → `invalidateStore`),
+          // and the next snapshot after the server accepts it overwrites this.
+          await this.policy.markFresh(key);
+          this.emitRefreshed(storeName);
+        })();
+      },
+      (err) => this.logReadError(storeName, err),
+    );
+    return unsub;
+  }
+
+  /**
+   * READ single — SWR (same policy layer as {@link fetchAll}).
+   *
+   *   - Offline / `cacheOnly` → return the cache row (or `null`), no network.
+   *   - Pending-delete for this id → `null` (do not resurrect an offline-deleted row).
+   *   - Local `_pendingSync: true` → return the local row (server may still hold an older
+   *     version until the sync queue drains).
+   *   - Fresh within TTL → return the cache row.
+   *   - Stale + online → return cache immediately AND revalidate in background. If the
+   *     caller passed `maxAgeMs: 0`, block on the network read and return that.
+   *
+   * Contract preserved: any Firestore error degrades to the cached value or `null`, so
+   * no caller has to handle a new throw.
    */
   async fetchOne<T>(
     storeName: string,
     key: string | number,
     firestoreFn: () => Promise<T | null>,
+    policy?: ReadCachePolicy,
   ): Promise<T | null> {
+    const fingerprint = this.policy.cacheKey(storeName, { kind: 'doc', id: key });
+
+    // Burst dedup for repeat calls within ~500ms. Bypass on force-refresh.
+    if (policy?.maxAgeMs !== 0) {
+      const memoed = this.policy.getBurst<T | null>(fingerprint);
+      if (memoed !== undefined) return memoed;
+    }
+
     const cachedRow = await this.cache.getByKey<Record<string, unknown>>(storeName, key);
 
-    if (!this.network.isOnline()) {
-      return (cachedRow as T) ?? null;
+    if (policy?.cacheOnly || !this.network.isOnline()) {
+      const out = ((cachedRow as T) ?? null);
+      this.policy.putBurst(fingerprint, out);
+      return out;
     }
-    // A queued offline delete means this doc is gone locally — don't resurrect it.
+    // The two short-circuits below reflect local-write state that another caller in the
+    // burst window MUST NOT share (e.g. one call deletes, next call within 500ms would
+    // otherwise see the pre-delete cached row). Do NOT burst-cache these paths.
     if ((await this.syncQueue.pendingDeleteIdsForStore(storeName)).has(String(key))) {
       return null;
     }
-    // Never let a server read overwrite/delete an un-synced local write — the local
-    // (optimistic create / offline edit) row is authoritative until the queue syncs it.
     if (cachedRow?.['_pendingSync'] === true) {
       return cachedRow as T;
     }
+
+    const ttl = this.policy.ttlFor(storeName, policy?.maxAgeMs);
+    const fresh = await this.policy.isFresh(fingerprint, ttl);
+    if (fresh) {
+      const out = ((cachedRow as T) ?? null);
+      this.policy.putBurst(fingerprint, out);
+      return out;
+    }
+
+    const revalidate = () =>
+      this.policy.coalesce(fingerprint, () => this.revalidateOne(storeName, key, firestoreFn, fingerprint));
+
+    if (policy?.maxAgeMs === 0) {
+      try {
+        const out = await revalidate();
+        this.policy.putBurst(fingerprint, out);
+        return out;
+      } catch {
+        return ((await this.cache.getByKey<T>(storeName, key)) as T) ?? null;
+      }
+    }
+
+    void revalidate();
+    const out = ((cachedRow as T) ?? null);
+    this.policy.putBurst(fingerprint, out);
+    return out;
+  }
+
+  /**
+   * Background single-doc revalidation body shared by blocking + non-blocking paths.
+   * Snapshots the store epoch so a racing local write's invalidation can't be silently
+   * clobbered by our trailing `markFresh` — see {@link revalidateList}.
+   */
+  private async revalidateOne<T>(
+    storeName: string,
+    key: string | number,
+    firestoreFn: () => Promise<T | null>,
+    fingerprint: string,
+  ): Promise<T | null> {
+    const epochAtStart = this.policy.snapshotEpoch(storeName);
     try {
       const result = await this.withTimeout(firestoreFn());
       if (result) {
         await this.cache.put(storeName, result);
       } else {
-        await this.cache.delete(storeName, key); // server says it's gone → mirror that
+        await this.cache.delete(storeName, key);
       }
+      await this.policy.markFresh(fingerprint, storeName, epochAtStart);
+      this.emitRefreshed(storeName);
       return result;
     } catch (e) {
       this.logReadError(storeName, e);
@@ -215,9 +412,11 @@ export class OfflineCrudService {
     }
 
     await this.cache.put(storeName, optimistic);
-    // Do NOT markStale here — the cache row we just wrote IS the local truth.
-    // A revalidation now would just re-fetch what we already have. The store's
-    // TTL will trigger natural revalidation later to catch multi-device writes.
+    // Do NOT re-fetch — the cache row we just wrote IS the local truth. But DO invalidate
+    // the store's TTL so the next SWR read for this store is allowed to hit network and
+    // pick up other devices' concurrent writes. Without this, a user who adds a row
+    // wouldn't see other devices' additions for up to the TTL window.
+    await this.policy.invalidateStore(storeName);
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({
@@ -286,9 +485,8 @@ export class OfflineCrudService {
     } as unknown as T;
 
     await this.cache.put(storeName, optimistic);
-    // Do NOT markStale here — the cache row we just wrote IS the local truth.
-    // A revalidation now would just re-fetch what we already have. The store's
-    // TTL will trigger natural revalidation later to catch multi-device writes.
+    // See {@link create} for the invalidation rationale.
+    await this.policy.invalidateStore(storeName);
 
     const postSyncCallables = options?.postSyncCallablesBuilder?.(assignedId);
 
@@ -414,7 +612,8 @@ export class OfflineCrudService {
       _pendingSync: true,
     } as unknown as T;
     await this.cache.put(storeName, updated);
-    // Do NOT markStale — the patched row we just wrote IS the local truth.
+    // See {@link create} for the invalidation rationale.
+    await this.policy.invalidateStore(storeName);
 
     // Monthly reports are derived from transactions/budgets — the sync pass rebuilds
     // them via `rebuildReportsForMonths`, so queuing raw patches would only race that
@@ -452,6 +651,8 @@ export class OfflineCrudService {
     extraPayload?: Record<string, unknown>,
   ): Promise<void> {
     await this.cache.delete(storeName, docId);
+    // See {@link create} for the invalidation rationale.
+    await this.policy.invalidateStore(storeName);
 
     const enqueuePending = async () => {
       await this.syncQueue.enqueue({

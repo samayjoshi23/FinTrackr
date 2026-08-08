@@ -6,6 +6,7 @@ import {
   Firestore,
   getDoc,
   getDocs,
+  or,
   query,
   collection,
   serverTimestamp,
@@ -32,13 +33,6 @@ import { NetworkService } from '../../core/offline/network.service';
 import { date, docCalendarDate } from '../../core/date';
 
 const ACCOUNTS_COLLECTION = 'accounts';
-
-/**
- * Short in-memory dedupe window for `getAccounts()`. `getSelectedAccount()` is called
- * many times per render; this collapses those into one Firestore read without holding
- * stale data across navigations (network-first: each navigation re-reads).
- */
-const ACCOUNTS_MEMO_TTL_MS = 5_000;
 
 function deriveAccountMemberIndexes(members: AccountMember[]): {
   memberIds: string[];
@@ -76,13 +70,6 @@ export class AccountsService {
   private readonly cache = inject(IndexedDbCacheService);
   private readonly network = inject(NetworkService);
   private readonly functions = inject(Functions);
-
-  /**
-   * Session memo for the accounts list. `getSelectedAccount()` is called from nearly
-   * every page/service; without this each call re-reads IndexedDB (and can trigger a
-   * background Firestore revalidation). Invalidated on every account mutation.
-   */
-  private accountsMemo: { uid: string; accounts: Account[]; at: number } | null = null;
 
   /**
    * Reactive source of truth for the current user's accounts. Populated by
@@ -134,9 +121,14 @@ export class AccountsService {
     this.clearSessionCache();
   }
 
-  /** Drop the in-memory accounts memo (mutations + logout). */
+  /**
+   * Retained for source-compatibility with the many call sites that used to invalidate
+   * the in-memory accounts memo. TTL invalidation now happens centrally in
+   * `OfflineCrudService.create/update/remove`, so this is a no-op. The call sites are
+   * left in place — deleting them all would be a churny rename with no behavior change.
+   */
   clearSessionCache(): void {
-    this.accountsMemo = null;
+    /* no-op — see doc comment */
   }
 
   /**
@@ -465,19 +457,13 @@ export class AccountsService {
    */
   async getAccounts(userId?: string): Promise<Account[]> {
     const uid = userId ?? this.requireUid();
-
-    const memo = this.accountsMemo;
-    if (memo && memo.uid === uid && Date.now() - memo.at < ACCOUNTS_MEMO_TTL_MS) {
-      return [...memo.accounts];
-    }
-
-    const accounts = await this.offlineCrud.fetchAll<Account>(
+    // Repeat calls in the TTL window (~60s) are served from IndexedDB with no
+    // Firestore round-trip — dedup handled by CachePolicyService (per-viewer index key).
+    return this.offlineCrud.fetchAll<Account>(
       'accounts',
       () => this.fetchMyAccountsFromFirestore(uid),
       { indexName: 'viewerUid', value: uid },
     );
-    this.accountsMemo = { uid, accounts: [...accounts], at: Date.now() };
-    return accounts;
   }
 
   /**
@@ -493,14 +479,6 @@ export class AccountsService {
    */
   private async fetchMyAccountsFromFirestore(uid: string): Promise<Account[]> {
     const col = collection(this.firestore, ACCOUNTS_COLLECTION);
-    // allSettled, NOT all: one failing query (e.g. the `memberIds` shared-account
-    // query being denied by not-yet-deployed rules) must not wipe the accounts the
-    // OTHER queries returned. Each source contributes what it can.
-    const [ownedRes, primaryRes, memberRes] = await Promise.allSettled([
-      getDocs(query(col, where('ownerId', '==', uid))),
-      getDoc(this.accountDocRef(uid)),
-      getDocs(query(col, where('memberIds', 'array-contains', uid))),
-    ]);
 
     const seen = new Set<string>();
     const out: Account[] = [];
@@ -511,31 +489,50 @@ export class AccountsService {
       out.push(this.mapAccount(id, data));
     };
 
-    if (ownedRes.status === 'fulfilled') {
-      for (const d of ownedRes.value.docs) push(d.id, d.data());
-    } else {
-      console.warn('AccountsService: owned-accounts query failed', ownedRes.reason);
-    }
-    if (primaryRes.status === 'fulfilled' && primaryRes.value.exists()) {
-      push(primaryRes.value.id, primaryRes.value.data());
-    }
-    if (memberRes.status === 'fulfilled') {
-      for (const d of memberRes.value.docs) push(d.id, d.data());
-    } else {
+    // Single OR query replaces the previous three parallel getDocs. Firestore v9+
+    // executes this server-side, cutting reads to 1 per revalidation (from 3) and
+    // halving the client work per SWR cycle. On failure we still attempt the direct
+    // primary-doc read below so a modern user isn't completely blanked by one hiccup.
+    let orQueryOk = false;
+    try {
+      const snap = await getDocs(
+        query(
+          col,
+          or(where('ownerId', '==', uid), where('memberIds', 'array-contains', uid)),
+        ),
+      );
+      for (const d of snap.docs) push(d.id, d.data());
+      orQueryOk = true;
+    } catch (e) {
       console.warn(
-        'AccountsService: shared-accounts (memberIds) query failed — shared accounts ' +
-          'hidden until Firestore rules are deployed',
-        memberRes.reason,
+        'AccountsService: combined accounts query failed — falling back to primary-doc read',
+        e,
       );
     }
 
-    // Only propagate a failure if EVERY source failed (nothing to show / cache fallback).
-    if (
-      ownedRes.status === 'rejected' &&
-      primaryRes.status === 'rejected' &&
-      memberRes.status === 'rejected'
-    ) {
-      throw ownedRes.reason;
+    // Legacy safety net: the primary account's doc id equals the owner's uid and may
+    // predate BOTH the `ownerId` field AND `memberIds` — the OR query above wouldn't
+    // return it in that case. One extra `getDoc` (cheap; served from SDK cache on
+    // repeat calls now that persistentLocalCache is on) keeps those users visible.
+    let primaryQueryOk = false;
+    if (!seen.has(uid)) {
+      try {
+        const primary = await getDoc(this.accountDocRef(uid));
+        if (primary.exists()) push(primary.id, primary.data());
+        primaryQueryOk = true;
+      } catch (e) {
+        console.warn('AccountsService: primary-doc fallback read failed', e);
+      }
+    } else {
+      primaryQueryOk = true; // OR query already surfaced the primary — no need to hit again
+    }
+
+    // If EVERY source failed, propagate — offline-crud degrades to the cached slice
+    // instead of pruning it (a partial failure must never wipe visible accounts).
+    // If any source succeeded (even with zero results — e.g. brand-new user), return
+    // what we have.
+    if (!orQueryOk && !primaryQueryOk) {
+      throw new Error('AccountsService: all account queries failed');
     }
     return out;
   }
