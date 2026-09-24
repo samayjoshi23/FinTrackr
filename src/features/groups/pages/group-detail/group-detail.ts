@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
@@ -17,7 +17,6 @@ import {
   MemberBalance,
 } from '../../../../shared/models/group.model';
 import { AddExpenseModal } from '../../components/add-expense-modal/add-expense-modal';
-import { SettleUpModal } from '../../components/settle-up-modal/settle-up-modal';
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
 import { ExpenseDetailModal } from '../../components/expense-detail-modal/expense-detail-modal';
 import { SettlementDetailModal } from '../../components/settlement-detail-modal/settlement-detail-modal';
@@ -32,7 +31,6 @@ const PLACEHOLDER_YOU = 'You';
     CommonModule,
     Icon,
     AddExpenseModal,
-    SettleUpModal,
     ExpenseDetailModal,
     SettlementDetailModal,
     ConfirmPrompt,
@@ -56,16 +54,30 @@ export class GroupDetail implements OnInit {
   expenses = signal<GroupExpense[]>([]);
   settlements = signal<GroupSettlement[]>([]);
   currentUserId = signal('');
+  /** Current group id — drives the realtime mirror effect below. */
+  private readonly groupIdSig = signal('');
+
+  constructor() {
+    // Realtime: mirror the services' reactive per-group signals (fed by the live
+    // Firestore listeners started in ngOnInit) into the rendered state. Without
+    // this, the page only ever showed the one-shot snapshot read at load time, so
+    // a co-member's expense or settlement added on another device never appeared
+    // until a manual reload. Local optimistic mutations still update these signals
+    // directly for instant feedback; the listener echo reconciles them here.
+    effect(() => {
+      const gid = this.groupIdSig();
+      if (!gid) return;
+      this.expenses.set(this.expensesService.expensesForGroup(gid)());
+    });
+    effect(() => {
+      const gid = this.groupIdSig();
+      if (!gid) return;
+      this.settlements.set(this.settlementsService.settlementsForGroup(gid)());
+    });
+  }
 
   addExpenseOpen = signal(false);
-  settleUpOpen = signal(false);
   activeTab = signal<'expenses' | 'balances'>('expenses');
-
-  /** Pre-selected member id and pre-filled amount when opening settle-up from a balance card. */
-  settleUpTargetMemberId = signal('');
-  settleUpInitialAmount = signal('');
-  /** Member list passed to the settle-up modal; single-element when opened from a balance card. */
-  settleUpMembers = signal<GroupMember[]>([]);
 
   /** Expense detail modal */
   selectedExpense = signal<GroupExpense | null>(null);
@@ -183,21 +195,29 @@ export class GroupDetail implements OnInit {
     const groupId = this.route.snapshot.paramMap.get('id') ?? '';
     const uid = this.auth.currentUser?.uid ?? '';
     this.currentUserId.set(uid);
+    this.groupIdSig.set(groupId);
 
-    // Start a live listener for THIS group's expenses while the detail page is open.
-    // Cross-device edits (a co-member adding an expense from their phone) surface
-    // immediately. Released via DestroyRef when the page navigates away — ref-counted
-    // in the service so multiple simultaneous subscribers share ONE listener.
+    // Start live listeners for THIS group's expenses AND settlements while the detail
+    // page is open. Cross-device edits (a co-member adding an expense or settling up
+    // from their phone) surface immediately via the mirror effects in the constructor.
+    // Released via DestroyRef when the page navigates away — ref-counted in each
+    // service so multiple simultaneous subscribers share ONE listener.
     if (groupId) {
-      const releaseListener = this.expensesService.subscribeGroup(groupId);
-      this.destroyRef.onDestroy(releaseListener);
+      const releaseExpenses = this.expensesService.subscribeGroup(groupId);
+      const releaseSettlements = this.settlementsService.subscribeGroup(groupId);
+      this.destroyRef.onDestroy(() => {
+        releaseExpenses();
+        releaseSettlements();
+      });
     }
 
     try {
+      // refresh* publish into the services' reactive signals, which the constructor
+      // effects mirror into this.expenses / this.settlements (initial paint + realtime).
       const [group, expenses, settlements] = await Promise.all([
         this.groupsService.getGroup(groupId),
-        this.expensesService.getExpenses(groupId),
-        this.settlementsService.getSettlements(groupId),
+        this.expensesService.refreshExpenses(groupId),
+        this.settlementsService.refreshSettlements(groupId),
       ]);
       this.group.set(group);
       this.expenses.set(expenses);
@@ -343,12 +363,6 @@ export class GroupDetail implements OnInit {
       this.expenses.update((list) => [expense, ...list]);
     }
     this.addExpenseOpen.set(false);
-  }
-
-  async onSettlementAdded(settlement: GroupSettlement): Promise<void> {
-    this.settlements.update((list) => [settlement, ...list]);
-    this.settleUpOpen.set(false);
-    this.notifier.success('Settlement recorded.');
   }
 
   expenseSplitLabel(expense: GroupExpense): string {

@@ -44,8 +44,7 @@ export const scheduledDailyNotifications = onSchedule(
     const db = getFirestore();
     const now = new Date();
     const dateKey = istDateKey(now);
-    const { start: istStart, endExclusive: istEnd } = istDayBoundsUtc(dateKey);
-    const startTs = Timestamp.fromDate(istStart);
+    const { endExclusive: istEnd } = istDayBoundsUtc(dateKey);
     const endTs = Timestamp.fromDate(istEnd);
 
     const usersSnap = await db.collection('users').get();
@@ -76,7 +75,6 @@ export const scheduledDailyNotifications = onSchedule(
         accountName,
         ownerId,
         recipients,
-        startTs,
         endTs,
         dateKey,
       );
@@ -147,15 +145,18 @@ async function processRecurringForAccount(
   accountName: string,
   ownerId: string,
   recipients: string[],
-  startTs: Timestamp,
   endTs: Timestamp,
   dateKey: string,
 ): Promise<void> {
+  // Process schedules due today OR earlier (overdue). Bounding this to today's
+  // window alone meant that any schedule whose due date slipped past a single
+  // cron run — a missed day, a backdated schedule — was never processed again
+  // and its nextPaymentDate never advanced. Daily idempotency markers below
+  // still prevent duplicate processing within a day.
   const recurringSnap = await db
     .collection('recurring-transactions')
     .where('accountId', '==', accountId)
     .where('isActive', '==', true)
-    .where('nextPaymentDate', '>=', startTs)
     .where('nextPaymentDate', '<', endTs)
     .get();
 
@@ -184,6 +185,10 @@ async function processRecurringForAccount(
         isRecurring: true,
         recurringFrequency: rec.recurringFrequency ?? null,
         recurringTransactionId: recurringId,
+        // The client links transactions to their source entity via `linkedObject`
+        // (recurring symbol on the card, "linked transactions" on the schedule page
+        // all key off this). Write it so auto-generated transactions are recognized.
+        linkedObject: { type: 'recurring', id: recurringId, recordId: recurringId },
         date: day,
         paidBy: 'Auto-pay',
         createdAt: FieldValue.serverTimestamp(),
@@ -223,7 +228,14 @@ async function processRecurringForAccount(
         });
       }
 
-      const next = computeNextPaymentDate((rec.nextPaymentDate as Timestamp).toDate(), rec.recurringFrequency ?? null);
+      // Advance to the first occurrence strictly on/after tomorrow. For an
+      // overdue schedule this realigns it to the future in a single run (one
+      // transaction recorded, not one per missed period per day).
+      const next = computeNextPaymentDate(
+        (rec.nextPaymentDate as Timestamp).toDate(),
+        rec.recurringFrequency ?? null,
+        endTs.toDate(),
+      );
       await rdoc.ref.update({
         lastPaymentDate: Timestamp.fromDate(new Date(`${day}T12:00:00+05:30`)),
         nextPaymentDate: Timestamp.fromDate(next),
@@ -500,17 +512,47 @@ function formatAmount(amount: number, currency = 'INR'): string {
   }).format(amount);
 }
 
-function computeNextPaymentDate(prev: Date, frequency: string | null): Date {
-  const f = (frequency ?? 'monthly').toLowerCase();
-  const d = new Date(prev.getTime());
-  if (f.includes('week')) {
-    d.setDate(d.getDate() + 7);
-    return d;
+function advanceOnce(d: Date, frequency: string | null): Date {
+  const f = (frequency ?? 'monthly').toLowerCase().trim();
+  const next = new Date(d.getTime());
+  switch (f) {
+    case 'daily':
+      next.setDate(next.getDate() + 1);
+      break;
+    case 'weekly':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'bi-weekly':
+      next.setDate(next.getDate() + 14);
+      break;
+    case 'yearly':
+    case 'annual':
+    case 'annually':
+      next.setFullYear(next.getFullYear() + 1);
+      break;
+    case 'monthly':
+    default:
+      next.setMonth(next.getMonth() + 1);
+      break;
   }
-  if (f.includes('year') || f.includes('annual')) {
-    d.setFullYear(d.getFullYear() + 1);
-    return d;
+  return next;
+}
+
+/**
+ * Next payment date after `prev`. When `notBefore` is given, roll forward by
+ * whole periods until the result is on/after it — so a schedule that fell
+ * several periods behind realigns to the future in one step instead of
+ * re-triggering on every subsequent cron run.
+ */
+function computeNextPaymentDate(prev: Date, frequency: string | null, notBefore?: Date): Date {
+  let d = advanceOnce(prev, frequency);
+  if (notBefore) {
+    // Guard against a zero-advance frequency to avoid an infinite loop.
+    let guard = 0;
+    while (d.getTime() < notBefore.getTime() && guard < 1200) {
+      d = advanceOnce(d, frequency);
+      guard++;
+    }
   }
-  d.setMonth(d.getMonth() + 1);
   return d;
 }

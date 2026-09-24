@@ -196,6 +196,11 @@
                 <p class="text-sm flex items-center gap-2 title-font font-medium">
                   @if (t.linkedObject?.type === 'recurring') {
                     <ico name="arrow-refresh" class="text-violet-500" size="sm"></ico>
+                  } @else if (
+                    t.linkedObject?.type === 'group-expense' ||
+                    t.linkedObject?.type === 'group-settlement'
+                  ) {
+                    <ico name="user-group" class="text-blue-500" size="sm"></ico>
                   }
                   <span class="truncate">{{ t.description }}</span>
                 </p>

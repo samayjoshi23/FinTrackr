@@ -4,16 +4,38 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRouteSnapshot, NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs/operators';
 
-/** Key on `Route.data` — when set, browser back from this screen goes here instead of history. */
+/** Key on `Route.data` — the logical PARENT this screen's back button should go to. */
 export const BROWSER_BACK_TARGET_KEY = 'browserBackTarget' as const;
 
+/** URLs under this prefix participate in hierarchical back; everything else (auth,
+ *  onboarding) keeps native browser-back behaviour. Kept in sync with
+ *  `InAppReplaceLocationStrategy`, which flattens forward navigation for the same prefix. */
+const IN_APP_PREFIX = '/user';
+
 /**
- * Intercepts browser back (`popstate`) for routes that declare `data.browserBackTarget`.
- * Target may be a static URL or a template with `:paramName` segments filled from the
- * merged route `params` (root → leaf; child overrides). Example: `/user/groups/:id`.
- * If any placeholder is missing, redirect is skipped for that navigation.
- * Must be provided on a long-lived shell (e.g. `Features`) so the listener survives
- * child route teardown when history pops.
+ * Hierarchical ("Up") back navigation for the in-app (`/user/**`) area.
+ *
+ * Problem this solves: the browser/hardware back button replays *temporal* history — the
+ * exact reverse of every screen visited, including lateral tab hops and transient screens.
+ * Users expect back to climb the logical hierarchy toward Home instead
+ * (e.g. Account details → Settings → Home → exit), regardless of the path taken.
+ *
+ * How it works (two cooperating pieces):
+ *  - {@link InAppReplaceLocationStrategy} makes every forward `/user` navigation a history
+ *    *replacement*, so the browser holds at most ONE `/user` entry (plus whatever preceded
+ *    the app). There are never buried temporal entries to replay.
+ *  - This service intercepts `popstate` (a back press, which pops that single `/user` entry
+ *    down to the pre-app entry) and, using the current route's declared logical parent
+ *    (`data.browserBackTarget`):
+ *      • has a parent  → re-instate the current entry (cancel the back) and navigate to the
+ *        parent, which the strategy flattens in place → history stays `[preApp, parent]`.
+ *        Repeated backs climb child → parent → … → Home.
+ *      • no parent (Home) → do nothing; the back already moved to the pre-app entry, so the
+ *        app exits / the installed PWA closes.
+ *
+ * Must be provided on a long-lived shell (`Features`) so the `popstate` listener survives
+ * child route teardown. Parent targets support `:param` templates filled from the merged
+ * route params (root → leaf), e.g. `/user/groups/:id`.
  */
 @Injectable()
 export class BrowserBackRedirectService {
@@ -21,8 +43,10 @@ export class BrowserBackRedirectService {
   private readonly platformLocation = inject(PlatformLocation);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** Resolved from the active route tree after each navigation. */
-  private lastBrowserBackTarget: string | null = null;
+  /** Resolved parent URL for the current screen, or null (root / non-app screen). */
+  private currentBackTarget: string | null = null;
+  /** The last settled in-app URL — re-instated to cancel a back press while climbing. */
+  private lastInAppUrl: string | null = null;
 
   constructor() {
     this.router.events
@@ -30,22 +54,51 @@ export class BrowserBackRedirectService {
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => this.syncFromRouter());
+      .subscribe(() => this.onNavigationEnd());
 
-    this.syncFromRouter();
+    this.onNavigationEnd();
 
-    const unlistenPopState = this.platformLocation.onPopState(() => {
-      if (!this.lastBrowserBackTarget) return;
-      const target = this.lastBrowserBackTarget;
-      window.setTimeout(() => {
-        void this.router.navigateByUrl(target, { replaceUrl: true });
-      }, 0);
-    });
+    const unlistenPopState = this.platformLocation.onPopState(() => this.onPopState());
     this.destroyRef.onDestroy(() => unlistenPopState());
   }
 
-  private syncFromRouter(): void {
-    this.lastBrowserBackTarget = this.readBrowserBackTarget(this.router.routerState.snapshot.root);
+  private onNavigationEnd(): void {
+    const url = this.currentUrl();
+    this.currentBackTarget = this.readBrowserBackTarget(this.router.routerState.snapshot.root);
+    this.lastInAppUrl = this.isInAppUrl(url) ? url : null;
+  }
+
+  private onPopState(): void {
+    // Only govern back presses that leave an in-app screen; auth/onboarding keep native back.
+    if (!this.lastInAppUrl) return;
+
+    const target = this.currentBackTarget;
+    if (!target) {
+      // At the root (Home): no parent → allow the pop to stand, exiting the app / closing
+      // the installed PWA. (Forward history is flat, so the entry below Home is the
+      // pre-app entry, not a buried in-app screen.)
+      return;
+    }
+
+    // Cancel the back by re-instating the current entry, then navigate up one level. The
+    // location strategy flattens that navigation in place, so history stays two-deep and
+    // the next back climbs again — child → parent → … → Home.
+    const reinstate = this.lastInAppUrl;
+    try {
+      history.pushState(null, '', reinstate);
+    } catch {
+      /* history unavailable — fall through to a best-effort navigate */
+    }
+    void this.router.navigateByUrl(target, { replaceUrl: true });
+  }
+
+  private currentUrl(): string {
+    return this.router.url ?? '';
+  }
+
+  private isInAppUrl(url: string): boolean {
+    const path = (url || '').split('?')[0];
+    return path === IN_APP_PREFIX || path.startsWith(`${IN_APP_PREFIX}/`);
   }
 
   private readBrowserBackTarget(root: ActivatedRouteSnapshot): string | null {

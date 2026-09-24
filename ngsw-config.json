@@ -17,6 +17,7 @@
           "/web-app-manifest-512x512.png",
           "/index.html",
           "/manifest.webmanifest",
+          "/assets/icons/sprite.svg",
           "/*.css",
           "/*.js"
         ]

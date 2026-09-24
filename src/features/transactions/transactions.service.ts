@@ -13,6 +13,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import {
+  LinkedObject,
   RecurringTransactionCreateInput,
   RecurringTransactionRecord,
   RecurringTransactionUpdateInput,
@@ -616,6 +617,7 @@ export class TransactionsService {
       category: (data['category'] as string) ?? '',
       paidBy: (data['paidBy'] as string | null | undefined) ?? null,
       icon: data['icon'] as string | null,
+      linkedObject: (data['linkedObject'] as LinkedObject | null | undefined) ?? null,
       isRecurring: (data['isRecurring'] as boolean) ?? false,
       recurringFrequency: (data['recurringFrequency'] as string) ?? null,
       recurringTransactionId: (data['recurringTransactionId'] as string) ?? null,

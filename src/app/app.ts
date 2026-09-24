@@ -9,6 +9,7 @@ import { Notifier } from '../shared/components/notifier/pages/notifier';
 import { AuthService } from '../services/auth.service';
 import { BiometricLockService } from '../core/services/biometric-lock.service';
 import { Icon } from '../shared/components/icon/icon';
+import { IconSpriteService } from '../shared/components/icon/icon-sprite.service';
 import {
   documentBootLoaderMessage,
   shouldShowDocumentBootLoader,
@@ -28,6 +29,7 @@ export class App {
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly swUpdate = inject(SwUpdate);
+  private readonly iconSprite = inject(IconSpriteService);
   protected readonly biometricLock = inject(BiometricLockService);
 
   unlocking = signal(false);
@@ -41,6 +43,12 @@ export class App {
   protected readonly shellLoaderMessage = signal(documentBootLoaderMessage());
 
   constructor() {
+    // Inline the icon sprite ASAP so icons resolve via same-document `<use href="#id">`
+    // instead of racing an external, lazily-SW-cached sprite fetch (which left newly
+    // rendered icons blank until a manual refresh). Fire-and-forget: self-heals icons
+    // the moment injection completes, and falls back to the external URL if it fails.
+    void this.iconSprite.load();
+
     if (this.shellLoaderVisible()) {
       const hideLoaderTimeout = window.setTimeout(() => {
         this.shellLoaderVisible.set(false);

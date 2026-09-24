@@ -310,20 +310,6 @@
   (confirmed)="confirmDeleteExpense($event)"
 ></app-confirm-prompt>
 
-<!-- Settle Up Modal -->
-@if (group()) {
-  <app-settle-up-modal
-    [(open)]="settleUpOpen"
-    [group]="group()!"
-    [currentUserId]="currentUserId()"
-    [currentUserName]="auth.currentUser?.displayName ?? 'Me'"
-    [members]="settleUpMembers()"
-    [initialMemberId]="settleUpTargetMemberId()"
-    [initialAmount]="settleUpInitialAmount()"
-    (settlementAdded)="onSettlementAdded($event)"
-  ></app-settle-up-modal>
-}
-
 <!-- Settlement Detail Modal -->
 <app-settlement-detail-modal
   [(open)]="settlementDetailOpen"

@@ -347,24 +347,34 @@ export class AddGroupTransaction {
         },
       });
 
-      // Create transaction for the current user (payer) with linkedObject
-      const linkedObject: LinkedObject = {
-        type: 'group-expense',
-        id: gid,
-        recordId: expense.id,
-      };
-
+      // Mirror the expense into the current user's personal ledger — but ONLY
+      // when they actually fronted money, and only for the amount THEY paid.
+      // Their paid share is the expense total split across all payers (the same
+      // equal-fronting assumption the balance math uses). Previously this ran
+      // unconditionally for the full amount, which (a) debited the current
+      // user's account even when someone else was the sole payer, and
+      // (b) over-debited them in multi-payer expenses.
+      const uid = this.currentUserId();
       const account = this.selectedAccount();
-      if (account) {
+      const isCurrentUserPayer = payerIds.includes(uid);
+      if (account && isCurrentUserPayer) {
+        const paidShare = parseFloat((amount / payerIds.length).toFixed(2));
+
+        const linkedObject: LinkedObject = {
+          type: 'group-expense',
+          id: gid,
+          recordId: expense.id,
+        };
+
         const txPayload: TransactionCreateInput = {
           accountId: account.uid ?? '',
-          amount,
+          amount: paidShare,
           description: this.expenseDescription().trim(),
           category: this.expenseCategory(),
           icon: this.expenseIcon(),
           type: 'expense',
           source: this.expenseSource(),
-          paidBy: this.currentUserId(),
+          paidBy: uid,
           date: this.expenseDate(),
           linkedObject,
         };
@@ -375,7 +385,7 @@ export class AddGroupTransaction {
           .applyTransactionDelta({ kind: 'create', tx: txResponse })
           .catch((e) => console.error(e));
         void this.accountsService
-          .adjustBalanceForTransaction(account.id || account.uid, amount, 'expense')
+          .adjustBalanceForTransaction(account.id || account.uid, paidShare, 'expense')
           .catch((e) => console.error(e));
       }
 

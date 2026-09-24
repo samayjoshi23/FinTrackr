@@ -6,6 +6,7 @@ import {
   Firestore,
   getDoc,
   getDocs,
+  onSnapshot,
   or,
   query,
   collection,
@@ -83,6 +84,10 @@ export class AccountsService {
 
   /** Signed-in uid guard so account priming runs once per session (set from AuthService). */
   private readonly _userId = signal<string | null>(null);
+
+  /** Live accounts listener handle + the uid it is bound to (see {@link startAccountsListener}). */
+  private accountsUnsub: (() => void) | null = null;
+  private accountsListenerUid: string | null = null;
   public readonly isOwnerOfSelectedAccount = computed(() => {
     const acc = this.selectedAccount();
     const uid = this.auth.currentUser?.uid;
@@ -112,13 +117,77 @@ export class AccountsService {
     if (this._userId() === uid) return;
     this._userId.set(uid);
     void this.refreshMyAccounts();
+    // Live listener so balance changes written by cloud functions (group settlement
+    // credit, group / recurring auto-pay) or by another device surface immediately —
+    // the account balance card no longer waits for the next navigation. See
+    // {@link startAccountsListener} for why this merges rather than replaces.
+    this.startAccountsListener(uid);
   }
 
   /** Clear account state on logout (called from AuthService). */
   stopRealtime(): void {
+    this.stopAccountsListener();
     this._userId.set(null);
     this._myAccounts.set([]);
     this.clearSessionCache();
+  }
+
+  /**
+   * Live `onSnapshot` on the user's accounts (owned + shared via `memberIds`).
+   *
+   * MERGE, not replace: on each snapshot we upsert the returned rows into the cache but
+   * never prune. This is deliberate — the OR query below cannot return a *legacy primary*
+   * account (doc id == uid, predating both `ownerId` and `memberIds`), so a replace-style
+   * reconciliation would wipe it from the cache on every snapshot. Genuine removals (an
+   * account deleted, or the user removed from a shared account) are handled by the
+   * network-first `refreshMyAccounts()` the membership/delete flows already run, which
+   * does prune. A merge-only listener can therefore only *add or update* rows — strictly
+   * safer than the previous no-listener behaviour.
+   */
+  private startAccountsListener(uid: string): void {
+    if (this.accountsListenerUid === uid && this.accountsUnsub) return;
+    this.stopAccountsListener();
+    this.accountsListenerUid = uid;
+
+    const col = collection(this.firestore, ACCOUNTS_COLLECTION);
+    const accountsQuery = query(
+      col,
+      or(where('ownerId', '==', uid), where('memberIds', 'array-contains', uid)),
+    );
+
+    this.accountsUnsub = onSnapshot(
+      accountsQuery,
+      { includeMetadataChanges: false },
+      (snap) => {
+        void (async () => {
+          try {
+            // mapAccount stamps `viewerUid` so rows land in the cache index that
+            // hydrateAccountsFromCache reads.
+            const rows = snap.docs.map((d) => ({
+              ...this.mapAccount(d.id, d.data()),
+              _pendingSync: false,
+            }));
+            if (rows.length) await this.cache.putAll('accounts', rows);
+            await this.hydrateAccountsFromCache();
+          } catch (e) {
+            console.warn('AccountsService: accounts listener snapshot handling failed', e);
+          }
+        })();
+      },
+      (err) => console.warn('AccountsService: accounts listener error', err),
+    );
+  }
+
+  private stopAccountsListener(): void {
+    if (this.accountsUnsub) {
+      try {
+        this.accountsUnsub();
+      } catch {
+        /* ignore */
+      }
+      this.accountsUnsub = null;
+    }
+    this.accountsListenerUid = null;
   }
 
   /**

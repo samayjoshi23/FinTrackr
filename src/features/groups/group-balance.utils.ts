@@ -37,10 +37,16 @@ export function computeBalances(
     const isCurrentUserAPayer = payerIds.includes(currentUserId);
 
     if (isCurrentUserAPayer) {
-      // Current user is one of the payers — non-payer members owe us their share
+      // Current user is one of the payers — each non-payer owes us only OUR
+      // share of the payment, i.e. their split divided across all payers. Using
+      // the full split here (the old behaviour) over-credited the current user
+      // whenever an expense had more than one payer, so member balances failed
+      // to reconcile against the non-payer branch below and against
+      // `computeExpenseRemaining` (which already divides by payer count).
       for (const split of expense.splits) {
         if (payerIds.includes(split.memberId)) continue; // skip payers
-        net.set(split.memberId, (net.get(split.memberId) ?? 0) + split.amount);
+        const owedToUs = split.amount / payerIds.length;
+        net.set(split.memberId, (net.get(split.memberId) ?? 0) + owedToUs);
       }
     } else {
       // Current user is not a payer — they owe each payer their proportional sub-share

@@ -25,6 +25,8 @@ import { provideFunctions, getFunctions } from '@angular/fire/functions';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
+import { LocationStrategy } from '@angular/common';
+import { InAppReplaceLocationStrategy } from '../core/navigation/in-app-location-strategy';
 import { provideServiceWorker } from '@angular/service-worker';
 import { provideIndexedDb } from 'ngx-indexed-db';
 import { environment } from '../environment/environment';
@@ -41,6 +43,10 @@ import { AppVersionService } from '../core/updates/app-version.service';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    // Flatten in-app (/user) forward navigation into history replacements so hardware/
+    // browser back climbs the logical route hierarchy (BrowserBackRedirectService) and
+    // exits at Home, instead of replaying temporal history. Auth/onboarding keep push.
+    { provide: LocationStrategy, useClass: InAppReplaceLocationStrategy },
     // Bring the local IndexedDB schema up to `indexedDbConfig` BEFORE ngx-indexed-db
     // opens it. Runs first, uses the native IndexedDB API only, and repairs any missing
     // store/index IN PLACE (no data wipe, no reload) — see IndexedDbRecoveryService.

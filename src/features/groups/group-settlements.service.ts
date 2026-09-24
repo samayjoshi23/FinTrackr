@@ -55,6 +55,14 @@ export class GroupSettlementsService {
   /** Reactive settlements map keyed by groupId; see notes on `GroupExpensesService`. */
   private readonly _settlementsByGroup = signal<Record<string, GroupSettlement[]>>({});
 
+  /**
+   * Per-group live listeners, ref-counted by groupId so multiple subscribers share ONE
+   * Firestore listener. Mirrors {@link GroupExpensesService.subscribeGroup} — without it,
+   * a co-member's settlement (or the balance change it implies) never surfaced on another
+   * device's open group page until a manual reload.
+   */
+  private readonly listenerHandles = new Map<string, { unsub: () => void; refCount: number }>();
+
   constructor() {
     effect(() => {
       const _stamp = this.offlineCrud.revalidationCounts()[STORE] ?? 0;
@@ -64,6 +72,62 @@ export class GroupSettlementsService {
 
   settlementsForGroup(groupId: string): Signal<GroupSettlement[]> {
     return computed(() => this._settlementsByGroup()[groupId] ?? []);
+  }
+
+  /**
+   * Start (or ref-count) a live listener for `groupId`'s settlements. Returns an
+   * unsubscribe function callers MUST invoke on destroy. Cross-device settlements
+   * surface immediately while any subscriber is active.
+   */
+  subscribeGroup(groupId: string): () => void {
+    if (!groupId) return () => {};
+    const existing = this.listenerHandles.get(groupId);
+    if (existing) {
+      existing.refCount += 1;
+      return () => this.releaseGroupListener(groupId);
+    }
+    const unsub = this.offlineCrud.subscribeQuery<GroupSettlement>(
+      STORE,
+      query(collection(this.firestore, settlementsPath(groupId))),
+      (id, data) => {
+        const settlement = toSettlement(id, data as GroupSettlementDocument);
+        return { ...settlement, groupId } as GroupSettlement;
+      },
+      { indexName: 'groupId', value: groupId },
+    );
+    this.listenerHandles.set(groupId, { unsub, refCount: 1 });
+    this._settlementsByGroup.update((prev) =>
+      Object.prototype.hasOwnProperty.call(prev, groupId) ? prev : { ...prev, [groupId]: [] },
+    );
+    return () => this.releaseGroupListener(groupId);
+  }
+
+  private releaseGroupListener(groupId: string): void {
+    const handle = this.listenerHandles.get(groupId);
+    if (!handle) return;
+    handle.refCount -= 1;
+    if (handle.refCount <= 0) {
+      try {
+        handle.unsub();
+      } catch (e) {
+        console.warn('GroupSettlementsService: listener unsubscribe failed', e);
+      }
+      this.listenerHandles.delete(groupId);
+    }
+  }
+
+  /** Tear down every settlement listener (call on logout to release Firestore quota). */
+  stopAllGroupListeners(): void {
+    for (const [gid] of this.listenerHandles) {
+      const h = this.listenerHandles.get(gid);
+      if (!h) continue;
+      try {
+        h.unsub();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.listenerHandles.clear();
   }
 
   /** Anchor for security-rules authorship checks on settlement writes. */

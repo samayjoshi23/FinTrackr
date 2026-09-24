@@ -194,7 +194,7 @@ export const recordGroupSettlement = onCall(async (request) => {
 
   if (accountSnap.empty) {
     // Creditor has no account yet — skip but still notify
-    await notifySettlement(creditorId, debtorName, amount, description, groupId);
+    await notifySettlement(creditorId, debtorName, amount, description, groupId, data.currency);
     return { ok: true, skippedTransaction: true };
   }
 
@@ -237,7 +237,7 @@ export const recordGroupSettlement = onCall(async (request) => {
   );
 
   // Notify creditor
-  await notifySettlement(creditorId, debtorName, amount, description, groupId);
+  await notifySettlement(creditorId, debtorName, amount, description, groupId, data.currency);
 
   return { ok: true };
 });
@@ -248,10 +248,11 @@ async function notifySettlement(
   amount: number,
   description: string,
   groupId: string,
+  currency?: string,
 ): Promise<void> {
   const formatted = new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'INR',
+    currency: currency || 'INR',
     maximumFractionDigits: 2,
   }).format(amount);
 
@@ -465,7 +466,7 @@ export const notifyGroupExpense = onCall(async (request) => {
 
   const formatted = new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'INR',
+    currency: (groupData['currency'] as string) || 'INR',
     maximumFractionDigits: 2,
   }).format(amount);
 

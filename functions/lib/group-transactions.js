@@ -139,7 +139,7 @@ exports.recordGroupSettlement = (0, https_1.onCall)(async (request) => {
         .get();
     if (accountSnap.empty) {
         // Creditor has no account yet — skip but still notify
-        await notifySettlement(creditorId, debtorName, amount, description, groupId);
+        await notifySettlement(creditorId, debtorName, amount, description, groupId, data.currency);
         return { ok: true, skippedTransaction: true };
     }
     const creditorAccountDoc = accountSnap.docs[0];
@@ -174,13 +174,13 @@ exports.recordGroupSettlement = (0, https_1.onCall)(async (request) => {
     const currentMonth = todayDateString().slice(0, 7); // 'YYYY-MM'
     await (0, monthly_report_sync_1.recomputeMonthlyReportForAccount)(creditorAccountId, creditorId, currentMonth).catch((e) => console.error('report recompute failed', e));
     // Notify creditor
-    await notifySettlement(creditorId, debtorName, amount, description, groupId);
+    await notifySettlement(creditorId, debtorName, amount, description, groupId, data.currency);
     return { ok: true };
 });
-async function notifySettlement(creditorId, debtorName, amount, description, groupId) {
+async function notifySettlement(creditorId, debtorName, amount, description, groupId, currency) {
     const formatted = new Intl.NumberFormat('en-IN', {
         style: 'currency',
-        currency: 'INR',
+        currency: currency || 'INR',
         maximumFractionDigits: 2,
     }).format(amount);
     await (0, notification_trigger_1.createNotification)(creditorId, {
@@ -334,7 +334,7 @@ exports.notifyGroupExpense = (0, https_1.onCall)(async (request) => {
     }
     const formatted = new Intl.NumberFormat('en-IN', {
         style: 'currency',
-        currency: 'INR',
+        currency: groupData['currency'] || 'INR',
         maximumFractionDigits: 2,
     }).format(amount);
     await Promise.allSettled(recipients.map((uid) => (0, notification_trigger_1.createNotification)(uid, {

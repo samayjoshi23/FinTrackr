@@ -91,15 +91,18 @@ export const routes: Routes = [
       },
       {
         path: 'goals',
+        data: { browserBackTarget: '/user/dashboard' },
         loadComponent: () => import('./../features/goals/pages/goals/goals').then((m) => m.Goals),
       },
       {
         path: 'goals/new',
+        data: { browserBackTarget: '/user/goals' },
         loadComponent: () =>
           import('./../features/goals/pages/new-goal/new-goal').then((m) => m.NewGoal),
       },
       {
         path: 'goals/edit/:id',
+        data: { browserBackTarget: '/user/goals' },
         loadComponent: () =>
           import('./../features/goals/pages/edit-goal/edit-goal').then((m) => m.EditGoal),
       },

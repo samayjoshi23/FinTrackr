@@ -28,8 +28,7 @@ exports.scheduledDailyNotifications = (0, scheduler_1.onSchedule)({
     const db = (0, firestore_1.getFirestore)();
     const now = new Date();
     const dateKey = (0, time_ist_1.istDateKey)(now);
-    const { start: istStart, endExclusive: istEnd } = (0, time_ist_1.istDayBoundsUtc)(dateKey);
-    const startTs = firestore_1.Timestamp.fromDate(istStart);
+    const { endExclusive: istEnd } = (0, time_ist_1.istDayBoundsUtc)(dateKey);
     const endTs = firestore_1.Timestamp.fromDate(istEnd);
     const usersSnap = await db.collection('users').get();
     const userIds = usersSnap.docs.map((d) => d.id);
@@ -49,7 +48,7 @@ exports.scheduledDailyNotifications = (0, scheduler_1.onSchedule)({
             continue;
         const accountName = String(account['name'] ?? 'your account');
         const recipients = getRecipientUserIds(account, ownerId);
-        await processRecurringForAccount(db, accountId, accountName, ownerId, recipients, startTs, endTs, dateKey);
+        await processRecurringForAccount(db, accountId, accountName, ownerId, recipients, endTs, dateKey);
         if ((0, time_ist_1.isLastDayOfMonthIST)(now)) {
             await processMonthEndForAccount(db, accountId, accountName, ownerId, recipients, dateKey);
         }
@@ -97,12 +96,16 @@ async function markerExists(db, userId, markerId) {
 async function setMarker(db, userId, markerId) {
     await db.doc(`users/${userId}/cron-markers/${markerId}`).set({ createdAt: firestore_1.FieldValue.serverTimestamp() });
 }
-async function processRecurringForAccount(db, accountId, accountName, ownerId, recipients, startTs, endTs, dateKey) {
+async function processRecurringForAccount(db, accountId, accountName, ownerId, recipients, endTs, dateKey) {
+    // Process schedules due today OR earlier (overdue). Bounding this to today's
+    // window alone meant that any schedule whose due date slipped past a single
+    // cron run — a missed day, a backdated schedule — was never processed again
+    // and its nextPaymentDate never advanced. Daily idempotency markers below
+    // still prevent duplicate processing within a day.
     const recurringSnap = await db
         .collection('recurring-transactions')
         .where('accountId', '==', accountId)
         .where('isActive', '==', true)
-        .where('nextPaymentDate', '>=', startTs)
         .where('nextPaymentDate', '<', endTs)
         .get();
     for (const rdoc of recurringSnap.docs) {
@@ -128,6 +131,10 @@ async function processRecurringForAccount(db, accountId, accountName, ownerId, r
                 isRecurring: true,
                 recurringFrequency: rec.recurringFrequency ?? null,
                 recurringTransactionId: recurringId,
+                // The client links transactions to their source entity via `linkedObject`
+                // (recurring symbol on the card, "linked transactions" on the schedule page
+                // all key off this). Write it so auto-generated transactions are recognized.
+                linkedObject: { type: 'recurring', id: recurringId, recordId: recurringId },
                 date: day,
                 paidBy: 'Auto-pay',
                 createdAt: firestore_1.FieldValue.serverTimestamp(),
@@ -163,7 +170,10 @@ async function processRecurringForAccount(db, accountId, accountName, ownerId, r
                     priority: 'normal',
                 });
             }
-            const next = computeNextPaymentDate(rec.nextPaymentDate.toDate(), rec.recurringFrequency ?? null);
+            // Advance to the first occurrence strictly on/after tomorrow. For an
+            // overdue schedule this realigns it to the future in a single run (one
+            // transaction recorded, not one per missed period per day).
+            const next = computeNextPaymentDate(rec.nextPaymentDate.toDate(), rec.recurringFrequency ?? null, endTs.toDate());
             await rdoc.ref.update({
                 lastPaymentDate: firestore_1.Timestamp.fromDate(new Date(`${day}T12:00:00+05:30`)),
                 nextPaymentDate: firestore_1.Timestamp.fromDate(next),
@@ -394,18 +404,47 @@ function formatAmount(amount, currency = 'INR') {
         maximumFractionDigits: 0,
     }).format(amount);
 }
-function computeNextPaymentDate(prev, frequency) {
-    const f = (frequency ?? 'monthly').toLowerCase();
-    const d = new Date(prev.getTime());
-    if (f.includes('week')) {
-        d.setDate(d.getDate() + 7);
-        return d;
+function advanceOnce(d, frequency) {
+    const f = (frequency ?? 'monthly').toLowerCase().trim();
+    const next = new Date(d.getTime());
+    switch (f) {
+        case 'daily':
+            next.setDate(next.getDate() + 1);
+            break;
+        case 'weekly':
+            next.setDate(next.getDate() + 7);
+            break;
+        case 'bi-weekly':
+            next.setDate(next.getDate() + 14);
+            break;
+        case 'yearly':
+        case 'annual':
+        case 'annually':
+            next.setFullYear(next.getFullYear() + 1);
+            break;
+        case 'monthly':
+        default:
+            next.setMonth(next.getMonth() + 1);
+            break;
     }
-    if (f.includes('year') || f.includes('annual')) {
-        d.setFullYear(d.getFullYear() + 1);
-        return d;
+    return next;
+}
+/**
+ * Next payment date after `prev`. When `notBefore` is given, roll forward by
+ * whole periods until the result is on/after it — so a schedule that fell
+ * several periods behind realigns to the future in one step instead of
+ * re-triggering on every subsequent cron run.
+ */
+function computeNextPaymentDate(prev, frequency, notBefore) {
+    let d = advanceOnce(prev, frequency);
+    if (notBefore) {
+        // Guard against a zero-advance frequency to avoid an infinite loop.
+        let guard = 0;
+        while (d.getTime() < notBefore.getTime() && guard < 1200) {
+            d = advanceOnce(d, frequency);
+            guard++;
+        }
     }
-    d.setMonth(d.getMonth() + 1);
     return d;
 }
 //# sourceMappingURL=scheduled-notifications.js.map
