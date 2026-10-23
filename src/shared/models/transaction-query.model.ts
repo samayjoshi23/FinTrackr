@@ -23,6 +23,11 @@ export interface TransactionPagedResult {
   items: TransactionRecord[];
   total: number;
   hasMore: boolean;
+  /**
+   * `false` while older history exists on the server that isn't loaded locally yet
+   * (fetch it with `TransactionsService.loadOlderTransactions`). Omitted = complete.
+   */
+  historyComplete?: boolean;
   /** Sums across the entire filtered set (not just the returned page). */
   totals: {
     income: number;

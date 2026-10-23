@@ -92,8 +92,9 @@ export class SettingsHome {
 
       this.setInitials();
 
-      const txs = await this.transactionsService.getTransactions().catch(() => []);
-      this.totalTransactions.set(txs.length);
+      // Aggregation count (~1 read) instead of downloading every transaction.
+      const count = await this.transactionsService.countTransactions().catch(() => 0);
+      this.totalTransactions.set(count);
     } catch (e: any) {
       console.error(e);
       this.notifier.error('Could not load your data. Please try again.');

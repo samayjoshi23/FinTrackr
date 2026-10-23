@@ -246,7 +246,7 @@ export class TransactionList {
       this.totalFiltered.set(r.total);
       this.totalIncome.set(r.totals.income);
       this.totalExpense.set(r.totals.expense);
-      this.hasMore.set(r.hasMore);
+      this.hasMore.set(r.hasMore || r.historyComplete === false);
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load transactions.');
@@ -265,6 +265,10 @@ export class TransactionList {
     this.loadingMore.set(true);
     try {
       const offset = this.displayedTransactions().length;
+      // Cached rows exhausted → pull the next page of older history from the server.
+      if (offset >= this.totalFiltered()) {
+        await this.transactionsService.loadOlderTransactions();
+      }
       const r = await this.transactionsService.getTransactionsPage(
         {
           search: this.searchQuery().trim() || undefined,
@@ -282,7 +286,7 @@ export class TransactionList {
       this.totalFiltered.set(r.total);
       this.totalIncome.set(r.totals.income);
       this.totalExpense.set(r.totals.expense);
-      this.hasMore.set(r.hasMore);
+      this.hasMore.set(r.hasMore || r.historyComplete === false);
     } catch (e) {
       console.error(e);
       this.notifier.error('Could not load more transactions.');

@@ -12,14 +12,6 @@ import { IndexedDbCacheService } from './indexed-db-cache.service';
 import { SyncQueueService } from './sync-queue.service';
 import { PostSyncCallable } from './sync-queue.model';
 import { CachePolicyService, CacheScope, ReadCachePolicy } from './cache-policy.service';
-import { TransactionRecord } from '../../shared/models/transaction.model';
-import {
-  applyTransactionFilters,
-  paginateTransactionRows,
-  sortTransactionsByCreatedAtDesc,
-  TransactionListFilter,
-  TransactionPagedResult,
-} from '../../shared/models/transaction-query.model';
 
 /** Firestore collection id for each IndexedDB store (pre-assigned doc ids + setDoc). */
 const FIRESTORE_COLLECTION_BY_STORE: Record<string, string> = {
@@ -137,11 +129,14 @@ export class OfflineCrudService {
 
     // Stale + online: return cached NOW, revalidate in background. If the caller
     // explicitly asked for `maxAgeMs: 0` (pull-to-refresh / post-write refetch) we still
-    // want to AWAIT the network read — that's the whole point of the override.
+    // want to AWAIT the network read — that's the whole point of the override. An
+    // EMPTY slice is awaited too: on a device's first visit there's nothing to show
+    // yet, and one-shot readers would otherwise render "no data" and never update.
     const revalidate = () =>
       this.policy.coalesce(key, () => this.revalidateList(storeName, firestoreFn, indexFilter, key));
+    const cachedRows = await this.readFromCache<T>(storeName, indexFilter);
 
-    if (policy?.maxAgeMs === 0) {
+    if (policy?.maxAgeMs === 0 || cachedRows.length === 0) {
       try {
         await revalidate();
       } catch {
@@ -153,9 +148,8 @@ export class OfflineCrudService {
     }
 
     void revalidate();
-    const rows = await this.readFromCache<T>(storeName, indexFilter);
-    this.policy.putBurst(key, rows);
-    return rows;
+    this.policy.putBurst(key, cachedRows);
+    return cachedRows;
   }
 
   /**
@@ -179,30 +173,6 @@ export class OfflineCrudService {
     } catch (e) {
       this.logReadError(storeName, e);
     }
-  }
-
-  /**
-   * READ transactions — SWR (same model as {@link fetchAll}) with client-side
-   * filter/sort/pagination so components avoid scanning full lists.
-   *
-   * Filter/offset/limit intentionally DO NOT participate in the cache fingerprint: the
-   * server query fetches the full account slice and filtering is done in-memory, so the
-   * TTL is scoped only to the account. That's what collapses "sort by date → filter by
-   * category → change offset" into one Firestore read.
-   */
-  async fetchTransactionsPage(
-    accountKey: string,
-    filter: TransactionListFilter,
-    offset: number,
-    limit: number,
-    firestoreFn: () => Promise<TransactionRecord[]>,
-    policy?: ReadCachePolicy,
-  ): Promise<TransactionPagedResult> {
-    const indexFilter = { indexName: 'accountId', value: accountKey };
-    await this.fetchAll<TransactionRecord>('transactions', firestoreFn, indexFilter, policy);
-    const rows = await this.readFromCache<TransactionRecord>('transactions', indexFilter);
-    const pipeline = sortTransactionsByCreatedAtDesc(applyTransactionFilters(rows, filter));
-    return paginateTransactionRows(pipeline, offset, limit);
   }
 
   /**
@@ -326,7 +296,9 @@ export class OfflineCrudService {
     const revalidate = () =>
       this.policy.coalesce(fingerprint, () => this.revalidateOne(storeName, key, firestoreFn, fingerprint));
 
-    if (policy?.maxAgeMs === 0) {
+    // Cache miss → await the network (see `fetchAll`): returning `null` here made
+    // one-shot readers show "not set" on a device's first visit.
+    if (policy?.maxAgeMs === 0 || !cachedRow) {
       try {
         const out = await revalidate();
         this.policy.putBurst(fingerprint, out);

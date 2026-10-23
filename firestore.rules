@@ -85,7 +85,10 @@ service cloud.firestore {
       // Self-only. Directory-style lookups (email → uid for invites) go
       // through the denormalized /user-directory collection below.
       allow read: if isSignedIn() && request.auth.uid == userId;
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      // `skipEmailVerification` is admin-only (set in the console): a user must
+      // never be able to exempt themselves from email verification.
+      allow create: if isSignedIn() && request.auth.uid == userId
+        && !('skipEmailVerification' in request.resource.data);
       allow update: if isSignedIn()
         && request.auth.uid == userId
         && onlyUpdatingAllowedFields([

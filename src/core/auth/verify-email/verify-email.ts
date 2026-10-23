@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { AuthService } from '../auth.service';
@@ -16,7 +16,7 @@ import { Icon } from '../../../shared/components/icon/icon';
   imports: [Icon],
   templateUrl: './verify-email.html',
 })
-export class VerifyEmail {
+export class VerifyEmail implements OnInit {
   private readonly auth = inject(Auth);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -24,6 +24,14 @@ export class VerifyEmail {
 
   readonly resending = signal(false);
   readonly checking = signal(false);
+
+  /** Exempted (or globally disabled) users don't belong here — send them on. */
+  async ngOnInit(): Promise<void> {
+    if (await this.authService.mustVerifyEmail()) return;
+    const uid = this.auth.currentUser?.uid;
+    const path = uid ? await this.authService.getPostAuthHomePath(uid) : '/login';
+    await this.router.navigateByUrl(path, { replaceUrl: true });
+  }
 
   get email(): string {
     return this.auth.currentUser?.email ?? '';

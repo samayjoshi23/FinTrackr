@@ -6,14 +6,15 @@ import {
   Firestore,
   getDoc,
   getDocs,
+  limit,
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
 } from '@angular/fire/firestore';
 import {
-  LinkedObject,
   RecurringTransactionCreateInput,
   RecurringTransactionRecord,
   RecurringTransactionUpdateInput,
@@ -21,17 +22,38 @@ import {
   TransactionRecord,
 } from '../../shared/models/transaction.model';
 import {
+  applyTransactionFilters,
+  paginateTransactionRows,
+  resolvePresetRange,
   sortTransactionsByCreatedAtDesc,
   TransactionListFilter,
   TransactionPagedResult,
 } from '../../shared/models/transaction-query.model';
 import { OfflineCrudService } from '../../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.service';
+import { NetworkService } from '../../core/offline/network.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { date, docCalendarDate } from '../../core/date';
+import { asFirestoreDate, isTombstone, mapTransactionDoc } from './transaction-mapper';
+import { TransactionSyncService } from './transaction-sync.service';
 
 const TRANSACTIONS_COLLECTION = 'transactions';
 const RECURRING_TRANSACTIONS_COLLECTION = 'recurring-transactions';
+/** Soft-deleted docs carry `purgeAt`; a Firestore TTL policy on it may hard-delete them. */
+const TOMBSTONE_TTL_DAYS = 30;
+/** Cap on how long a page waits for the network before serving what's cached. */
+const NETWORK_WAIT_MS = 8_000;
+
+/** Resolves when `p` settles or after `ms`, whichever is first. Never rejects. */
+function settleWithin(p: Promise<unknown>, ms: number): Promise<void> {
+  return Promise.race([
+    p.then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  ]);
+}
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsService {
@@ -39,6 +61,8 @@ export class TransactionsService {
   private readonly offlineCrud = inject(OfflineCrudService);
   private readonly idbCache = inject(IndexedDbCacheService);
   private readonly accountsService = inject(AccountsService);
+  private readonly network = inject(NetworkService);
+  private readonly txSync = inject(TransactionSyncService);
 
   /**
    * Reactive transactions for the currently selected account. Re-hydrated whenever
@@ -49,43 +73,24 @@ export class TransactionsService {
    */
   private readonly _myTransactions = signal<TransactionRecord[]>([]);
 
-  /**
-   * Live listener for the currently-selected account's transactions. Started/stopped
-   * automatically by the effect below, keyed on `AccountsService.selectedAccount()` so
-   * account switches (and logout) rebind cleanly. While the listener is active, the
-   * cache-policy TTL for `transactions` stays fresh — SWR reads skip Firestore and
-   * cross-device writes propagate the moment the server emits them.
-   */
-  private stopTxListener: (() => void) | null = null;
-  private currentListenerKey: string | null = null;
-
   constructor() {
     effect(() => {
       const _stamp = this.offlineCrud.revalidationCounts()['transactions'] ?? 0;
+      const _rev = this.txSync.revision();
       untracked(() => void this.hydrateFromCache());
     });
 
+    // Keep the selected account live via delta sync. Re-runs when connectivity
+    // returns so a device that was offline at boot still bootstraps.
     effect(() => {
       const acc = this.accountsService.selectedAccount();
+      const online = this.network.isOnline();
       const key = acc?.uid ?? acc?.id ?? null;
-      untracked(() => this.rebindAccountListener(key));
+      untracked(() => {
+        if (!key) this.txSync.stopLive();
+        else if (online) this.txSync.startLive(key);
+      });
     });
-  }
-
-  private rebindAccountListener(accountKey: string | null): void {
-    if (accountKey === this.currentListenerKey) return;
-    if (this.stopTxListener) {
-      this.stopTxListener();
-      this.stopTxListener = null;
-    }
-    this.currentListenerKey = accountKey;
-    if (!accountKey) return;
-    this.stopTxListener = this.offlineCrud.subscribeQuery<TransactionRecord>(
-      'transactions',
-      query(collection(this.firestore, TRANSACTIONS_COLLECTION), where('accountId', '==', accountKey)),
-      (id, data) => this.mapTransaction(id, data),
-      { indexName: 'accountId', value: accountKey },
-    );
   }
 
   private async hydrateFromCache(): Promise<void> {
@@ -195,8 +200,8 @@ export class TransactionsService {
         const snap = await getDoc(
           doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`),
         );
-        if (!snap.exists()) return null;
-        return this.mapTransaction(snap.id, snap.data());
+        if (!snap.exists() || isTombstone(snap.data())) return null;
+        return mapTransactionDoc(snap.id, snap.data());
       },
     );
 
@@ -231,11 +236,20 @@ export class TransactionsService {
     );
   }
 
+  /**
+   * Soft delete: stamps `deletedAt` (+ `updatedAt`) instead of removing the doc, so the
+   * deletion reaches other devices through their `updatedAt` delta sync. `purgeAt` lets
+   * a Firestore TTL policy hard-delete the tombstone later.
+   */
   async deleteTransaction(transactionId: string): Promise<void> {
     await this.offlineCrud.remove('transactions', transactionId, async () => {
       // See `updateTransaction` — no pre-read; rules enforce access.
       const transactionRef = doc(this.firestore, `${TRANSACTIONS_COLLECTION}/${transactionId}`);
-      await deleteDoc(transactionRef);
+      await updateDoc(transactionRef, {
+        deletedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        purgeAt: Timestamp.fromMillis(Date.now() + TOMBSTONE_TTL_DAYS * 24 * 60 * 60 * 1000),
+      });
     });
   }
 
@@ -288,28 +302,28 @@ export class TransactionsService {
     return this.getTransactionsForAccount(accountKey);
   }
 
-  /** Transactions for a specific account (`account.uid` / `account.id` key used on stored docs). */
+  /**
+   * Locally-loaded transactions for an account (`account.uid` / `account.id` key).
+   * The selected account is kept live by delta sync; any other account gets a one-shot
+   * catch-up. Only the loaded history window is returned — screens that need older
+   * data call {@link ensureHistorySince} first.
+   */
   async getTransactionsForAccount(accountKey: string): Promise<TransactionRecord[]> {
     const key = accountKey?.trim();
     if (!key) return [];
-    const results = await this.offlineCrud.fetchAll<TransactionRecord>(
-      'transactions',
-      async () => {
-        const snap = await getDocs(
-          query(collection(this.firestore, TRANSACTIONS_COLLECTION), where('accountId', '==', key)),
-        );
-        return sortTransactionsByCreatedAtDesc(
-          snap.docs.map((d) => this.mapTransaction(d.id, d.data())),
-        );
-      },
-      { indexName: 'accountId', value: key },
+    const selected = await this.selectedAccountKey();
+    await settleWithin(
+      key === selected ? this.txSync.ensureReady(key) : this.txSync.syncOnce(key),
+      NETWORK_WAIT_MS,
     );
-    return sortTransactionsByCreatedAtDesc(results);
+    const rows = await this.idbCache.getAllByIndex<TransactionRecord>('transactions', 'accountId', key);
+    return sortTransactionsByCreatedAtDesc(rows);
   }
 
   /**
-   * Filtered, paginated transactions. Reads from IndexedDB by `accountId`, applies filters in the
-   * offline layer, then returns one page (for list UIs / lazy loading).
+   * Filtered, paginated transactions from IndexedDB. A date filter reaching past the
+   * loaded history pulls the missing pages first; `historyComplete: false` tells list
+   * UIs that {@link loadOlderTransactions} can fetch more.
    */
   async getTransactionsPage(
     filter: TransactionListFilter,
@@ -318,17 +332,61 @@ export class TransactionsService {
   ): Promise<TransactionPagedResult> {
     const accountKey = await this.selectedAccountKey();
     if (!accountKey) {
-      return { items: [], total: 0, hasMore: false, totals: { income: 0, expense: 0 } };
+      return {
+        items: [],
+        total: 0,
+        hasMore: false,
+        historyComplete: true,
+        totals: { income: 0, expense: 0 },
+      };
     }
-    return this.offlineCrud.fetchTransactionsPage(accountKey, filter, offset, limit, async () => {
-      const snap = await getDocs(
-        query(
-          collection(this.firestore, TRANSACTIONS_COLLECTION),
-          where('accountId', '==', accountKey),
-        ),
-      );
-      return snap.docs.map((d) => this.mapTransaction(d.id, d.data()));
-    });
+    const range =
+      filter.datePreset && filter.datePreset !== 'all'
+        ? resolvePresetRange(filter.datePreset, filter.dateFrom, filter.dateTo)
+        : null;
+    await settleWithin(
+      range
+        ? this.txSync.ensureHistorySince(accountKey, range.start)
+        : this.txSync.ensureReady(accountKey),
+      NETWORK_WAIT_MS,
+    );
+    const rows = await this.idbCache.getAllByIndex<TransactionRecord>(
+      'transactions',
+      'accountId',
+      accountKey,
+    );
+    const page = paginateTransactionRows(
+      sortTransactionsByCreatedAtDesc(applyTransactionFilters(rows, filter)),
+      offset,
+      limit,
+    );
+    const info = await this.txSync.historyInfo(accountKey);
+    return { ...page, historyComplete: info.complete };
+  }
+
+  /** Fetch the next page of older history for the selected account. `true` if rows were added. */
+  async loadOlderTransactions(): Promise<boolean> {
+    const accountKey = await this.selectedAccountKey();
+    if (!accountKey) return false;
+    return this.txSync.loadOlder(accountKey);
+  }
+
+  /**
+   * Make sure history back to `since` (`null` = everything) is loaded for the selected
+   * account. Returns `false` when it couldn't be (offline) so callers can avoid
+   * computing totals from a partial set.
+   */
+  async ensureHistorySince(since: Date | null): Promise<boolean> {
+    const accountKey = await this.selectedAccountKey();
+    if (!accountKey) return false;
+    return this.txSync.ensureHistorySince(accountKey, since);
+  }
+
+  /** Live transaction count for the selected account (server aggregation; local offline). */
+  async countTransactions(): Promise<number> {
+    const accountKey = await this.selectedAccountKey();
+    if (!accountKey) return 0;
+    return this.txSync.countLive(accountKey);
   }
 
   /** All recurring schedules for the selected account (cache-first). */
@@ -406,12 +464,39 @@ export class TransactionsService {
     return this.updateRecurringTransaction(recurringId, { isActive: false });
   }
 
-  /** Returns all transactions linked to a recurring schedule, sorted by createdAt desc. */
+  /**
+   * Transactions linked to a recurring schedule, newest first. Served from the local
+   * cache; while older history isn't loaded, a bounded server query (equality-only,
+   * no composite index) fills in matches from before the loaded window.
+   */
   async getTransactionsForRecurring(recurringTransactionId: string): Promise<TransactionRecord[]> {
-    const all = await this.getTransactions();
-    return all
-      .filter((t) => t.linkedObject?.type === 'recurring' && t.linkedObject?.recordId === recurringTransactionId)
-      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+    const isLinked = (t: TransactionRecord) =>
+      t.linkedObject?.type === 'recurring' && t.linkedObject?.recordId === recurringTransactionId;
+    const byId = new Map((await this.getTransactions()).filter(isLinked).map((t) => [t.uid, t]));
+
+    const accountKey = await this.selectedAccountKey();
+    if (accountKey && this.network.isOnline() && !(await this.txSync.historyInfo(accountKey)).complete) {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(this.firestore, TRANSACTIONS_COLLECTION),
+            where('accountId', '==', accountKey),
+            where('linkedObject.recordId', '==', recurringTransactionId),
+            limit(100),
+          ),
+        );
+        for (const d of snap.docs) {
+          if (byId.has(d.id) || isTombstone(d.data())) continue; // local copy wins
+          const row = mapTransactionDoc(d.id, d.data());
+          if (isLinked(row)) byId.set(d.id, row);
+        }
+      } catch (e) {
+        console.warn('Loading older recurring transactions failed', e);
+      }
+    }
+    return [...byId.values()].sort(
+      (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
+    );
   }
 
   async deleteRecurringTransaction(recurringId: string): Promise<void> {
@@ -568,8 +653,8 @@ export class TransactionsService {
     const snap = await getDoc(transactionRef);
     if (!snap.exists()) return null;
     const data = snap.data();
-    if (data['accountId'] !== expected) return null;
-    return this.mapTransaction(snap.id, data);
+    if (data['accountId'] !== expected || isTombstone(data)) return null;
+    return mapTransactionDoc(snap.id, data);
   }
 
   private async getRecurringTransactionDirect(
@@ -587,42 +672,6 @@ export class TransactionsService {
   }
 
   // ─── Private helpers ───
-
-  private asFirestoreDate(v: unknown): Date | null {
-    if (v == null) return null;
-    if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
-    const fn = (v as { toDate?: () => Date }).toDate;
-    if (typeof fn === 'function') {
-      const d = fn.call(v);
-      if (d instanceof Date && !Number.isNaN(d.getTime())) return d;
-    }
-    return null;
-  }
-
-  private mapTransaction(id: string, data: Record<string, unknown>): TransactionRecord {
-    const createdAt = data['createdAt'] as { toDate?: () => Date } | null | undefined;
-    const updatedAt = data['updatedAt'] as { toDate?: () => Date } | null | undefined;
-    const created = createdAt?.toDate?.() ?? null;
-    return {
-      uid: id,
-      accountId: (data['accountId'] as string) ?? '',
-      amount: data['amount'] as number | null,
-      description: (data['description'] as string) ?? '',
-      category: (data['category'] as string) ?? '',
-      paidBy: (data['paidBy'] as string | null | undefined) ?? null,
-      icon: data['icon'] as string | null,
-      linkedObject: (data['linkedObject'] as LinkedObject | null | undefined) ?? null,
-      isRecurring: (data['isRecurring'] as boolean) ?? false,
-      recurringFrequency: (data['recurringFrequency'] as string) ?? null,
-      recurringTransactionId: (data['recurringTransactionId'] as string) ?? null,
-      type: (data['type'] as string) ?? 'expense',
-      source: data['source'] as string | undefined,
-      nextPaymentDate: this.asFirestoreDate(data['nextPaymentDate']),
-      createdAt: created,
-      updatedAt: updatedAt?.toDate?.() ?? null,
-      date: docCalendarDate(data, created),
-    } as TransactionRecord;
-  }
 
   private mapRecurringTransaction(
     id: string,
@@ -644,8 +693,8 @@ export class TransactionsService {
       recurringFrequency: (data['recurringFrequency'] as string | null) ?? null,
       isAutoPay: (data['isAutoPay'] as boolean | null) ?? null,
       isActive: (data['isActive'] as boolean) ?? true,
-      lastPaymentDate: this.asFirestoreDate(data['lastPaymentDate']),
-      nextPaymentDate: this.asFirestoreDate(data['nextPaymentDate']),
+      lastPaymentDate: asFirestoreDate(data['lastPaymentDate']),
+      nextPaymentDate: asFirestoreDate(data['nextPaymentDate']),
       date: docCalendarDate(data, created),
       createdAt: created,
       updatedAt: updatedAt?.toDate?.() ?? null,

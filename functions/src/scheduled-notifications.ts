@@ -458,7 +458,9 @@ async function sumTransactionsForBudget(
     .where('date', '<=', dateEndStr)
     .get();
 
-  return snap.docs.reduce((sum, d) => sum + Number((d.data() as { amount?: number }).amount ?? 0), 0);
+  return snap.docs
+    .filter((d) => d.data()['deletedAt'] == null) // skip soft-deleted tombstones
+    .reduce((sum, d) => sum + Number((d.data() as { amount?: number }).amount ?? 0), 0);
 }
 
 async function checkGoals(db: FirebaseFirestore.Firestore, userId: string, dateKey: string): Promise<void> {

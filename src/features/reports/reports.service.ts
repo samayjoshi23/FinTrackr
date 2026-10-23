@@ -113,6 +113,11 @@ export class ReportsService {
    * Firestore revalidation runs in the background. Monthly report docs are refreshed the same way.
    */
   async getReportViewData(period: ReportTimePeriod): Promise<ReportViewData> {
+    // Lazy history: pull older transactions only when the period reaches past the
+    // locally-loaded window (offline → reports cover what's loaded).
+    await this.transactionsService
+      .ensureHistorySince(this.periodStart(period))
+      .catch((e) => console.warn('Loading report history failed', e));
     const [categories, plan, transactions] = await Promise.all([
       this.categoriesService.getCategories(),
       this.budgetsService.getBudgetPlan(),
@@ -596,6 +601,16 @@ export class ReportsService {
   private async createOrUpdateMonthlyReport(monthKey: string): Promise<void> {
     const accountId = await this.resolveAccountKey();
     if (!accountId) return;
+    // A full rebuild sums every transaction of the month, so that month must be fully
+    // loaded. Start one month early to include rows created ahead of their date.
+    const [y, m] = monthKey.split('-').map(Number);
+    const covered = await this.transactionsService.ensureHistorySince(new Date(y, m - 2, 1));
+    if (!covered) {
+      console.warn(
+        `Skipping ${monthKey} report rebuild: transaction history not loaded (offline?)`,
+      );
+      return;
+    }
     const existing = await this.findReportForMonth(accountId, monthKey);
 
     const [transactions, plan, categories] = await Promise.all([
@@ -886,6 +901,21 @@ export class ReportsService {
   }
 
   // ─── Period filtering ─────────────────────────────────────────────────────
+
+  /** Earliest date a period's charts read (`null` = all history). */
+  private periodStart(period: ReportTimePeriod): Date | null {
+    const now = new Date();
+    const monthsBack: Partial<Record<ReportTimePeriod, number>> = {
+      day: 0,
+      week: 1,
+      '1M': 1,
+      '3M': 3,
+      '6M': 6,
+      '1Y': 12,
+    };
+    const n = monthsBack[period];
+    return n === undefined ? null : new Date(now.getFullYear(), now.getMonth() - n, 1);
+  }
 
   private filterByPeriod(
     transactions: TransactionRecord[],

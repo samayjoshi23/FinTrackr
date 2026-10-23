@@ -32,6 +32,7 @@ import { GroupSettlementsService } from '../../features/groups/group-settlements
 import { UsersLookupService } from '../../services/users-lookup.service';
 import { NotificationPreferencesService } from '../../features/notifications/notification-preferences.service';
 import { date } from '../date';
+import { environment } from '../../environment/environment';
 
 /**
  * Non-sensitive-preferences keys we clear on logout. Any localStorage key
@@ -49,6 +50,7 @@ const ALLOWED_PROFILE_PATCH_KEYS: readonly string[] = [
   'photoURL',
   'email',
   'updatedAt',
+  'skipEmailVerification',
 ];
 
 const LOGOUT_LOCAL_STORAGE_KEYS = [
@@ -130,9 +132,11 @@ export class AuthService {
     // Kick off the email-verification flow for password-provider signups.
     // Best-effort — a failure here (e.g. rate-limited, offline) doesn't block
     // signup itself; the /verify-email screen has a resend button.
-    await sendEmailVerification(credential.user).catch(() => {
-      /* non-fatal — user can resend from the verify screen */
-    });
+    if (environment.requireEmailVerification) {
+      await sendEmailVerification(credential.user).catch(() => {
+        /* non-fatal — user can resend from the verify screen */
+      });
+    }
 
     this.setUserProfile();
     return credential.user;
@@ -166,6 +170,42 @@ export class AuthService {
     if (!u) return false;
     const isPasswordProvider = u.providerData.some((p) => p.providerId === 'password');
     return isPasswordProvider && !u.emailVerified;
+  }
+
+  /**
+   * Whether the verify-email gate applies to this user right now:
+   *   - off entirely when `environment.requireEmailVerification` is false;
+   *   - only password-provider users with an unverified email;
+   *   - skipped for users an admin exempted via `users/{uid}.skipEmailVerification`
+   *     (set in the Firebase console; rules stop users from setting it themselves).
+   * Offline, the exemption is read from the cached `userProfile`.
+   */
+  async mustVerifyEmail(currentUser?: User | null): Promise<boolean> {
+    const u = currentUser ?? this.auth.currentUser;
+    if (!environment.requireEmailVerification || !this.requiresEmailVerification(u)) return false;
+    return !(await this.isEmailVerificationExempt(u!.uid));
+  }
+
+  private async isEmailVerificationExempt(uid: string): Promise<boolean> {
+    const cached = () => {
+      try {
+        const p = JSON.parse(localStorage.getItem('userProfile') ?? 'null') as Record<
+          string,
+          unknown
+        > | null;
+        return p?.['uid'] === uid && p['skipEmailVerification'] === true;
+      } catch {
+        return false;
+      }
+    };
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return cached();
+    try {
+      const exempt = (await this.getUserProfile(uid))?.['skipEmailVerification'] === true;
+      this.patchCachedUserProfile(uid, { skipEmailVerification: exempt });
+      return exempt;
+    } catch {
+      return cached();
+    }
   }
 
   async loginWithEmail(email: string, password: string) {

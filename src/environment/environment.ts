@@ -21,6 +21,12 @@ export const environment = {
    * Functions once enforcement is enabled in the console).
    */
   recaptchaSiteKey: '',
+  /**
+   * Email verification for password sign-ups. `true` in production. Individual
+   * users can still be exempted by setting `skipEmailVerification: true` on their
+   * `users/{uid}` doc in the Firebase console (clients can't set that field).
+   */
+  requireEmailVerification: true,
   notifier: {
     durationMs: NotifierDuration.SHORT,
     position: NotifierPosition.BOTTOM_CENTER,

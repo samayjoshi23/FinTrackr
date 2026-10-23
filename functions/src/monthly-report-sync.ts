@@ -103,6 +103,7 @@ export async function recomputeMonthlyReportForAccount(
 
   for (const d of txSnap.docs) {
     const t = d.data();
+    if (t['deletedAt'] != null) continue; // soft-deleted tombstone
     const amt = Number(t['amount'] ?? 0);
     const typ = String(t['type'] ?? 'expense');
     if (typ === 'income') totalIncome += amt;
