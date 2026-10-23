@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -18,9 +17,8 @@ interface FeedbackPayload {
 
 @Component({
   selector: 'app-about',
-  imports: [CommonModule, Icon, FormsModule],
+  imports: [Icon, FormsModule],
   templateUrl: './about.html',
-  styleUrl: './about.css',
 })
 export class About {
   private readonly router = inject(Router);

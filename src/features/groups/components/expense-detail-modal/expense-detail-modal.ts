@@ -9,6 +9,7 @@ import {
   MemberSplitStatus,
 } from '../../group-settlement-allocation.utils';
 import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
+import { formatMoney } from '../../../../shared/utils/format-money';
 
 @Component({
   selector: 'app-expense-detail-modal',
@@ -47,11 +48,7 @@ export class ExpenseDetailModal {
 
   formatCurrency(amount: number, currency: string): string {
     if (this.privacyPrefs.hideBalances()) return '••••';
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(amount);
+    return formatMoney(amount, currency);
   }
 
   onEdit(): void {

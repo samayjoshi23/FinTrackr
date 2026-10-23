@@ -6,7 +6,7 @@ import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { UsersSearchFilterPipe } from '../../../../shared/pipes/users-search-filter.pipe';
 import { SafePhotoUrlPipe } from '../../../../shared/pipes/safe-photo-url.pipe';
-import { AccountsService } from '../../../../services/accounts.service';
+import { AccountsService } from '../../../accounts/accounts.service';
 import { GroupsService } from '../../groups.service';
 import { GroupExpensesService } from '../../group-expenses.service';
 import { GroupSettlementsService } from '../../group-settlements.service';
@@ -99,10 +99,11 @@ export class GroupsList implements OnInit {
       .reduce((s, g) => s + g.netBalance, 0),
   );
 
+  /** Positive total of what the user owes across groups. */
   readonly totalOwing = computed(() =>
     this.groupItems()
       .filter((g) => g.netBalance < 0)
-      .reduce((s, g) => s + g.netBalance, 0),
+      .reduce((s, g) => s - g.netBalance, 0),
   );
 
   async ngOnInit(): Promise<void> {

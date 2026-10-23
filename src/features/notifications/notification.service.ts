@@ -6,7 +6,6 @@ import {
   AppNotification,
   AppNotificationDocument,
   NotificationStatus,
-  ACTION_NOTIFICATION_TYPES,
 } from '../../shared/models/notification.model';
 
 const STORE = 'notifications';
@@ -191,11 +190,6 @@ export class NotificationService {
     }
   }
 
-  /** Returns true if a notification type supports inline action buttons. */
-  supportsActions(type: AppNotification['type']): boolean {
-    return ACTION_NOTIFICATION_TYPES.includes(type);
-  }
-
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private setupListener(userId: string): void {
@@ -215,10 +209,13 @@ export class NotificationService {
         );
         this._notifications.set(docs);
         this._hasMore.set(docs.length >= this._queryLimit());
-        await this.cache.putAll(STORE, docs).catch(() => {});
+        await this.cache
+          .putAll(STORE, docs)
+          .catch((e) => console.warn('Notification cache write failed', e));
       },
-      () => {
-        // On error, keep cached data; listener will retry on reconnect
+      (e) => {
+        // Keep cached data; the listener retries on reconnect.
+        console.warn('Notification listener error', e);
       },
     );
   }

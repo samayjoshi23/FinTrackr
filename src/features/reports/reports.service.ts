@@ -1,5 +1,4 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
 import {
   collection,
   doc,
@@ -19,7 +18,7 @@ import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.servi
 import { NetworkService } from '../../core/offline/network.service';
 import { date, transactionEventDate } from '../../core/date';
 import { TransactionRecord } from '../../shared/models/transaction.model';
-import { Budget, BudgetPlan } from '../../shared/models/budget.model';
+import { BudgetPlan } from '../../shared/models/budget.model';
 import { Category } from '../categories/types';
 import {
   MonthlyReport,
@@ -90,7 +89,6 @@ export interface ReportViewData {
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
   private readonly firestore = inject(Firestore);
-  private readonly auth = inject(Auth);
   private readonly transactionsService = inject(TransactionsService);
   private readonly budgetsService = inject(BudgetsService);
   private readonly categoriesService = inject(CategoriesService);
@@ -105,10 +103,6 @@ export class ReportsService {
   private async resolveAccountKey(): Promise<string | null> {
     const a = await this.accountsService.getSelectedAccount();
     return a?.uid ?? a?.id ?? null;
-  }
-
-  private get uid(): string | null {
-    return this.auth.currentUser?.uid ?? null;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────────
@@ -191,7 +185,9 @@ export class ReportsService {
     const report = await this.findReportForMonthInCacheOnly(accountId, month);
     if (!report) {
       // No cached report to patch — the full rebuild is the authoritative fallback.
-      await this.createOrUpdateMonthlyReport(month).catch(() => {});
+      await this.createOrUpdateMonthlyReport(month).catch((e) =>
+        console.warn(`Monthly report rebuild failed for ${month}`, e),
+      );
       return;
     }
 
@@ -385,7 +381,9 @@ export class ReportsService {
   async rebuildCurrentAndFutureReports(): Promise<void> {
     const accountId = await this.resolveAccountKey();
     if (!accountId) {
-      await this.rebuildCurrentMonthReport().catch(() => {});
+      await this.rebuildCurrentMonthReport().catch((e) =>
+        console.warn('Current month report rebuild failed', e),
+      );
       return;
     }
     const current = this.currentMonthKey();
@@ -588,16 +586,6 @@ export class ReportsService {
       createdAt: now,
       updatedAt: now,
     });
-  }
-
-  /**
-   * @deprecated Prefer {@link ensureCurrentMonthReport} — avoids duplicate fetches in callers.
-   */
-  async computeAndSaveCurrentMonth(
-    _transactions?: TransactionRecord[],
-    _budgets?: Budget[],
-  ): Promise<MonthlyReport | null> {
-    return this.ensureCurrentMonthReport();
   }
 
   /**
@@ -1406,7 +1394,11 @@ export class ReportsService {
         ? byCategoryId[catId]
         : undefined;
       const nextBudget =
-        overrideRaw === undefined ? entry.budget : overrideRaw === null ? null : Number(overrideRaw);
+        overrideRaw === undefined
+          ? entry.budget
+          : overrideRaw === null
+            ? null
+            : Number(overrideRaw);
       const budgetNum = nextBudget !== null && nextBudget > 0 ? nextBudget : null;
       const used = budgetNum ? Math.round((entry.amount / budgetNum) * 100) : 0;
       const overspent = !!budgetNum && entry.amount > budgetNum;

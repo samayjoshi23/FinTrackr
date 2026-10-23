@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
@@ -7,9 +7,9 @@ import { UserProfile } from 'firebase/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { Modal } from '../../../../shared/components/modal/modal';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
-import { AccountsService } from '../../../../services/accounts.service';
-import { AuthService } from '../../../../services/auth.service';
-import { TransactionsService } from '../../../../services/transactions.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { TransactionsService } from '../../../transactions/transactions.service';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import { Account } from '../../../../shared/models/account.model';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
@@ -32,6 +32,7 @@ export class SettingsHome {
   private readonly authService = inject(AuthService);
   private readonly notifier = inject(NotifierService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly currentUid = signal('');
 
@@ -57,9 +58,12 @@ export class SettingsHome {
 
   constructor() {
     if (typeof window !== 'undefined' && window.matchMedia) {
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const onSchemeChange = () => {
         if (this.themeMode() === 'system') this.applyBodyTheme();
-      });
+      };
+      darkQuery.addEventListener('change', onSchemeChange);
+      this.destroyRef.onDestroy(() => darkQuery.removeEventListener('change', onSchemeChange));
     }
   }
 

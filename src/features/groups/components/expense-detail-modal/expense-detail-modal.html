@@ -23,7 +23,7 @@
           <div class="flex items-center gap-2">
             <div
               class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold"
-              [ngClass]="avatarClass(e.paidById)"
+              [class]="avatarClass(e.paidById)"
             >
               {{ initials(e.paidByName) }}
             </div>
@@ -47,7 +47,7 @@
           <div class="flex items-center gap-3 p-3 border-b border-[var(--color-border)]">
             <div
               class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-              [ngClass]="avatarClass(e.paidById)"
+              [class]="avatarClass(e.paidById)"
             >
               {{ initials(e.paidByName) }}
             </div>
@@ -71,7 +71,7 @@
             >
               <div
                 class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                [ngClass]="avatarClass(status.memberId)"
+                [class]="avatarClass(status.memberId)"
               >
                 {{ initials(status.memberName) }}
               </div>

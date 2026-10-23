@@ -176,11 +176,6 @@ export class SyncQueueService {
     await this.updatePendingCount();
   }
 
-  async hasPendingForStore(storeName: string): Promise<boolean> {
-    const pending = await this.getAllPending();
-    return pending.some((e) => e.storeName === storeName);
-  }
-
   /**
    * Doc ids for a store that have a pending offline `delete` not yet synced.
    * A network-first read must NOT resurrect these from the server response until

@@ -95,7 +95,7 @@
           <!-- Icon -->
           <div
             class="notif-card__icon h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
-            [ngClass]="toneClass(n.type)"
+            [class]="toneClass(n.type)"
           >
             <ico [name]="iconFor(n.type)" size="md"></ico>
           </div>
@@ -124,7 +124,7 @@
                 @for (action of n.actionData?.actions!; track action) {
                   <button
                     class="action-btn text-xs font-medium px-3 py-1 rounded-lg"
-                    [ngClass]="actionTone(action)"
+                    [class]="actionTone(action)"
                     (click)="onAction($event, n, action)"
                   >
                     {{ actionLabel(action) }}

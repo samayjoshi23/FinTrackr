@@ -55,10 +55,7 @@
           @if (balanceChange(); as change) {
             <div
               class="flex items-center gap-1 rounded-full text-xs font-semibold px-2 py-1"
-              [ngClass]="{
-                'bg-primary-light text-primary': change.isGain,
-                'red-card !text-red-600': !change.isGain,
-              }"
+              [class]="change.isGain ? 'bg-primary-light text-primary' : 'red-card !text-red-600'"
             >
               @if (change.isGain) {
                 <ico name="arrow-up" size="xs" class="text-primary"></ico>
@@ -81,10 +78,7 @@
               @if (balanceChange(); as change) {
                 <span
                   class="text-xs font-medium px-2 py-1 rounded-full"
-                  [ngClass]="{
-                    'text-primary bg-primary-light': change.isGain,
-                    'red-card !text-red-600': !change.isGain,
-                  }"
+                  [class]="change.isGain ? 'text-primary bg-primary-light' : 'red-card !text-red-600'"
                 >
                   {{
                     change.diff
@@ -119,7 +113,7 @@
           @for (m of memberRows(); track m.memberId) {
             <div
               class="card rounded-xl p-3 flex items-center gap-3"
-              [ngClass]="isOwner() && !m.isOwner ? 'cursor-pointer clickable' : ''"
+              [class]="isOwner() && !m.isOwner ? 'cursor-pointer clickable' : ''"
               [attr.role]="isOwner() && !m.isOwner ? 'button' : null"
               [attr.tabindex]="isOwner() && !m.isOwner ? 0 : null"
               (click)="openMemberActions(m)"
@@ -127,7 +121,7 @@
             >
               <div
                 class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-                [ngClass]="isOwner() && !m.isOwner ? 'text-primary bg-secondary-light' : 'text-secondary bg-gray-300'"
+                [class]="isOwner() && !m.isOwner ? 'text-primary bg-secondary-light' : 'text-secondary bg-gray-300'"
               >
                 {{ (m.displayName || '?').slice(0, 1).toUpperCase() }}
               </div>
@@ -135,7 +129,7 @@
                 <div class="flex items-center gap-2 min-w-0">
                   <span 
                     class="text-sm font-medium title-font truncate"
-                    [ngClass]="isOwner() && !m.isOwner ? '' : 'text-secondary'"
+                    [class]="isOwner() && !m.isOwner ? '' : 'text-secondary'"
                   >
                     {{ m.displayName }}{{ m.isOwner ? ' (Owner)' : '' }}{{ m.isMe ? ' (You)' : '' }}
                   </span>
@@ -178,7 +172,7 @@
           @for (c of currencies; track c.code) {
             <div
               class="card rounded-full py-2 px-3 text-xs font-medium transition-colors"
-              [ngClass]="{ 'selected-card font-semibold': isCurrencyActive(c.code) }"
+              [class]="isCurrencyActive(c.code) ? 'selected-card font-semibold' : ''"
               (click)="onSelectCurrency(c.code)"
             >
               {{ c.label }}
@@ -208,7 +202,7 @@
                 {{ t.createdAt | date: 'MMM d' }}
               </span>
             </div>
-            <span class="text-sm font-semibold shrink-0" [ngClass]="amountClass(t)">
+            <span class="text-sm font-semibold shrink-0" [class]="amountClass(t)">
               {{ t.amount | signedAmount: t.type : acc.currency : '1.0-2' }}
             </span>
           </div>

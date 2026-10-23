@@ -23,7 +23,7 @@
           <div class="flex items-center gap-2">
             <div
               class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold shrink-0"
-              [ngClass]="avatarClass(s.fromId)"
+              [class]="avatarClass(s.fromId)"
             >
               {{ initials(s.fromName) }}
             </div>
@@ -39,7 +39,7 @@
           <div class="flex items-center gap-2">
             <div
               class="h-6 w-6 rounded-full flex items-center justify-center text-[0.6rem] font-semibold shrink-0"
-              [ngClass]="avatarClass(s.toId)"
+              [class]="avatarClass(s.toId)"
             >
               {{ initials(s.toName) }}
             </div>

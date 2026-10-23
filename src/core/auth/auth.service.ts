@@ -2,7 +2,6 @@ import {
   DestroyRef,
   Injectable,
   Injector,
-  computed,
   inject,
   runInInjectionContext,
   signal,
@@ -84,11 +83,6 @@ export class AuthService {
 
   readonly user$ = user(this.auth);
   userProfile = signal<UserProfile | null>(null);
-
-  /** Signed-in uid: signal first, Firebase Auth as fallback (never localStorage). */
-  readonly currentUid = computed(
-    () => (this.userProfile()?.['uid'] as string | undefined) ?? this.auth.currentUser?.uid ?? null,
-  );
 
   constructor() {
     this.googleProvider.setCustomParameters({ prompt: 'select_account' });

@@ -7,15 +7,15 @@ import {
   TransactionCreateInput,
   TransactionRecord,
 } from '../../../../shared/models/transaction.model';
-import { AccountsService } from '../../../../services/accounts.service';
+import { AccountsService } from '../../../accounts/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CurrencyPipe, Location } from '@angular/common';
 import { Category } from '../../../categories/types';
-import { CategoriesService } from '../../../../services/categories.service';
-import { TransactionsService } from '../../../../services/transactions.service';
+import { CategoriesService } from '../../../categories/categories.service';
+import { TransactionsService } from '../../transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { date } from '../../../../core/date';
 import { nextRecurringDate, paymentSourceOptions } from '../../types';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
@@ -44,7 +44,6 @@ export class AddTransaction {
   currency = signal<string>('INR');
   currencySymbol = signal<string>('₹');
   categories = signal<Category[]>([]);
-  today = signal<string>(date().format('YYYY-MM-DD'));
   paymentSources = signal<{ name: string; icon: string }[]>(paymentSourceOptions);
 
   readonly limits = FORM_LIMITS;

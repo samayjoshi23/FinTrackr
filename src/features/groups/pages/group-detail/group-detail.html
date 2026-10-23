@@ -42,7 +42,7 @@
         <div class="flex flex-col items-center gap-1 shrink-0">
           <div
             class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold"
-            [ngClass]="avatarClass(m.memberId)"
+            [class]="avatarClass(m.memberId)"
           >
             {{ initials(m.memberDisplayName) }}
           </div>
@@ -146,7 +146,7 @@
               <div class="card clickable rounded-2xl p-3.5 flex items-center gap-3">
                 <div
                   class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  [ngClass]="avatarClass(b.memberId)"
+                  [class]="avatarClass(b.memberId)"
                 >
                   {{ initials(b.memberName) }}
                 </div>
@@ -176,7 +176,7 @@
               <div class="card rounded-2xl p-3.5 flex items-center gap-3">
                 <div
                   class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  [ngClass]="avatarClass(b.memberId)"
+                  [class]="avatarClass(b.memberId)"
                 >
                   {{ initials(b.memberName) }}
                 </div>
@@ -199,7 +199,7 @@
               <div class="card rounded-2xl p-3.5 flex items-center gap-3 opacity-60">
                 <div
                   class="h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  [ngClass]="avatarClass(b.memberId)"
+                  [class]="avatarClass(b.memberId)"
                 >
                   {{ initials(b.memberName) }}
                 </div>

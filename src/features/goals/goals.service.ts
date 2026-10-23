@@ -140,7 +140,7 @@ export class GoalsService {
 
   async getGoal(goalId: string): Promise<Goal | null> {
     return this.offlineCrud.fetchOne<Goal>('goals', goalId, async () => {
-      const uid = this.requireUid();
+      this.requireUid();
       const snap = await getDoc(doc(this.firestore, `${GOALS_COLLECTION}/${goalId}`));
       if (!snap.exists()) return null;
       return this.mapGoal(snap.id, snap.data());

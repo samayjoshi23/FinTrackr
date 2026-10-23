@@ -1,18 +1,15 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { CommonModule } from '@angular/common';
 import { Snackbar } from '../shared/components/snackbar/snackbar';
 import { NetworkService } from '../core/offline/network.service';
 import { SyncService } from '../core/offline/sync.service';
 import { BrowserBackRedirectService } from '../core/navigation/browser-back-redirect.service';
-import { SyncQueueEntry } from '../core/offline/sync-queue.model';
 import { Icon } from '../shared/components/icon/icon';
 
 @Component({
   selector: 'app-features',
-  imports: [CommonModule, RouterOutlet, Snackbar, Icon],
+  imports: [RouterOutlet, Snackbar, Icon],
   templateUrl: './features.html',
-  styleUrl: './features.css',
   providers: [BrowserBackRedirectService],
 })
 export class Features {

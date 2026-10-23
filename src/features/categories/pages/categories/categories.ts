@@ -3,9 +3,9 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
-import { AccountsService } from '../../../../services/accounts.service';
-import { CategoriesService } from '../../../../services/categories.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { CategoriesService } from '../../categories.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Category } from '../../types';
 

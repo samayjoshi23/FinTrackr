@@ -3,15 +3,6 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { GroupExpense } from '../../shared/models/group.model';
 import { PostSyncCallable } from '../../core/offline/offline-crud.service';
 
-export interface NotifyExpensePayload {
-  groupId: string;
-  expenseId: string;
-  description: string;
-  amount: number;
-  paidByName: string;
-  memberIds: string[];
-}
-
 export interface RecordSettlementPayload {
   groupId: string;
   settlementId: string;

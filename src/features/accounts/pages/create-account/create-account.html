@@ -16,10 +16,7 @@
       @for (page of pages(); track page.sequence) {
         <div
           class="step-content min-h-1 w-full"
-          [ngClass]="{
-            'bg-primary': page.sequence <= currentPage(),
-            'bg-secondary': page.sequence > currentPage(),
-          }"
+          [class.bg-primary]="page.sequence <= currentPage()" [class.bg-secondary]="page.sequence > currentPage()"
         ></div>
       }
     </div>
@@ -42,7 +39,7 @@
       @for (currency of currencies(); track $index) {
         <div
           class="card rounded-xl p-4 cursor-pointer"
-          [ngClass]="{ 'selected-card': currency.isSelected }"
+          [class.selected-card]="currency.isSelected"
           (click)="onSelectCurrency(currency.value)"
         >
           <p class="text-sm font-light" [class.font-semibold]="currency.isSelected">
@@ -62,7 +59,7 @@
         <button
           type="button"
           class="card rounded-xl p-4 text-left border-0 cursor-pointer"
-          [ngClass]="{ 'selected-card': accountType() === 'single-user' }"
+          [class.selected-card]="accountType() === 'single-user'"
           (click)="setAccountType('single-user')"
         >
           <p
@@ -76,7 +73,7 @@
         <button
           type="button"
           class="card rounded-xl p-4 text-left border-0 cursor-pointer"
-          [ngClass]="{ 'selected-card': accountType() === 'multi-user' }"
+          [class.selected-card]="accountType() === 'multi-user'"
           (click)="setAccountType('multi-user')"
         >
           <p
@@ -267,7 +264,7 @@
         @for (suggestion of budgetSuggestions(); track $index) {
           <div
             class="card w-full rounded-full px-3 py-2 cursor-pointer"
-            [ngClass]="{ 'selected-card': suggestion.isSelected }"
+            [class.selected-card]="suggestion.isSelected"
             (click)="onSelectBudgetSuggestion(suggestion.amount)"
           >
             <p

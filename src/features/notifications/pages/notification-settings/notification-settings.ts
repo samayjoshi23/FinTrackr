@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
@@ -18,7 +17,7 @@ interface NotifSettingRow {
 
 @Component({
   selector: 'app-notification-settings',
-  imports: [CommonModule, Icon],
+  imports: [Icon],
   templateUrl: './notification-settings.html',
   styleUrl: './notification-settings.css',
 })

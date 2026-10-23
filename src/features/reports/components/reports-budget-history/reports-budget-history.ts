@@ -1,5 +1,4 @@
 import { Component, inject, Input, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { BudgetHistoryMonth } from '../../../../shared/models/report.model';
@@ -20,7 +19,7 @@ import {
 @Component({
   selector: 'app-reports-budget-history',
   standalone: true,
-  imports: [CommonModule, Icon, SignedAmountPipe],
+  imports: [Icon, SignedAmountPipe],
   templateUrl: './reports-budget-history.html',
 })
 export class ReportsBudgetHistory {

@@ -89,7 +89,7 @@
             <button
               type="button"
               class="card rounded-xl p-2 flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] disabled:cursor-not-allowed disabled:opacity-40"
-              [ngClass]="{ 'selected-card': selectedIcon === iconId }"
+              [class.selected-card]="selectedIcon === iconId"
               [disabled]="isIconUnavailable(iconId) && selectedIcon !== iconId"
               (click)="pickIcon(iconId)"
               [attr.aria-pressed]="selectedIcon === iconId"

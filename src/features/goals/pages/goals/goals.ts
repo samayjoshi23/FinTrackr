@@ -1,10 +1,9 @@
-import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
-import { AccountsService } from '../../../../services/accounts.service';
-import { GoalsService } from '../../../../services/goals.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { GoalsService } from '../../goals.service';
 import { Goal } from '../../../../shared/models/goal.model';
 import { GoalCardModel } from '../../types';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
@@ -12,7 +11,7 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 
 @Component({
   selector: 'app-goals',
-  imports: [CommonModule, Icon, SignedAmountPipe, ConfirmPrompt],
+  imports: [Icon, SignedAmountPipe, ConfirmPrompt],
   templateUrl: './goals.html',
   styleUrl: './goals.css',
 })

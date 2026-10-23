@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
@@ -6,7 +5,7 @@ import { Auth } from '@angular/fire/auth';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs/operators';
 import { Notifier } from '../shared/components/notifier/pages/notifier';
-import { AuthService } from '../services/auth.service';
+import { AuthService } from '../core/auth/auth.service';
 import { BiometricLockService } from '../core/services/biometric-lock.service';
 import { Icon } from '../shared/components/icon/icon';
 import { IconSpriteService } from '../shared/components/icon/icon-sprite.service';
@@ -17,7 +16,7 @@ import {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Notifier, CommonModule, Icon],
+  imports: [RouterOutlet, Notifier, Icon],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

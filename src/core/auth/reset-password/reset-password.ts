@@ -1,10 +1,10 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { FirebaseError } from 'firebase/app';
 import { Icon } from '../../../shared/components/icon/icon';
-import { AuthService } from '../../../services/auth.service';
+import { AuthService } from '../auth.service';
 import { NotifierService } from '../../../shared/components/notifier/notifier.service';
+import { authErrorMessage } from '../auth-error-message';
 
 @Component({
   selector: 'app-reset-password',
@@ -47,15 +47,10 @@ export class ResetPassword {
   }
 
   private getErrorMessage(error: unknown): string {
-    if (!(error instanceof FirebaseError)) return 'Something went wrong. Please try again.';
-    switch (error.code) {
-      case 'auth/user-not-found':
-      case 'auth/invalid-email':
-        return 'No account found with that email address.';
-      case 'auth/too-many-requests':
-        return 'Too many attempts. Please wait a moment and try again.';
-      default:
-        return error.message || 'Could not send reset email.';
-    }
+    return authErrorMessage(error, 'Could not send reset email.', {
+      'auth/user-not-found': 'No account found with that email address.',
+      'auth/invalid-email': 'No account found with that email address.',
+      'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+    });
   }
 }

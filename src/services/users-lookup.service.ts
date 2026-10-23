@@ -37,16 +37,6 @@ export class UsersLookupService {
   readonly directoryLoading = signal(false);
 
   /**
-   * Legacy: previously loaded the entire user collection for client-side
-   * substring search. That capability is intentionally gone — the caller
-   * should invoke `searchByEmail(query)` on input changes instead. Kept as a
-   * no-op so existing focus / open handlers don't crash.
-   */
-  async loadUsersDirectory(): Promise<void> {
-    return;
-  }
-
-  /**
    * Query `/user-directory` by email — expects a fully-formed address. Updates
    * `directoryUsers` with 0 or 1 hits so existing typeahead markup keeps
    * rendering.

@@ -8,7 +8,6 @@ import {
   SimpleChanges,
   ViewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import type ApexCharts from 'apexcharts';
 import { loadApexCharts } from '../../utils/apexcharts-loader';
 import { reportChartColors, reportChartIsDark } from '../../utils/reports-chart-theme';
@@ -16,7 +15,7 @@ import { reportChartColors, reportChartIsDark } from '../../utils/reports-chart-
 @Component({
   selector: 'app-reports-income-expense-bar-chart',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: '<div #chartHost></div>',
 })
 export class ReportsIncomeExpenseBarChart implements AfterViewInit, OnChanges, OnDestroy {

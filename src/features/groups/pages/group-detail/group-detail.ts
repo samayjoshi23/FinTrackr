@@ -21,6 +21,7 @@ import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/conf
 import { ExpenseDetailModal } from '../../components/expense-detail-modal/expense-detail-modal';
 import { SettlementDetailModal } from '../../components/settlement-detail-modal/settlement-detail-modal';
 import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
+import { formatMoney } from '../../../../shared/utils/format-money';
 
 // Sentinel to mark names that should not be stored in the name map
 const PLACEHOLDER_YOU = 'You';
@@ -36,7 +37,6 @@ const PLACEHOLDER_YOU = 'You';
     ConfirmPrompt,
   ],
   templateUrl: './group-detail.html',
-  styleUrl: './group-detail.css',
 })
 export class GroupDetail implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -175,12 +175,6 @@ export class GroupDetail implements OnInit {
   readonly settledBalances = computed(() =>
     this.balances().filter((b) => Math.abs(b.netAmount) <= 0.005),
   );
-
-  /** All members for the settle-up modal — everyone except the current user. */
-  readonly activeMembersExcludingMe = computed<GroupMember[]>(() => {
-    const uid = this.currentUserId();
-    return this.resolvedMemberList().filter((m) => m.memberId !== uid);
-  });
 
   /** All members for the avatar strip — current user first. */
   readonly allActiveMembers = computed<GroupMember[]>(() => {
@@ -346,11 +340,7 @@ export class GroupDetail implements OnInit {
 
   formatCurrency(amount: number, currency: string): string {
     if (this.privacyPrefs.hideBalances()) return '••••';
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(Math.abs(amount));
+    return formatMoney(Math.abs(amount), currency);
   }
 
   async onExpenseAdded(expense: GroupExpense): Promise<void> {

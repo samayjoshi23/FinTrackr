@@ -1,11 +1,10 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { NotificationService } from '../../notification.service';
-import { AccountsService } from '../../../../services/accounts.service';
+import { AccountsService } from '../../../accounts/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
 import { AppNotification, NotificationAction, NotificationType } from '../../../../shared/models/notification.model';
 import { AccountInviteService } from '../../../accounts/account-invite.service';
@@ -14,7 +13,7 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 
 @Component({
   selector: 'app-notification-list',
-  imports: [CommonModule, Icon, ScrollingModule],
+  imports: [Icon, ScrollingModule],
   templateUrl: './notification-list.html',
   styleUrl: './notification-list.css',
 })

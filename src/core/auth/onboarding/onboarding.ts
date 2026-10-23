@@ -1,9 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { AccountsService } from '../../../services/accounts.service';
-import { AuthService } from '../../../services/auth.service';
+import { AccountsService } from '../../../features/accounts/accounts.service';
+import { AuthService } from '../auth.service';
 import { ProfileUploadService } from '../../../services/profile-upload.service';
 import { UserProfile } from 'firebase/auth';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Icon } from '../../../shared/components/icon/icon';
 import { DatePicker } from '../../../shared/components/date-picker/date-picker';
@@ -11,8 +10,8 @@ import { currencies, onboardingPages } from './types';
 import { budgetSuggestionCards } from './types';
 import { Router } from '@angular/router';
 import { Account, AccountCreateInput, AccountMember, AccountType } from '../../../shared/models/account.model';
-import { BudgetsService } from '../../../services/budgets.service';
-import { GoalsService } from '../../../services/goals.service';
+import { BudgetsService } from '../../../features/budgets/budgets.service';
+import { GoalsService } from '../../../features/goals/goals.service';
 import { Goal, GoalCreateInput } from '../../../shared/models/goal.model';
 import { Modal } from '../../../shared/components/modal/modal';
 import {
@@ -20,8 +19,8 @@ import {
   CategoryCreateInput,
   DEFAULT_CATEGORIES,
 } from '../../../features/categories/types';
-import { CategoriesService } from '../../../services/categories.service';
-import { ReportsService } from '../../../services/reports.service';
+import { CategoriesService } from '../../../features/categories/categories.service';
+import { ReportsService } from '../../../features/reports/reports.service';
 import { SignedAmountPipe } from '../../../shared/pipes/signed-amount.pipe';
 import { UsersLookupService, UserLookupHit } from '../../../services/users-lookup.service';
 import { NotifierService } from '../../../shared/components/notifier/notifier.service';
@@ -30,7 +29,6 @@ import { UsersSearchFilterPipe } from '../../../shared/pipes/users-search-filter
 @Component({
   selector: 'app-onboarding',
   imports: [
-    CommonModule,
     FormsModule,
     Icon,
     DatePicker,
@@ -510,7 +508,7 @@ export class Onboarding {
             budgetMeta,
             initialBalance,
           )
-          .catch(() => {});
+          .catch((e) => console.warn('Initial monthly report seed failed', e));
       }
 
       await this.router.navigateByUrl('/user/dashboard', { replaceUrl: true });

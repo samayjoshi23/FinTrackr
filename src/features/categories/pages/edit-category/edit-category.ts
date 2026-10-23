@@ -1,17 +1,17 @@
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
-import { CategoriesService } from '../../../../services/categories.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { CategoriesService } from '../../categories.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { CATEGORY_ICON_OPTIONS, Category } from '../../types';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-edit-category',
-  imports: [CommonModule, FormsModule, Icon],
+  imports: [FormsModule, Icon],
   templateUrl: './edit-category.html',
   styleUrl: './edit-category.css',
 })

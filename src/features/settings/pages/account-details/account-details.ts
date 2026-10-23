@@ -1,13 +1,13 @@
 import { CommonModule, Location } from '@angular/common';
-import { Component, computed, effect, inject, model, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { doc, Firestore, getDoc } from '@angular/fire/firestore';
 import { Icon } from '../../../../shared/components/icon/icon';
-import { AccountsService } from '../../../../services/accounts.service';
-import { TransactionsService } from '../../../../services/transactions.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { TransactionsService } from '../../../transactions/transactions.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { UsersLookupService, UserLookupHit } from '../../../../services/users-lookup.service';
 import { Account, MemberStatus, memberStatusOf } from '../../../../shared/models/account.model';
@@ -71,7 +71,7 @@ export class AccountDetails {
    */
   private readonly ownerDisplayName = signal<string>('Owner');
 
-  txDetailOpen = model(false);
+  txDetailOpen = signal(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
 
   private readonly selectedAccount = signal<Account | null>(null);
@@ -287,7 +287,9 @@ export class AccountDetails {
         if (sel?.id === fresh.id) {
           await this.accountsService.writeAccountToCache(fresh);
           this.selectedAccount.set(fresh);
-          await this.reportsService.rebuildCurrentMonthReport().catch(() => {});
+          await this.reportsService
+            .rebuildCurrentMonthReport()
+            .catch((e) => console.warn('Report rebuild after account edit failed', e));
         }
       }
       this.editModalOpen = false;

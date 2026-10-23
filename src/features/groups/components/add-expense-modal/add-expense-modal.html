@@ -106,10 +106,7 @@
           Split equally among {{ allMembersForSplit().length }} members
           @if (+formModel.amount > 0) {
             (
-            {{
-              (+formModel.amount / allMembersForSplit()!.length).toFixed(2)
-                | currency: group().currency
-            }}
+            {{ equalSplitShare() | currency: group().currency }}
             each)
           }
         </p>
@@ -122,7 +119,7 @@
               <div class="flex gap-1 justify-center items-center w-[25%]">
                 <div
                   class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  [ngClass]="avatarClass(split.memberId)"
+                  [class]="avatarClass(split.memberId)"
                 >
                   {{ initials(split.memberName) }}
                 </div>

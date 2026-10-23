@@ -15,6 +15,9 @@ export class FcmService {
     | Promise<typeof import('firebase/messaging') | null>
     | null = null;
 
+  /** Unsubscribe for the foreground `onMessage` handler, so re-init/logout never stacks handlers. */
+  private stopForegroundListener: (() => void) | null = null;
+
   /**
    * Requests push notification permission, gets the FCM token,
    * registers the device under `users/{userId}/devices/{deviceId}`,
@@ -74,7 +77,8 @@ export class FcmService {
 
       if (token) {
         await this.registerDeviceToken(userId, token);
-        onMessage(messaging, (payload) => {
+        this.stopForegroundListener?.();
+        this.stopForegroundListener = onMessage(messaging, (payload) => {
           const title = payload.notification?.title ?? 'New notification';
           const body = payload.notification?.body ?? '';
           this.notifier.show(`${title}: ${body}`);
@@ -94,6 +98,9 @@ export class FcmService {
    * browser (both share the same origin-scoped FCM token).
    */
   async teardown(userId: string | null): Promise<void> {
+    this.stopForegroundListener?.();
+    this.stopForegroundListener = null;
+
     const deviceId =
       typeof localStorage !== 'undefined' ? localStorage.getItem(DEVICE_ID_KEY) : null;
 

@@ -308,38 +308,9 @@ export class GroupsService {
     }
   }
 
-  async deleteGroup(groupId: string): Promise<void> {
-    await this.offlineCrud.remove('groups', groupId, async () => {
-      await deleteDoc(doc(this.firestore, COLLECTION, groupId));
-    });
-  }
-
   /** Sync worker: delete on server after offline delete was queued. */
   async applyPendingGroupDelete(docId: string): Promise<void> {
     await deleteDoc(doc(this.firestore, COLLECTION, docId));
   }
 
-  /** Adds a pending (isActive: false) member to an existing group. */
-  async addPendingMember(groupId: string, member: GroupMember): Promise<void> {
-    const group = await this.getGroup(groupId);
-    if (!group) throw new Error('Group not found.');
-    const members = group.members.filter((m) => m.memberId !== member.memberId);
-    members.push(member);
-    await this.updateGroup(groupId, { members: members as unknown as GroupMember[] });
-  }
-
-  /** Activates or removes a pending member (used by respondGroupInvite). */
-  async respondMembership(groupId: string, memberId: string, accept: boolean): Promise<void> {
-    const group = await this.getGroup(groupId);
-    if (!group) throw new Error('Group not found.');
-    let members = group.members as GroupMember[];
-    if (accept) {
-      members = members.map((m) =>
-        m.memberId === memberId ? { ...m, isActive: true, joinedAt: null } : m,
-      );
-    } else {
-      members = members.filter((m) => m.memberId !== memberId);
-    }
-    await this.updateGroup(groupId, { members: members as unknown as GroupMember[] });
-  }
 }

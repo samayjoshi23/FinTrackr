@@ -1,10 +1,10 @@
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
-import { AccountsService } from '../../../../services/accounts.service';
-import { GoalsService } from '../../../../services/goals.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { GoalsService } from '../../goals.service';
 import { Goal } from '../../../../shared/models/goal.model';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
@@ -12,9 +12,8 @@ import { DatePicker } from '../../../../shared/components/date-picker/date-picke
 
 @Component({
   selector: 'app-edit-goal',
-  imports: [CommonModule, FormsModule, Icon, DatePicker],
+  imports: [FormsModule, Icon, DatePicker],
   templateUrl: './edit-goal.html',
-  styleUrl: './edit-goal.css',
 })
 export class EditGoal {
   private readonly router = inject(Router);

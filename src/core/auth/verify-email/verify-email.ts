@@ -1,5 +1,4 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { AuthService } from '../auth.service';
@@ -14,7 +13,7 @@ import { Icon } from '../../../shared/components/icon/icon';
 @Component({
   selector: 'app-verify-email',
   standalone: true,
-  imports: [CommonModule, Icon],
+  imports: [Icon],
   templateUrl: './verify-email.html',
 })
 export class VerifyEmail {

@@ -1,8 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { Icon } from '../../../shared/components/icon/icon';
 import { Router, RouterLink } from '@angular/router';
-import { AuthService } from '../../../services/auth.service';
-import { FirebaseError } from 'firebase/app';
+import { AuthService } from '../auth.service';
 import { NotifierService } from '../../../shared/components/notifier/notifier.service';
 import {
   AbstractControl,
@@ -12,13 +11,12 @@ import {
   Validators,
 } from '@angular/forms';
 import { NotifierSeverity } from '../../../shared/components/notifier/types';
-import { UserProfile } from 'firebase/auth';
+import { authErrorMessage } from '../auth-error-message';
 
 @Component({
   selector: 'app-signup',
   imports: [Icon, RouterLink, ReactiveFormsModule],
   templateUrl: './signup.html',
-  styleUrl: './signup.css',
 })
 export class Signup {
   // Inject dependencies
@@ -29,7 +27,6 @@ export class Signup {
 
   // Form state
   isSubmitting = signal(false);
-  userProfile = signal<UserProfile | null>(null);
   readonly signupForm = this.formBuilder.group(
     {
       fullName: ['', [Validators.required]],
@@ -104,21 +101,8 @@ export class Signup {
   }
 
   private getErrorMessage(error: unknown): string {
-    if (!(error instanceof FirebaseError)) {
-      return 'Something went wrong. Please try again.';
-    }
-
-    switch (error.code) {
-      case 'auth/email-already-in-use':
-        return 'This email is already registered.';
-      case 'auth/invalid-email':
-        return 'Please enter a valid email address.';
-      case 'auth/weak-password':
-        return 'Password is too weak. Use a stronger password.';
-      case 'auth/popup-closed-by-user':
-        return 'Google sign-up was cancelled.';
-      default:
-        return error.message || 'Sign-up failed.';
-    }
+    return authErrorMessage(error, 'Sign-up failed.', {
+      'auth/popup-closed-by-user': 'Google sign-up was cancelled.',
+    });
   }
 }

@@ -24,7 +24,7 @@
   --color-budget-fill-over: var(--budget-fill-over);
 }
 
-/* Used via [ngClass] from TS — ensure utilities are emitted */
+/* Used via [class] bindings from TS — ensure utilities are emitted */
 @source inline("bg-budget-fill-low bg-budget-fill-mid bg-budget-fill-raised bg-budget-fill-high bg-budget-fill-critical bg-budget-fill-over");
 
 *,

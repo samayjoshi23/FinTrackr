@@ -1,8 +1,6 @@
-import { CommonModule } from '@angular/common';
 import { Overlay, OverlayConfig, OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
 import {
-  booleanAttribute,
   Component,
   effect,
   forwardRef,
@@ -70,7 +68,7 @@ export interface DatePickerDayCell {
 
 @Component({
   selector: 'app-date-picker',
-  imports: [CommonModule, Icon],
+  imports: [Icon],
   templateUrl: './date-picker.html',
   styleUrl: './date-picker.css',
   providers: [

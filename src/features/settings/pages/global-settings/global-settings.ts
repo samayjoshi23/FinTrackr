@@ -5,6 +5,5 @@ import { RouterOutlet } from '@angular/router';
   selector: 'app-global-settings',
   imports: [RouterOutlet],
   templateUrl: './global-settings.html',
-  styleUrl: './global-settings.css',
 })
 export class GlobalSettings {}

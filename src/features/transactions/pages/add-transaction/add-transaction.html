@@ -119,28 +119,6 @@
     <!-- Category -->
     <div class="flex flex-col gap-2">
       <label for="category" class="text-xs text-gray-400">Category</label>
-      <!-- <div class="flex flex-wrap gap-2 grid grid-cols-3">
-        @for (category of categories(); track category.name) {
-          <div
-            class="flex items-center justify-between flex-col gap-1 card rounded-xl p-2 cursor-pointer"
-            [class.selected-card]="category.name === transaction().category"
-            (click)="onChangeCategory(category)"
-          >
-            <ico
-              [name]="category.icon"
-              size="md"
-              [class]="category.name === transaction().category ? 'text-primary' : 'text-secondary'"
-            ></ico>
-            <p
-              class="text-xs text-center {{
-                category.name === transaction().category ? 'text-primary' : 'text-secondary'
-              }}"
-            >
-              {{ category.name }}
-            </p>
-          </div>
-        }
-      </div> -->
       <div class="flex flex-wrap gap-2">
         @for (category of categories(); track category.name) {
           <div

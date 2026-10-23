@@ -7,7 +7,7 @@
     [class.opacity-50]="disabled"
     (click)="openOverlay($event)"
   >
-    <span [ngClass]="valueIso() ? 'text-[var(--color-text)]' : 'text-secondary'">
+    <span [class]="valueIso() ? 'text-[var(--color-text)]' : 'text-secondary'">
       {{ displayLabel() }}
     </span>
   </button>

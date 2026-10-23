@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, effect, inject, model, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { FormsModule } from '@angular/forms';
@@ -7,11 +7,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { TransactionRecord } from '../../../../shared/models/transaction.model';
 import { Account, AccountMember, memberStatusOf } from '../../../../shared/models/account.model';
-import { TransactionsService } from '../../../../services/transactions.service';
+import { TransactionsService } from '../../transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Category } from '../../../categories/types';
-import { AccountsService } from '../../../../services/accounts.service';
-import { CategoriesService } from '../../../../services/categories.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { CategoriesService } from '../../../categories/categories.service';
 import { TypeFilter, DateFilter, typeFilterOptions, dateFilterOptions } from '../../types';
 import { TransactionDetailModal } from '../../../../shared/components/transaction-detail-modal/transaction-detail-modal';
 import { DatePicker } from '../../../../shared/components/date-picker/date-picker';
@@ -72,7 +72,7 @@ export class TransactionList {
 
   categories = signal<Category[]>([]);
 
-  txDetailOpen = model(false);
+  txDetailOpen = signal(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
 
   constructor() {

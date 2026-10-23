@@ -1,5 +1,4 @@
 import { booleanAttribute, Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { BudgetTrackingCard } from '../../../../shared/models/report.model';
 import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
@@ -7,7 +6,7 @@ import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
 @Component({
   selector: 'app-reports-budget-tracking',
   standalone: true,
-  imports: [CommonModule, Icon, SignedAmountPipe],
+  imports: [Icon, SignedAmountPipe],
   templateUrl: './reports-budget-tracking.html',
 })
 export class ReportsBudgetTracking {

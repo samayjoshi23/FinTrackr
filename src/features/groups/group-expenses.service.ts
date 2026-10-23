@@ -11,8 +11,6 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  getDoc,
-  where,
 } from '@angular/fire/firestore';
 import {
   GroupExpense,

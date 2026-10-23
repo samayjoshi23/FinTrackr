@@ -4,18 +4,10 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { Icon } from '../icon/icon';
 
-export interface SnackbarTab {
-  name: string;
-  path: string;
-  icon: string;
-  selected: boolean;
-}
-
 @Component({
   selector: 'app-snackbar',
   imports: [Icon],
   templateUrl: './snackbar.html',
-  styleUrl: './snackbar.css',
 })
 export class Snackbar {
   private readonly router = inject(Router);
@@ -88,10 +80,5 @@ export class Snackbar {
   onTabClick(path: string): void {
     if (!path?.trim()) return;
     void this.router.navigateByUrl(path);
-  }
-
-  openAddTransaction(event: Event): void {
-    event.stopPropagation();
-    void this.router.navigateByUrl('/user/transactions/add');
   }
 }

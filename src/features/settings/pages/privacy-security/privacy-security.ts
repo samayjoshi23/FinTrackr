@@ -1,11 +1,9 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { ConfirmPrompt } from '../../../../shared/components/confirm-prompt/confirm-prompt';
 import { Modal } from '../../../../shared/components/modal/modal';
-import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { AccountDeletionService } from '../../../../services/account-deletion.service';
 import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
 
@@ -34,13 +32,12 @@ function loadPrivacy(): PrivacyPreferences {
 
 @Component({
   selector: 'app-privacy-security',
-  imports: [CommonModule, FormsModule, Icon, ConfirmPrompt, Modal],
+  imports: [FormsModule, Icon, ConfirmPrompt, Modal],
   templateUrl: './privacy-security.html',
   styleUrl: './privacy-security.css',
 })
 export class PrivacySecurity {
   private readonly router = inject(Router);
-  private readonly notifier = inject(NotifierService);
   private readonly deletionService = inject(AccountDeletionService);
   private readonly privacyPrefs = inject(PrivacyPreferencesService);
 

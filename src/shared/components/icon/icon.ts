@@ -1,10 +1,9 @@
-import { CommonModule } from '@angular/common';
 import { booleanAttribute, Component, inject, Input } from '@angular/core';
 import { IconSpriteService } from './icon-sprite.service';
 
 @Component({
   selector: 'ico',
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './icon.html',
   styleUrl: './icon.css',
 })

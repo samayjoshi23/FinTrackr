@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, computed, input, model, output } from '@angular/core';
 import { Modal } from '../modal/modal';
 import { Icon } from '../icon/icon';
@@ -7,7 +6,7 @@ export type PromptSeverity = 'info' | 'success' | 'warn' | 'danger';
 
 @Component({
   selector: 'app-confirm-prompt',
-  imports: [CommonModule, Modal, Icon],
+  imports: [Modal, Icon],
   templateUrl: './confirm-prompt.html',
 })
 export class ConfirmPrompt {

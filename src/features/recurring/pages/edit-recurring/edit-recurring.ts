@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -8,8 +7,8 @@ import {
   dateToIsoLocal,
   parseIsoLocal,
 } from '../../../../shared/components/date-picker/date-picker';
-import { AccountsService } from '../../../../services/accounts.service';
-import { TransactionsService } from '../../../../services/transactions.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { TransactionsService } from '../../../transactions/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { RecurringTransactionRecord } from '../../../../shared/models/transaction.model';
 import { frequencyLabel } from '../../types';
@@ -18,7 +17,7 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-edit-recurring',
-  imports: [CommonModule, FormsModule, Icon, DatePicker],
+  imports: [FormsModule, Icon, DatePicker],
   templateUrl: './edit-recurring.html',
   styleUrl: './edit-recurring.css',
 })

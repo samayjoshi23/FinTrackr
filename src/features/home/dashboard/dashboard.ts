@@ -1,15 +1,14 @@
-import { Component, computed, effect, inject, model, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { UserProfile } from 'firebase/auth';
 import { CommonModule } from '@angular/common';
 import { Icon } from '../../../shared/components/icon/icon';
 import { quickActions } from '../types';
-import { AccountsService } from '../../../services/accounts.service';
-import { TransactionsService } from '../../../services/transactions.service';
-import { ReportsService } from '../../../services/reports.service';
+import { AccountsService } from '../../accounts/accounts.service';
+import { TransactionsService } from '../../transactions/transactions.service';
+import { ReportsService } from '../../reports/reports.service';
 import { Account } from '../../../shared/models/account.model';
 import { CategoryBreakdownEntry, MonthlyReport } from '../../../shared/models/report.model';
 import { Router } from '@angular/router';
-import { NotifierService } from '../../../shared/components/notifier/notifier.service';
 import { TransactionRecord } from '../../../shared/models/transaction.model';
 import { budgetUsageBarClass } from '../../../shared/utils/budget-usage-color';
 import { TransactionDetailModal } from '../../../shared/components/transaction-detail-modal/transaction-detail-modal';
@@ -30,7 +29,6 @@ export class Dashboard {
   private readonly transactionsService = inject(TransactionsService);
   private readonly reportsService = inject(ReportsService);
   private readonly router = inject(Router);
-  private readonly notifier = inject(NotifierService);
   private readonly authService = inject(AuthService);
   readonly notificationService = inject(NotificationService);
   readonly privacyPrefs = inject(PrivacyPreferencesService);
@@ -55,7 +53,7 @@ export class Dashboard {
   recentTransactions = signal<TransactionRecord[]>([]);
   currency = signal<string>('INR');
   loading = signal(true);
-  txDetailOpen = model(false);
+  txDetailOpen = signal(false);
   selectedTransaction = signal<TransactionRecord | null>(null);
 
   accountSwitcherOpen = signal(false);

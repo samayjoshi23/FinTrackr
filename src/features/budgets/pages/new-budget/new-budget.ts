@@ -1,12 +1,12 @@
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
-import { AccountsService } from '../../../../services/accounts.service';
-import { BudgetsService } from '../../../../services/budgets.service';
-import { CategoriesService } from '../../../../services/categories.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { BudgetsService } from '../../budgets.service';
+import { CategoriesService } from '../../../categories/categories.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { Category } from '../../../categories/types';
 import { Account } from '../../../../shared/models/account.model';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
@@ -19,7 +19,7 @@ import { SignedAmountPipe } from '../../../../shared/pipes/signed-amount.pipe';
  */
 @Component({
   selector: 'app-new-budget',
-  imports: [CommonModule, FormsModule, Icon, SignedAmountPipe],
+  imports: [FormsModule, Icon, SignedAmountPipe],
   templateUrl: './new-budget.html',
   styleUrl: './new-budget.css',
 })
@@ -139,7 +139,9 @@ export class NewBudget {
         categoryBudgets,
       });
       // Recurring plan edit applies to this month and every future month.
-      await this.reportsService.rebuildCurrentAndFutureReports().catch(() => {});
+      await this.reportsService
+        .rebuildCurrentAndFutureReports()
+        .catch((e) => console.warn('Report rebuild after budget plan change failed', e));
       this.router.navigateByUrl('/user/budgets', { replaceUrl: true });
     } catch (e) {
       console.error(e);

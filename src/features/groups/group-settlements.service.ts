@@ -5,7 +5,6 @@ import {
   doc,
   Firestore,
   getDocs,
-  getDoc,
   orderBy,
   query,
   serverTimestamp,

@@ -8,7 +8,6 @@ import {
   SimpleChanges,
   ViewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import type ApexCharts from 'apexcharts';
 import { SavingsTrendDataPoint } from '../../../../shared/models/report.model';
 import { loadApexCharts } from '../../utils/apexcharts-loader';
@@ -17,7 +16,7 @@ import { reportChartColors, reportChartIsDark } from '../../utils/reports-chart-
 @Component({
   selector: 'app-reports-savings-trend-line-chart',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: '<div #chartHost></div>',
 })
 export class ReportsSavingsTrendLineChart implements AfterViewInit, OnChanges, OnDestroy {

@@ -1,26 +1,20 @@
-import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { FormsModule, NgForm } from '@angular/forms';
 import { LinkedObject, TransactionCreateInput } from '../../../../shared/models/transaction.model';
-import { AccountsService } from '../../../../services/accounts.service';
-import { CategoriesService } from '../../../../services/categories.service';
-import { TransactionsService } from '../../../../services/transactions.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { CategoriesService } from '../../../categories/categories.service';
+import { TransactionsService } from '../../../transactions/transactions.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { GroupsService } from '../../groups.service';
 import { GroupExpensesService } from '../../group-expenses.service';
 import { GroupSettlementsService } from '../../group-settlements.service';
 import { GroupCloudFunctionsService } from '../../group-cloud-functions.service';
 import { memberAvatarClass, memberInitials } from '../../group-balance.utils';
-import {
-  ExpenseSplit,
-  Group,
-  GroupExpense,
-  GroupMember,
-} from '../../../../shared/models/group.model';
+import { ExpenseSplit, Group, GroupMember } from '../../../../shared/models/group.model';
 import { Account } from '../../../../shared/models/account.model';
 import { Category } from '../../../categories/types';
 import { paymentSourceOptions } from '../../../transactions/types';
@@ -34,7 +28,7 @@ type SplitMode = 'equal' | 'custom';
 
 @Component({
   selector: 'app-add-group-transaction',
-  imports: [CommonModule, Icon, FormsModule, DatePicker],
+  imports: [Icon, FormsModule, DatePicker],
   templateUrl: './add-group-transaction.html',
   styleUrl: './add-group-transaction.css',
 })

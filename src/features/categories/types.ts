@@ -24,37 +24,6 @@ export type CategoryUpdateInput = Partial<
 >;
 
 /** Icon ids from `sprite.svg` for the category picker. */
-// export const CATEGORY_ICON_OPTIONS: readonly string[] = [
-//   'tags',
-//   'utensils',
-//   'car-side',
-//   'entertainment',
-//   'shopping-bag',
-//   'bulb',
-//   'dumbells',
-//   'wallet',
-//   'notes',
-//   'bullseye',
-//   'bar-graph',
-//   'credit-card',
-//   'bank',
-//   'home',
-//   'target',
-//   'office-building',
-//   'dollar-sign',
-//   'gift',
-//   'book-open',
-//   'paper-airplane',
-//   'wrench-screwdriver',
-//   'musical-note',
-//   'briefcase',
-//   'face-smile',
-//   'medicine',
-//   'earning',
-//   'carrot',
-//   'donation',
-// ];
-
 export const CATEGORY_ICON_OPTIONS: readonly string[] = [
   'utensils',
   'car-side',

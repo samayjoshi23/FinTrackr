@@ -5,6 +5,7 @@ import { Icon } from '../../../../shared/components/icon/icon';
 import { GroupSettlement } from '../../../../shared/models/group.model';
 import { memberAvatarClass, memberInitials } from '../../group-balance.utils';
 import { PrivacyPreferencesService } from '../../../../core/services/privacy-preferences.service';
+import { formatMoney } from '../../../../shared/utils/format-money';
 
 @Component({
   selector: 'app-settlement-detail-modal',
@@ -40,11 +41,7 @@ export class SettlementDetailModal {
 
   formatCurrency(amount: number, currency: string): string {
     if (this.privacyPrefs.hideBalances()) return '••••';
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(amount);
+    return formatMoney(amount, currency);
   }
 
   close(): void {

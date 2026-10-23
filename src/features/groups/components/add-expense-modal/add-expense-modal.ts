@@ -112,6 +112,12 @@ export class AddExpenseModal implements OnChanges {
     );
   }
 
+  /** Per-member share when the amount is split equally. */
+  equalSplitShare(): number {
+    const count = this.allMembersForSplit().length;
+    return count ? +this.formModel.amount / count : 0;
+  }
+
   allMembersForSplit(): GroupMember[] {
     const uid = this.currentUserId();
     const others = this.members().filter((m) => m.memberId !== uid);

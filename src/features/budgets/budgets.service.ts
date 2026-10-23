@@ -2,7 +2,6 @@ import { effect, inject, Injectable, untracked } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   collection,
-  deleteDoc,
   doc,
   Firestore,
   getDoc,
@@ -82,59 +81,6 @@ export class BudgetsService {
     return id;
   }
 
-  async createBudget(data: BudgetCreateInput, userId?: string): Promise<Budget> {
-    const uid = userId ?? this.requireUid();
-    const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
-    const day = date().format('YYYY-MM-DD');
-    return this.offlineCrud.create<Budget>(
-      'budgets',
-      'id',
-      async (assignedId: string) => {
-        const ref = doc(this.firestore, BUDGETS_COLLECTION, assignedId);
-        const now = new Date();
-        await setDoc(ref, {
-          ownerId: uid,
-          accountId,
-          limit: Number(data.limit),
-          month: data.month,
-          name: data.name?.trim() || 'Budget',
-          category: data.category?.trim() || '',
-          ...(data.categoryId?.trim() ? { categoryId: data.categoryId.trim() } : {}),
-          date: day,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        // Return the client-projected budget instead of re-reading — see the analogous
-        // note in TransactionsService.createTransaction. `mergePendingSyncFlag` will
-        // merge under the local cache row so this shape only needs to be complete
-        // enough for downstream consumers that read the return value directly.
-        return {
-          id: assignedId,
-          ownerId: uid,
-          accountId,
-          limit: Number(data.limit),
-          month: data.month,
-          name: data.name?.trim() || 'Budget',
-          category: data.category?.trim() || '',
-          categoryId: data.categoryId?.trim() || null,
-          date: day,
-          createdAt: now,
-          updatedAt: now,
-        } as unknown as Budget;
-      },
-      {
-        ownerId: uid,
-        accountId,
-        limit: Number(data.limit),
-        month: data.month,
-        name: data.name?.trim() || 'Budget',
-        category: data.category?.trim() || '',
-        ...(data.categoryId?.trim() ? { categoryId: data.categoryId.trim() } : {}),
-        date: day,
-      },
-    );
-  }
-
   async applyPendingBudgetCreate(docId: string, data: BudgetCreateInput): Promise<void> {
     const uid = this.requireUid();
     const accountId = data.accountId ?? (await this.requireSelectedAccountKey());
@@ -205,23 +151,6 @@ export class BudgetsService {
     );
   }
 
-  async getBudget(budgetId: string): Promise<Budget | null> {
-    return this.offlineCrud.fetchOne<Budget>(
-      'budgets',
-      budgetId,
-      async () => {
-        this.requireUid(); // auth guard
-        const snap = await getDoc(doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`));
-        if (!snap.exists()) return null;
-        // No `ownerId == me` check: a shared account's budgets are readable by every
-        // active member, and the rules already enforce that via
-        // `canAccessAccount(resource.data.accountId)` — a user without access gets
-        // permission-denied from the server rather than a silent null here.
-        return this.mapBudget(snap.id, snap.data());
-      },
-    );
-  }
-
   async getBudgets(): Promise<Budget[]> {
     this.requireUid(); // auth guard
     const accountId = await this.selectedAccountKey();
@@ -240,25 +169,6 @@ export class BudgetsService {
       },
       { indexName: 'accountId', value: accountId },
     );
-  }
-
-  async deleteBudget(budgetId: string): Promise<void> {
-    await this.offlineCrud.remove('budgets', budgetId, async () => {
-      // No pre-read: rules enforce ownerId. `deleteDoc` surfaces `permission-denied`
-      // natively; the offline layer catches and queues (idempotent delete on retry).
-      this.requireUid(); // auth guard (avoids anon writes even before rules)
-      const budgetRef = doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`);
-      await deleteDoc(budgetRef);
-    });
-  }
-
-  /** Direct Firestore read bypassing offline layer (used internally after create). */
-  private async getBudgetDirect(budgetId: string, uid: string): Promise<Budget | null> {
-    const snap = await getDoc(doc(this.firestore, `${BUDGETS_COLLECTION}/${budgetId}`));
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    if (data['ownerId'] !== uid) return null;
-    return this.mapBudget(snap.id, data);
   }
 
   private requireUid(): string {

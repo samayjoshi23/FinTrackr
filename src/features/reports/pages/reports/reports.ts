@@ -1,8 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { AccountsService } from '../../../../services/accounts.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { ReportsService } from '../../reports.service';
 import { Icon } from '../../../../shared/components/icon/icon';
 import {
   ReportTimePeriod,
@@ -13,8 +12,7 @@ import {
   CategoryPieDataPoint,
   SavingsTrendDataPoint,
 } from '../../../../shared/models/report.model';
-import { ReportViewData } from '../../../../services/reports.service';
-import { Account } from '../../../../shared/models/account.model';
+import { ReportViewData } from '../../reports.service';
 import { ReportsSummaryCards } from '../../components/reports-summary-cards/reports-summary-cards';
 import { ReportsIncomeExpenseBarChart } from '../../components/reports-income-expense-bar-chart/reports-income-expense-bar-chart';
 import { ReportsCategoryPieChart } from '../../components/reports-category-pie-chart/reports-category-pie-chart';
@@ -27,7 +25,6 @@ import { ReportsSavingsRateCard } from '../../components/reports-savings-rate-ca
 @Component({
   selector: 'app-reports',
   imports: [
-    CommonModule,
     Icon,
     ReportsSummaryCards,
     ReportsIncomeExpenseBarChart,
@@ -39,7 +36,6 @@ import { ReportsSavingsRateCard } from '../../components/reports-savings-rate-ca
     ReportsSavingsRateCard,
   ],
   templateUrl: './reports.html',
-  styleUrl: './reports.css',
 })
 export class Reports implements OnInit {
   private readonly accountsService = inject(AccountsService);

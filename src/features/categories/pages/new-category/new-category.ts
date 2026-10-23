@@ -1,11 +1,11 @@
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Icon } from '../../../../shared/components/icon/icon';
-import { AccountsService } from '../../../../services/accounts.service';
-import { CategoriesService } from '../../../../services/categories.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../../accounts/accounts.service';
+import { CategoriesService } from '../../categories.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
 import { Account } from '../../../../shared/models/account.model';
 import { CATEGORY_ICON_OPTIONS, Category, CategoryCreateInput } from '../../types';
@@ -13,7 +13,7 @@ import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
   selector: 'app-new-category',
-  imports: [CommonModule, FormsModule, Icon],
+  imports: [FormsModule, Icon],
   templateUrl: './new-category.html',
   styleUrl: './new-category.css',
 })

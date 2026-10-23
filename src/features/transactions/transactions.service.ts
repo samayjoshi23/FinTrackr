@@ -48,7 +48,6 @@ export class TransactionsService {
    * OR simply subscribe and let the effect keep them in sync.
    */
   private readonly _myTransactions = signal<TransactionRecord[]>([]);
-  readonly myTransactions = this._myTransactions.asReadonly();
 
   /**
    * Live listener for the currently-selected account's transactions. Started/stopped
@@ -330,11 +329,6 @@ export class TransactionsService {
       );
       return snap.docs.map((d) => this.mapTransaction(d.id, d.data()));
     });
-  }
-
-  async getRecentTransactions(limitHint = 50): Promise<TransactionRecord[]> {
-    const { items } = await this.getTransactionsPage({}, 0, limitHint);
-    return items;
   }
 
   /** All recurring schedules for the selected account (cache-first). */

@@ -127,7 +127,7 @@
           <div
             class="h-full rounded-full min-w-0 budget-progress-fill"
             [style.width.%]="progressBarsShown() ? summaryBarWidthPercent() : 0"
-            [ngClass]="summaryBarClass()"
+            [class]="summaryBarClass()"
           ></div>
         }
       </div>
@@ -216,7 +216,7 @@
                       ? (card.percent > 100 ? 100 : card.percent)
                       : 0
                 "
-                [ngClass]="categoryBarClass(card)"
+                [class]="categoryBarClass(card)"
               ></div>
             </div>
 

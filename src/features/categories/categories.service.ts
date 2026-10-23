@@ -19,7 +19,6 @@ import {
   Category,
   CategoryCreateInput,
   CategoryUpdateInput,
-  DEFAULT_CATEGORIES,
 } from './types';
 import { OfflineCrudService } from '../../core/offline/offline-crud.service';
 import { IndexedDbCacheService } from '../../core/offline/indexed-db-cache.service';
@@ -334,15 +333,4 @@ export class CategoriesService {
     return rows;
   }
 
-  async addDefaultCategories() {
-    const accountId = await this.requireSelectedAccountKey();
-    await this.seedDefaultCategoriesBatch(
-      DEFAULT_CATEGORIES.map((category: Category) => ({
-        name: category.name,
-        description: category.description,
-        icon: category.icon,
-        accountId,
-      })),
-    );
-  }
 }

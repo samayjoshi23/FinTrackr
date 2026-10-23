@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { NotifierService } from '../notifier.service';
 import { environment } from '../../../../environment/environment';
@@ -6,7 +5,7 @@ import { Icon } from "../../icon/icon";
 
 @Component({
   selector: 'app-notifier',
-  imports: [CommonModule, Icon],
+  imports: [Icon],
   templateUrl: './notifier.html',
   styleUrl: './notifier.css',
 })

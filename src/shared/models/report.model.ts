@@ -94,25 +94,6 @@ export type ReportChartMode = 'income-expense' | 'by-category';
 
 // ─── Chart view-models ────────────────────────────────────────────────────────
 
-export interface DailyDataPoint {
-  label: string; // 'Mon', 'Tue' … or '01', '02' …
-  income: number;
-  expense: number;
-}
-
-export interface WeeklyDataPoint {
-  label: string; // 'W1', 'W2' …
-  income: number;
-  expense: number;
-}
-
-export interface MonthBarDataPoint {
-  label: string; // same as month, used as common accessor
-  month: string; // 'Jan', 'Feb' …
-  income: number;
-  expense: number;
-}
-
 export interface CategoryPieDataPoint {
   category: string;
   amount: number;
@@ -155,15 +136,4 @@ export interface BudgetHistoryMonth {
   totalBudgetUsed: number; // %
   overspentCount: number;
   categories: BudgetTrackingCard[];
-}
-
-/** Zero-based allocation snapshot for a single month (Budgets page summary). */
-export interface ZeroBasedSummary {
-  totalIncome: number;
-  totalBudget: number; // allocated
-  totalSpent: number;
-  /** income − allocated; negative ⇒ over-allocated. */
-  unbudgeted: number;
-  /** allocated − spent (can be negative when overspent). */
-  remaining: number;
 }

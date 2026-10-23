@@ -7,15 +7,15 @@ import {
   RecurringTransactionCreateInput,
   TransactionCreateInput,
 } from '../../../../shared/models/transaction.model';
-import { AccountsService } from '../../../../services/accounts.service';
+import { AccountsService } from '../../../accounts/accounts.service';
 import { Account } from '../../../../shared/models/account.model';
 import { Router } from '@angular/router';
 import { CurrencyPipe, Location } from '@angular/common';
 import { Category } from '../../../categories/types';
-import { CategoriesService } from '../../../../services/categories.service';
-import { TransactionsService } from '../../../../services/transactions.service';
+import { CategoriesService } from '../../../categories/categories.service';
+import { TransactionsService } from '../../../transactions/transactions.service';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { date } from '../../../../core/date';
 import { paymentSourceOptions, recurringFrequencyOptions } from '../../../transactions/types';
 import { DatePicker } from '../../../../shared/components/date-picker/date-picker';

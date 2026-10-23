@@ -1,4 +1,4 @@
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,11 +6,11 @@ import { UserProfile } from 'firebase/auth';
 import { Icon } from '../../../../shared/components/icon/icon';
 import { DatePicker } from '../../../../shared/components/date-picker/date-picker';
 import { NotifierService } from '../../../../shared/components/notifier/notifier.service';
-import { AccountsService } from '../../../../services/accounts.service';
-import { BudgetsService } from '../../../../services/budgets.service';
-import { CategoriesService } from '../../../../services/categories.service';
-import { GoalsService } from '../../../../services/goals.service';
-import { ReportsService } from '../../../../services/reports.service';
+import { AccountsService } from '../../accounts.service';
+import { BudgetsService } from '../../../budgets/budgets.service';
+import { CategoriesService } from '../../../categories/categories.service';
+import { GoalsService } from '../../../goals/goals.service';
+import { ReportsService } from '../../../reports/reports.service';
 import { UsersLookupService, UserLookupHit } from '../../../../services/users-lookup.service';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 import {
@@ -72,7 +72,6 @@ const CREATE_ACCOUNT_PAGES: {
 @Component({
   selector: 'app-create-account',
   imports: [
-    CommonModule,
     FormsModule,
     Icon,
     DatePicker,
@@ -496,7 +495,7 @@ export class CreateAccount {
             budgetMeta,
             initialBalance,
           )
-          .catch(() => {});
+          .catch((e) => console.warn('Initial monthly report seed failed', e));
       }
       this.notifier.success('Account created.');
       await this.router.navigateByUrl('/user/settings', { replaceUrl: true });

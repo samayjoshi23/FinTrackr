@@ -3,6 +3,7 @@ import { Overlay, OverlayConfig, OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
 import {
   Component,
+  DestroyRef,
   effect,
   inject,
   input,
@@ -43,6 +44,7 @@ export class Modal {
 
   private readonly overlay = inject(Overlay);
   private readonly vcr = inject(ViewContainerRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   private overlayRef?: OverlayRef;
   private escSubscription?: Subscription;
@@ -76,6 +78,9 @@ export class Modal {
         this.ensureOverlayDetached();
       }
     });
+
+    // Host destroyed while open (e.g. route change) — don't leak the CDK overlay.
+    this.destroyRef.onDestroy(() => this.ensureOverlayDetached());
   }
 
   /**

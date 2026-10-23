@@ -8,12 +8,12 @@ import { StorageQuotaService } from './storage-quota.service';
 import { SyncQueueEntry } from './sync-queue.model';
 import { consolidateQueue } from './sync-queue-consolidator';
 
-import { AccountsService } from '../../services/accounts.service';
-import { TransactionsService } from '../../services/transactions.service';
-import { BudgetsService } from '../../services/budgets.service';
-import { CategoriesService } from '../../services/categories.service';
-import { GoalsService } from '../../services/goals.service';
-import { ReportsService } from '../../services/reports.service';
+import { AccountsService } from '../../features/accounts/accounts.service';
+import { TransactionsService } from '../../features/transactions/transactions.service';
+import { BudgetsService } from '../../features/budgets/budgets.service';
+import { CategoriesService } from '../../features/categories/categories.service';
+import { GoalsService } from '../../features/goals/goals.service';
+import { ReportsService } from '../../features/reports/reports.service';
 import { GroupsService } from '../../features/groups/groups.service';
 import { GroupExpensesService } from '../../features/groups/group-expenses.service';
 import { GroupSettlementsService } from '../../features/groups/group-settlements.service';
@@ -110,14 +110,10 @@ export class SyncService {
       // tab holds the lock, `ifAvailable: true` causes the callback to be invoked
       // with null and we skip this pass — the tab holding the lock covers it.
       if (typeof navigator !== 'undefined' && 'locks' in navigator && navigator.locks) {
-        await navigator.locks.request(
-          SYNC_LOCK_NAME,
-          { ifAvailable: true },
-          async (lock) => {
-            if (!lock) return; // another tab is syncing — nothing to do
-            await this.runSyncPass();
-          },
-        );
+        await navigator.locks.request(SYNC_LOCK_NAME, { ifAvailable: true }, async (lock) => {
+          if (!lock) return; // another tab is syncing — nothing to do
+          await this.runSyncPass();
+        });
       } else {
         await this.runSyncPass();
       }
@@ -379,7 +375,10 @@ export class SyncService {
       }
       case 'budgets':
         if (pre) {
-          await this.budgetsService.applyPendingBudgetCreate(pre.id, pre.rest as unknown as BudgetCreateInput);
+          await this.budgetsService.applyPendingBudgetCreate(
+            pre.id,
+            pre.rest as unknown as BudgetCreateInput,
+          );
         } else {
           return false;
         }
@@ -396,7 +395,10 @@ export class SyncService {
         break;
       case 'goals':
         if (pre) {
-          await this.goalsService.applyPendingGoalCreate(pre.id, pre.rest as unknown as GoalCreateInput);
+          await this.goalsService.applyPendingGoalCreate(
+            pre.id,
+            pre.rest as unknown as GoalCreateInput,
+          );
         } else {
           return false;
         }
@@ -415,7 +417,10 @@ export class SyncService {
         break;
       case 'accounts':
         if (pre) {
-          await this.accountsService.applyPendingAccountCreate(pre.id, pre.rest as unknown as AccountCreateInput);
+          await this.accountsService.applyPendingAccountCreate(
+            pre.id,
+            pre.rest as unknown as AccountCreateInput,
+          );
         } else {
           return false;
         }
@@ -528,7 +533,16 @@ export class SyncService {
           if (p.name !== undefined && p.name.trim()) {
             await this.reportsService
               .patchCategoryNameInCurrentMonthReport(entry.docId, p.name)
-              .catch(() => {});
+              .catch((e) =>
+                this.logger.warn(
+                  {
+                    event: 'report.category-rename.failed',
+                    storeName: 'categories',
+                    entryId: entry.id,
+                  },
+                  e,
+                ),
+              );
           }
         }
         break;
@@ -575,9 +589,7 @@ export class SyncService {
           const beforeDelete = await this.transactionsService.getTransaction(entry.docId);
           await this.transactionsService.deleteTransaction(entry.docId);
           if (beforeDelete) {
-            this.pendingReportMonths.add(
-              this.reportsService.monthKeyForTransaction(beforeDelete),
-            );
+            this.pendingReportMonths.add(this.reportsService.monthKeyForTransaction(beforeDelete));
           }
           break;
         }
