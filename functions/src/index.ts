@@ -6,6 +6,7 @@
  *   - scheduledDailyNotifications : Cron (daily 09:00 IST) → generate system notifications
  */
 
+import './global-options';
 import { initializeApp } from 'firebase-admin/app';
 
 // Initialize once at cold start
