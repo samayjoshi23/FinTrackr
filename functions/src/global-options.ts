@@ -1,4 +1,4 @@
-import { setGlobalOptions } from 'firebase-functions/v2';
+import { setGlobalOptions } from 'firebase-functions/v2/options';
 
 /**
  * Cost guard applied to every function. Imported first in `index.ts` so it runs
