@@ -1,0 +1,9 @@
+{
+  "name": "FinTrackr UI v2 · Round 5",
+  "id": "fintrackr-ui-v2-round5",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}

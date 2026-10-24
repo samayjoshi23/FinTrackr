@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Settings · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="profile" aria-labelledby="me-h">
+      <span class="avatar lg person-me" id="initials"></span>
+      <div style="flex:1;min-width:0">
+        <h2 class="name" id="me-h"></h2>
+        <p class="sub" id="me-sub"></p>
+      </div>
+      <a class="btn" href="#"><span data-icon="edit" data-size="16"></span> Edit</a>
+    </section>
+    <dl class="stats" id="stats"></dl>
+
+    <section aria-labelledby="acc-h">
+      <div class="sec-head"><h2 id="acc-h">Accounts</h2><a class="link" href="account-new.html"><span data-icon="plus" data-size="16"></span> New account</a></div>
+      <div class="menu" id="accounts"></div>
+    </section>
+
+    <section aria-labelledby="theme-h">
+      <div class="sec-head"><h2 id="theme-h">Appearance</h2></div>
+      <div class="seg full" role="group" aria-label="Theme" id="theme">
+        <button type="button" aria-pressed="true">Light</button>
+        <button type="button" aria-pressed="false">Dark</button>
+        <button type="button" aria-pressed="false">System</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="gen-h">
+      <div class="sec-head"><h2 id="gen-h">General</h2></div>
+      <nav class="menu" aria-labelledby="gen-h">
+        <a class="menu-row" href="#"><span class="ic" data-icon="tag" data-size="20"></span><div class="body"><div>Categories</div><div class="sub">8 categories in Ghar</div></div><span data-icon="chevron"></span></a>
+        <a class="menu-row" href="#"><span class="ic" data-icon="bell" data-size="20"></span><div class="body"><div>Notifications</div><div class="sub">Budget alerts, bills, invites</div></div><span data-icon="chevron"></span></a>
+        <a class="menu-row" href="#"><span class="ic" data-icon="lock" data-size="20"></span><div class="body"><div>Privacy &amp; security</div><div class="sub">Biometric lock, hide balances, password</div></div><span data-icon="chevron"></span></a>
+        <a class="menu-row" href="#"><span class="ic" data-icon="info" data-size="20"></span><div class="body"><div>About FinTrackr</div><div class="sub">Version 1.0.0 · feedback</div></div><span data-icon="chevron"></span></a>
+      </nav>
+    </section>
+
+    <section aria-label="Session">
+      <button class="btn danger block" type="button"><span data-icon="logout" data-size="18"></span> Log out</button>
+    </section>
+  </main>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount('settings', { back: 'home.html', title: 'Settings' });
+    $('initials').textContent = F.me.initials;
+    $('me-h').textContent = F.me.name;
+    $('me-sub').textContent = `${F.me.email} · member since ${F.me.since}`;
+    const cur = F.accounts.find((a) => a.current);
+    // One scope, labelled: the stats describe the current account only.
+    $('stats').innerHTML = [
+      [`${cur.name} balance`, F.money(cur.balance)],
+      [`${cur.name} · October`, `${F.tx.length} transactions`],
+      ['Accounts', F.accounts.length],
+    ].map(([k, v]) => `<div><dt class="k">${k}</dt><dd class="v">${v}</dd></div>`).join('');
+    $('accounts').innerHTML = F.accounts.map((a) => `<a class="menu-row" href="#"><span class="ic" data-icon="${a.current ? 'users' : 'wallet'}" data-size="20"></span>
+      <div class="body"><div>${a.name} ${a.current ? '<span class="current">· Current</span>' : ''}</div><div class="sub">${a.type}</div></div>
+      <span class="money" style="font-weight:500">${F.money(a.balance)}</span><span data-icon="chevron"></span></a>`).join('');
+    document.querySelector('#theme').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      document.querySelectorAll('#theme button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    });
+    Shell.paint();
+  </script>
+</body>
+</html>

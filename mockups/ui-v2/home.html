@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Home · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="home-head">
+      <div>
+        <p class="hello">Good evening, Samay</p>
+        <h1>FinTrackr</h1>
+      </div>
+      <div class="head-actions">
+        <a class="icon-btn filled" href="notifications.html" aria-label="Notifications, 3 unread"><span data-icon="bell" data-size="20"></span><span class="dot"></span></a>
+        <!-- Account switcher: switching accounts is frequent; Settings is already in the bottom bar. -->
+        <button class="pill-btn" type="button" id="switch" aria-haspopup="dialog" aria-controls="acct-sheet" aria-label="Current account Ghar. Switch account">
+          Ghar <span data-icon="down" data-size="16"></span><span class="avatar person-me">SJ</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="summary-card" aria-labelledby="sum-h">
+      <h2 id="sum-h" class="label">Total balance · Ghar</h2>
+      <p class="balance money" id="balance"></p>
+      <div class="flows">
+        <div class="flow in"><div class="k"><span data-icon="arrowIn" data-size="16"></span> In · October</div><div class="v" id="in"></div></div>
+        <div class="flow out"><div class="k"><span data-icon="arrowOut" data-size="16"></span> Out · October</div><div class="v" id="out"></div></div>
+      </div>
+      <a class="budget-link" href="budgets.html" aria-describedby="pace-note">
+        <div class="budget-top"><span>Budget used <b id="used"></b></span><span style="display:inline-flex;align-items:center;gap:2px"><span id="left"></span><span data-icon="chevron" data-size="16"></span></span></div>
+        <div class="track" id="track" role="img"><i id="spent"></i><span class="pace" id="pace"></span></div>
+        <p class="pace-note" id="pace-note"><i></i><span id="pace-text"></span></p>
+      </a>
+      <div class="shares" id="shares"></div>
+    </section>
+
+    <a class="attention" href="budgets.html" id="attention"></a>
+
+    <nav class="quick" aria-label="Quick actions">
+      <a href="budgets.html"><span class="ic" data-icon="pie" data-size="22"></span>Budget</a>
+      <a href="#"><span class="ic" data-icon="target" data-size="22"></span>Goals</a>
+      <a href="#"><span class="ic" data-icon="chart" data-size="22"></span>Reports</a>
+      <a href="recurring.html"><span class="ic" data-icon="repeat" data-size="22"></span>Recurring</a>
+    </nav>
+
+    <section aria-labelledby="bills-h">
+      <div class="sec-head"><h2 id="bills-h">Upcoming bills</h2><span class="meta" id="bills-meta"></span></div>
+      <div id="bills"></div>
+    </section>
+
+    <section aria-labelledby="recent-h">
+      <div class="sec-head"><h2 id="recent-h">Recent transactions</h2><a class="link" href="transactions.html">See all <span data-icon="chevron" data-size="16"></span></a></div>
+      <div id="recent"></div>
+    </section>
+  </main>
+
+  <div class="sheet-backdrop" id="backdrop"></div>
+  <div class="sheet" id="acct-sheet" role="dialog" aria-modal="true" aria-labelledby="acct-h" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 id="acct-h">Switch account</h2>
+    <div id="acct-list"></div>
+    <div style="display:flex;gap:12px;margin-top:12px">
+      <a class="btn" href="settings.html" style="flex:1">Manage accounts</a>
+      <a class="btn primary" href="account-new.html" style="flex:1"><span data-icon="plus" data-size="16"></span> New account</a>
+    </div>
+  </div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    const income = F.sum(F.tx.filter((t) => t.type === 'income'));
+    $('balance').textContent = F.money(F.balance, 2);
+    $('in').innerHTML = `<span style="color:var(--income)">+${F.money(income)}</span>`;
+    $('out').innerHTML = `<span style="color:var(--expense)">−${F.money(F.spent)}</span>`;
+    $('used').textContent = `${F.pct(F.spent, F.planned)}%`;
+    $('left').textContent = `${F.money(F.left)} left · ${F.daysLeft} days`;
+    $('spent').style.width = `${(F.spent / F.planned) * 100}%`;
+    $('pace').style.left = `${(F.pace / F.planned) * 100}%`;
+    $('track').setAttribute('aria-label', `${F.money(F.spent)} of ${F.money(F.planned)} used`);
+    $('pace-text').textContent = `Even pace for 23 Oct is ${F.money(F.pace)} · you are ${F.money(F.paceDiff)} over`;
+    $('shares').innerHTML = F.shares.map((s) => `<span>${Shell.avatar(s.key, 'sm')} ${s.name} added <b>${F.money(s.amount)}</b></span>`).join('');
+
+    // Needs attention: the category closest to its limit, as text + icon (never colour alone).
+    const hot = F.plan[0];
+    $('attention').innerHTML = `${Shell.icon('info', 20)}<span class="grow"><b>${hot.name} is at ${F.pct(hot.spent, hot.planned)}%</b> · ${F.money(hot.planned - hot.spent)} left for ${F.daysLeft} days</span>${Shell.icon('chevron', 18)}`;
+
+    // Upcoming bills, each with its own action (writes an ordinary transaction: no schema change).
+    const due = F.dueNext;
+    $('bills-meta').textContent = `${F.shortDate(due[0].due)} · in ${F.inDays(due[0].due)} days`;
+    $('bills').innerHTML = '<div class="day-card bills-card">' + due.slice(0, 2).map((r) => `<div class="bill">${Shell.tile(r.cat)}<div class="body"><div>${r.desc}</div><div class="when"><span style="color:var(--expense)">−${F.money(r.amount)}</span> · ${r.cat} · monthly</div></div><button class="btn" type="button" aria-label="Mark ${r.desc} paid">Mark paid</button></div>`).join('')
+      + `<div class="bill"><span class="cat-icon"></span><div class="body when">+${due.length - 2} more bills · ${F.money(F.sum(due.slice(2)))}</div><a class="link" href="recurring.html">All bills</a></div></div>`;
+
+    const recent = F.tx.slice(0, 5);
+    $('recent').innerHTML = Shell.dayGroups(recent);
+
+    // Account switcher sheet
+    $('acct-list').innerHTML = F.accounts.map((a) => `<a class="acct" href="#" ${a.current ? 'aria-current="true"' : ''}>${Shell.icon(a.current ? 'users' : 'wallet', 22)}<div class="body"><div>${a.name}</div><div class="sub">${a.type} · ${F.money(a.balance)}</div></div>${a.current ? Shell.icon('check', 20) : ''}</a>`).join('');
+    const sheet = $('acct-sheet'), back = $('backdrop'), opener = $('switch');
+    const open = () => { sheet.hidden = false; requestAnimationFrame(() => { sheet.classList.add('open'); back.classList.add('open'); }); opener.setAttribute('aria-expanded', 'true'); sheet.querySelector('a,button').focus(); };
+    const close = () => { sheet.classList.remove('open'); back.classList.remove('open'); opener.setAttribute('aria-expanded', 'false'); setTimeout(() => { sheet.hidden = true; }, 240); opener.focus(); };
+    opener.addEventListener('click', open); back.addEventListener('click', close);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) close(); });
+    Shell.mount('home');
+
+    // First load (?state=loading): the summary card keeps its size and shows skeletons in place of figures;
+    // lists show skeleton rows. Nothing moves when real numbers arrive.
+    if (Shell.state === 'loading') {
+      const L = Shell.skLine;
+      document.querySelector('.summary-card').setAttribute('aria-busy', 'true');
+      $('balance').innerHTML = L('180px', 30); $('in').innerHTML = L('90px', 18); $('out').innerHTML = L('90px', 18);
+      $('used').innerHTML = ''; $('left').innerHTML = L('120px', 12); $('spent').style.width = '0'; $('pace').hidden = true;
+      $('pace-note').innerHTML = L('220px', 10);
+      $('shares').innerHTML = L('130px', 12) + L('130px', 12);
+      $('attention').hidden = true;
+      $('bills').innerHTML = `<div class="day-card">${Shell.skRows(2)}</div>`; $('bills-meta').innerHTML = L('90px', 12);
+      $('recent').innerHTML = '<span class="visually-hidden">Loading</span>' + Shell.skDays([2, 1]);
+    }
+  </script>
+</body>
+</html>

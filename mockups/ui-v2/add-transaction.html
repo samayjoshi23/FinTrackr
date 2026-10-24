@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add transaction · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app has-save">
+    <form class="form" onsubmit="event.preventDefault()" aria-labelledby="form-h">
+      <h2 id="form-h" class="visually-hidden">New transaction in Ghar</h2>
+      <div class="seg full" role="group" aria-label="Type" id="type">
+        <button type="button" aria-pressed="true" data-type="expense">Expense</button>
+        <button type="button" aria-pressed="false" data-type="income">Income</button>
+      </div>
+
+      <!-- 1. Amount: the one thing every entry needs -->
+      <div class="amount-block">
+        <label class="visually-hidden" for="amount">Amount in rupees</label>
+        <div class="amount-line"><span class="cur">₹</span><input id="amount" inputmode="decimal" value="1,250" /></div>
+        <p class="after" id="after" aria-live="polite"></p>
+        <div class="quick-amt" aria-label="Add to amount">
+          <button class="chip plain" type="button">+100</button>
+          <button class="chip plain" type="button">+500</button>
+          <button class="chip plain" type="button">+1,000</button>
+        </div>
+      </div>
+
+      <!-- 2. Category: the next decision; the budget hint above depends on it -->
+      <div class="field">
+        <span class="label" id="cat-l">Category</span>
+        <div class="chips" role="group" aria-labelledby="cat-l" id="cats"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="desc">Description</label>
+        <input class="input" id="desc" value="Dinner with Kartik" />
+      </div>
+
+      <div class="field">
+        <span class="label" id="src-l">Paid with</span>
+        <div class="methods" role="group" aria-labelledby="src-l" id="src"></div>
+      </div>
+
+      <!-- 3. Fields with good defaults sit last -->
+      <div class="field">
+        <span class="label" id="date-l">Date</span>
+        <button class="input input-btn" type="button" id="date-btn" aria-haspopup="dialog" aria-labelledby="date-l date-label"><span data-icon="calendar"></span> <span id="date-label">Today, 23 Oct</span> <span style="margin-left:auto;color:var(--muted)" data-icon="down" data-size="16"></span></button>
+      </div>
+      <div class="field">
+        <span class="label" id="by-l">Paid by</span>
+        <div class="seg full" role="group" aria-labelledby="by-l" id="by"></div>
+      </div>
+
+      <!-- Repeat: creates the recurring schedule in the same step (existing recurring-transactions collection) -->
+      <label class="toggle-row" for="repeat" id="repeat-row">
+        <span data-icon="repeat" data-size="22" style="color:var(--muted)"></span>
+        <span class="body"><span style="display:block">Repeat monthly</span><span class="sub" id="repeat-sub">Also creates a recurring bill for the 23rd of each month</span></span>
+        <input class="switch" type="checkbox" role="switch" id="repeat" />
+      </label>
+    </form>
+  </main>
+
+  <div class="save-bar"><div class="inner"><button class="btn primary block" type="button" id="save"></button></div></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script src="assets/sheet.js"></script>
+  <script src="assets/datepicker.js"></script>
+  <script src="assets/popover.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    // Edit mode: the same form, opened from the transaction sheet with ?edit=<id>. Every field is editable.
+    const editing = F.tx.find((t) => t.id === new URLSearchParams(location.search).get('edit'));
+    Shell.mount(false, { back: editing ? 'transactions.html' : 'home.html', title: editing ? 'Edit transaction' : 'Add transaction' });
+    const amount = editing ? editing.amount : 1250;
+    let cat = editing ? editing.cat : 'Food';
+    if (editing) {
+      $('amount').value = new Intl.NumberFormat('en-IN').format(amount);
+      $('desc').value = editing.desc;
+      $('date-label').textContent = F.dayLabel(editing.date);
+      $('repeat-row').hidden = true;
+      $('form-h').textContent = `Edit ${editing.desc}`;
+    }
+    const hint = () => {
+      const p = F.plan.find((x) => x.name === cat);
+      $('after').innerHTML = p ? `${cat} will have <b>${F.money(p.planned - p.spent - amount)}</b> left this month` : `${cat} has no monthly limit`;
+    };
+    const saveLabel = () => { $('save').textContent = editing ? 'Save changes' : `Add ${F.money(amount)} expense${$('repeat').checked ? ' · repeats monthly' : ''}`; };
+
+    $('cats').innerHTML = Object.keys(F.categories).filter((c) => c !== 'Income')
+      .map((c) => `<button type="button" class="chip" aria-pressed="${c === cat}" data-cat="${c}">${Shell.tile(c, 18)}${c}</button>`).join('')
+      + `<button type="button" class="chip plain">${Shell.icon('plus', 16)} New category</button>`;
+    $('src').innerHTML = [['UPI', 'upi'], ['Card', 'card'], ['Cash', 'cash'], ['Bank', 'bank']]
+      .map(([label, ic], i) => `<button type="button" class="method" aria-pressed="${editing ? editing.source === label : i === 0}">${Shell.icon(ic, 22)}${label}</button>`).join('');
+    $('by').innerHTML = Object.keys(F.people).map((k, i) => `<button type="button" aria-pressed="${editing ? editing.by === k : i === 0}"><span style="display:inline-flex;align-items:center;gap:6px">${Shell.avatar(k, 'sm')} ${F.people[k].name}</span></button>`).join('');
+
+    const single = (group, sel, onPick) => group.addEventListener('click', (e) => {
+      const b = e.target.closest(sel); if (!b || !b.hasAttribute('aria-pressed')) return;
+      group.querySelectorAll(sel).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      onPick?.(b);
+    });
+    single($('cats'), '.chip', (b) => { if (b.dataset.cat) { cat = b.dataset.cat; hint(); } });
+    single($('src'), '.method'); single($('by'), 'button'); single($('type'), 'button');
+    $('repeat').addEventListener('change', saveLabel);
+    const fit = () => { $('amount').style.width = `${Math.max(2, $('amount').value.length) + 0.4}ch`; };
+    $('amount').addEventListener('input', fit); fit();
+    hint(); saveLabel();
+
+    // Date: today by default; the picker blocks future days (a spend can't be in the future).
+    let date = editing ? editing.date : DatePicker.today;
+    const dateText = (d) => d === DatePicker.today ? `Today, ${F.shortDate(d)}` : d === DatePicker.add(DatePicker.today, -1) ? `Yesterday, ${F.shortDate(d)}` : DatePicker.nice(d);
+    $('date-label').textContent = dateText(date);
+    $('date-btn').addEventListener('click', (e) => DatePicker.open({ title: 'Date', mode: 'single', value: date, max: DatePicker.today, opener: e.currentTarget,
+      shortcuts: [['Today', DatePicker.today], ['Yesterday', DatePicker.add(DatePicker.today, -1)], ['2 days ago', DatePicker.add(DatePicker.today, -2)]],
+      onDone: (d) => { date = d; $('date-label').textContent = dateText(d); } }));
+
+    // Paid by: two people → a one-tap segment; three or more → a select that opens a short list next to it.
+    if (new URLSearchParams(location.search).get('members') === '3') {
+      let payer = F.flatMembers[0];
+      const av = (m) => `<span class="avatar sm ${m.tint}">${m.initial}</span>`;
+      $('by').outerHTML = `<button class="input input-btn select-btn" type="button" id="by" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="by-l by"></button>`;
+      const drawPayer = () => { $('by').innerHTML = `${av(payer)} ${payer.name}${payer.sub === 'You' ? ' (you)' : ''}<span style="margin-left:auto;color:var(--muted)">${Shell.icon('down', 16)}</span>`; };
+      drawPayer();
+      $('by').addEventListener('click', (e) => Popover.open(e.currentTarget, { label: 'Paid by', value: payer.key,
+        items: F.flatMembers.map((m) => ({ value: m.key, label: m.name + (m.sub === 'You' ? ' (you)' : ''), sub: m.sub === 'You' ? null : m.sub, lead: av(m), m })),
+        onPick: (it) => { payer = it.m; drawPayer(); } }));
+    }
+
+    // Saving: the button keeps its size, shows progress, and the result is confirmed in words.
+    $('save').addEventListener('click', (e) => {
+      const b = e.currentTarget, label = b.textContent;
+      b.setAttribute('aria-busy', 'true'); b.innerHTML = `<span class="spinner" aria-hidden="true"></span> ${editing ? 'Saving…' : 'Adding…'}`;
+      setTimeout(() => { b.removeAttribute('aria-busy'); b.textContent = label; Sheet.toast(editing ? 'Changes saved' : `Added ${F.money(amount)} to ${cat}`, { label: 'View', run: () => { location.href = 'transactions.html'; } }); }, 1200);
+    });
+    Shell.paint();
+  </script>
+</body>
+</html>

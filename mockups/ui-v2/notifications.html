@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Notifications · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <div class="chip-row" role="group" aria-label="Show" id="filters"></div>
+    <div id="list" style="margin-top:8px"></div>
+    <a class="menu-row" href="notification-settings.html" style="margin:24px -16px 0;border-top:1px solid var(--rule)">
+      <span data-icon="gear" class="ic"></span><span class="body"><span style="display:block">Notification settings</span><span class="sub">Choose what reaches your phone</span></span><span data-icon="chevron"></span>
+    </a>
+  </main>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script src="assets/sheet.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    const items = F.notifications.map((n) => ({ ...n }));
+    let filter = 'all';
+    const markAll = () => { items.forEach((n) => { if (n.status === 'UNREAD') n.status = 'READ'; }); draw(); Sheet.toast('All marked as read'); };
+    Shell.mount(false, { back: 'home.html', title: 'Notifications', action: '<button class="btn" type="button" id="mark-all"></button>' });
+    $('mark-all').addEventListener('click', markAll);
+
+    // One icon per kind; colour is never the only signal (title weight + dot + "Unread" in the label).
+    const kind = { ACCOUNT_INVITE: 'users', ACCOUNT_INVITE_ACCEPTED: 'users', RECURRING_DUE: 'repeat', RECURRING_AUTOPAID: 'check', PAYMENT_REMINDER: 'alert', BUDGET_WARNING: 'pie', MONTH_END_SUMMARY: 'chart' };
+    const where = { ACCOUNT_INVITE: 'settings.html', RECURRING_DUE: 'recurring-view.html?id=r5', PAYMENT_REMINDER: 'recurring-view.html?id=r6', BUDGET_WARNING: 'budgets.html', RECURRING_AUTOPAID: 'transactions.html', MONTH_END_SUMMARY: '#', ACCOUNT_INVITE_ACCEPTED: 'settings.html' };
+    const acctName = (id) => F.accounts.find((a) => a.id === id)?.name;
+    const today = '2026-10-23';
+    const group = (iso) => { const d = iso.slice(0, 10); const n = Math.round((new Date(today) - new Date(d)) / 86400000); return n === 0 ? 'Today' : n === 1 ? 'Yesterday' : n < 7 ? 'This week' : 'Earlier'; };
+    const time = (iso) => { const d = new Date(iso); return group(iso) === 'Today' || group(iso) === 'Yesterday' ? d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : F.shortDate(iso.slice(0, 10)); };
+    const actLabel = { ACCEPT: ['Accept', 'primary'], REJECT: ['Decline', ''], MARK_PAID: ['Mark paid', ''], PAY: ['Pay', 'primary'], REMIND: ['Remind', ''] };
+    const done = { ACCEPT: 'You joined “Flat 3B”', REJECT: 'Invite declined', MARK_PAID: 'Marked as paid' };
+
+    function draw() {
+      const unread = items.filter((n) => n.status === 'UNREAD').length;
+      $('mark-all').innerHTML = `${Shell.icon('check', 18)} Mark all read`;
+      $('mark-all').hidden = !unread;
+      const opts = [['all', 'All'], ['unread', `Unread · ${unread}`], ...F.accounts.map((a) => [a.id, a.name])];
+      $('filters').innerHTML = opts.map(([v, l]) => `<button type="button" class="chip" data-f="${v}" aria-pressed="${v === filter}">${l}</button>`).join('');
+      const shown = items.filter((n) => filter === 'all' || (filter === 'unread' ? n.status === 'UNREAD' : n.account === filter));
+      const groups = [...new Set(shown.map((n) => group(n.at)))];
+      $('list').innerHTML = shown.length ? groups.map((g) => `<div class="day"><b>${g}</b></div>` + shown.filter((n) => group(n.at) === g).map((n) => {
+        const unreadN = n.status === 'UNREAD';
+        const acts = n.status !== 'ACTION_TAKEN' && n.actions.length ? `<div class="acts">${n.actions.map((a) => `<button type="button" class="btn ${actLabel[a][1]}" data-act="${a}" data-id="${n.id}">${actLabel[a][0]}</button>`).join('')}</div>` : '';
+        const taken = n.done ? `<p class="meta" style="display:flex;gap:4px;align-items:center;margin-top:6px;color:var(--brand-ink)">${Shell.icon('check', 14)} ${n.done}</p>` : '';
+        return `<article class="notif${unreadN ? ' unread' : ''}" aria-label="${unreadN ? 'Unread. ' : ''}${n.title}">
+          <span class="ic">${Shell.icon(kind[n.type] || 'bell', 20)}</span>
+          <div class="body">
+            <a class="title" href="${where[n.type]}" data-open="${n.id}">${n.title}</a>
+            <p class="text">${n.body}</p>
+            <p class="meta">${[acctName(n.account), time(n.at)].filter(Boolean).join(' · ')}</p>
+            ${acts}${taken}
+          </div>
+          ${unreadN ? '<span class="unread-dot" aria-hidden="true"></span>' : ''}
+        </article>`;
+      }).join('')).join('')
+        : `<div class="note" style="margin-top:16px">${Shell.icon('check', 18)}<span>You're all caught up.</span></div>`;
+    }
+    $('filters').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; filter = b.dataset.f; draw(); $('filters').querySelector(`[data-f="${filter}"]`).focus(); });
+    $('list').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act]'); if (b) {
+        const n = items.find((x) => x.id === b.dataset.id); n.status = 'ACTION_TAKEN'; n.done = done[b.dataset.act]; draw();
+        Sheet.toast(n.done); return;
+      }
+      const o = e.target.closest('[data-open]'); if (o) { items.find((x) => x.id === o.dataset.open).status = 'READ'; }
+    });
+    draw();
+    Shell.paint();
+  </script>
+</body>
+</html>

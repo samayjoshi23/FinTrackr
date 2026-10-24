@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FinTrackr UI v2 mockups</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="home-head"><div><p class="hello">UI v2 mockups · round 6</p><h1>FinTrackr</h1></div></header>
+    <p style="color:var(--muted)">Phone-first screens for the shared account Ghar on 23 Oct 2026, from one sample dataset (<code>assets/data.js</code>). Design notes: <code>projectProgressAndSummary/UI_V2.md</code>.</p>
+    <nav class="menu" style="margin-top:20px" aria-label="Screens">
+      <a class="menu-row" href="home.html"><div class="body"><div>Home</div><div class="sub">Dashboard: balance, in/out, budget used, quick actions</div></div></a>
+      <a class="menu-row" href="transactions.html"><div class="body"><div>Transactions</div><div class="sub">Tap a row: detail sheet, edit, delete with undo. Filter and period sheets</div></div></a>
+      <a class="menu-row" href="transactions.html?state=loading"><div class="body"><div>Transactions · loading</div><div class="sub">Skeleton day cards (also ?state=offline and ?state=empty)</div></div></a>
+      <a class="menu-row" href="home.html?state=loading"><div class="body"><div>Home · loading</div><div class="sub">Summary card and lists as skeletons</div></div></a>
+      <a class="menu-row" href="account-new.html?q=ay"><div class="body"><div>New account · member search</div><div class="sub">Combobox dropdown (also ?state=searching, ?state=nomatch)</div></div></a>
+      <a class="menu-row" href="add-transaction.html?members=3"><div class="body"><div>Add transaction · Paid by select</div><div class="sub">3-person account: an anchored dropdown instead of a segment</div></div></a>
+      <a class="menu-row" href="budgets.html"><div class="body"><div>Budget</div><div class="sub">The month's plan and every category</div></div></a>
+      <a class="menu-row" href="budget-edit.html"><div class="body"><div>Edit budget</div><div class="sub">Monthly total and category limits</div></div></a>
+      <a class="menu-row" href="add-transaction.html"><div class="body"><div>Add transaction</div><div class="sub">Amount, category, date picker, payer, method; Save shows progress</div></div></a>
+      <a class="menu-row" href="recurring.html"><div class="body"><div>Recurring</div><div class="sub">Monthly commitment, needs attention, coming up, paused</div></div></a>
+      <a class="menu-row" href="recurring-view.html?id=r1"><div class="body"><div>Recurring detail</div><div class="sub">Next payment, Mark paid / Skip, history, pause, delete (try ?id=r6 stalled, ?id=r7 paused)</div></div></a>
+      <a class="menu-row" href="recurring-form.html"><div class="body"><div>New / edit schedule</div><div class="sub">One form for both routes (?id=r1 for edit)</div></div></a>
+      <a class="menu-row" href="notifications.html"><div class="body"><div>Notifications</div><div class="sub">Grouped by day, unread filter, inline actions</div></div></a>
+      <a class="menu-row" href="notification-settings.html"><div class="body"><div>Notification settings</div><div class="sub">Phone alerts, labelled by what they control</div></div></a>
+      <a class="menu-row" href="settings.html"><div class="body"><div>Settings</div><div class="sub">Profile, accounts, appearance, general</div></div></a>
+    </nav>
+  </main>
+</body>
+</html>

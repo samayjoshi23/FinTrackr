@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Budget · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <div class="month-row" role="group" aria-label="Month">
+      <button class="icon-btn filled" type="button" aria-label="September 2026"><span data-icon="back"></span></button>
+      <span class="label">October 2026</span>
+      <button class="icon-btn filled" type="button" aria-label="Next month" disabled style="opacity:.45"><span data-icon="chevron"></span></button>
+    </div>
+
+    <section class="summary-card" aria-labelledby="plan-h">
+      <h2 id="plan-h" class="label">October plan · <span id="days"></span></h2>
+      <p class="balance money"><span id="left"></span> <span style="font-size:15px;font-weight:400;color:#2f5446" id="left-of"></span></p>
+      <div class="track" style="margin-top:12px"><i id="spent"></i><span class="pace" id="pace"></span></div>
+      <dl class="kv" id="kv"></dl>
+    </section>
+
+    <a class="attention" href="#cat-h" id="attention" style="margin-top:16px"></a>
+
+    <section aria-labelledby="cat-h">
+      <div class="sec-head"><h2 id="cat-h">By category</h2><span class="meta">Tap a category to see its spending</span></div>
+      <div class="plan" id="plan"></div>
+    </section>
+  </main>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount('budgets', { back: 'home.html', title: 'Budget', action: '<a class="btn" href="budget-edit.html"><span data-icon="edit" data-size="16"></span> Edit</a>' });
+
+    $('days').textContent = `${F.daysLeft} days left`;
+    $('left').textContent = F.money(F.left);
+    $('left-of').textContent = `left of ${F.money(F.planned)}`;
+    $('spent').style.width = `${(F.spent / F.planned) * 100}%`;
+    $('pace').style.left = `${(F.pace / F.planned) * 100}%`;
+    $('kv').innerHTML = [
+      ['Spent', `−${F.money(F.spent)}`],
+      ['Daily room', `${F.money(F.perDay)} a day`],
+      ['Not allocated', F.money(F.pot - F.planned)],
+    ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+    $('plan').innerHTML = F.plan.map((p) => {
+      const t = F.tone(p.spent, p.planned);
+      const note = p.spent > p.planned ? `${F.money(p.spent - p.planned)} over` : `${F.money(p.planned - p.spent)} left`;
+      return `<a class="plan-row tone-${t}" href="transactions.html?category=${encodeURIComponent(p.name)}" aria-label="${p.name}: ${F.money(p.spent)} of ${F.money(p.planned)}, ${note}. Show ${p.name} transactions">${Shell.tile(p.name)}
+        <div class="plan-top"><span class="name">${p.name}</span><span class="nums">${F.money(p.spent)} <span>of ${F.money(p.planned)}</span></span></div>
+        <span class="chev">${Shell.icon('chevron', 18)}</span>
+        <div class="bar"><i style="width:${Math.min(100, (p.spent / p.planned) * 100)}%"></i></div>
+        <div class="plan-note">${F.pct(p.spent, p.planned)}% used · ${note}</div></a>`;
+    }).join('');
+    const warn = F.plan.filter((p) => F.tone(p.spent, p.planned) !== 'ok');
+    $('attention').innerHTML = warn.length
+      ? `${Shell.icon('info', 20)}<span class="grow"><b>${warn.map((p) => `${p.name} ${F.pct(p.spent, p.planned)}%`).join(', ')}</b> · close to the limit</span>${Shell.icon('down', 18)}`
+      : '';
+    if (!warn.length) $('attention').remove();
+    Shell.paint();
+  </script>
+</body>
+</html>

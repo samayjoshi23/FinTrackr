@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Recurring · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <!-- What the month commits you to, before the list -->
+    <section class="summary-card" aria-labelledby="commit-h">
+      <h2 id="commit-h" class="label">Repeats every month · Ghar</h2>
+      <div class="commit"><p class="big money" id="commit"></p><span class="pill ok" id="active-count"></span></div>
+      <p class="pace-note" style="font-size:13px" id="next-line"></p>
+    </section>
+
+    <section id="attention-sec" aria-labelledby="att-h" style="margin-top:24px">
+      <div class="sec-head"><h2 id="att-h">Needs attention</h2></div>
+      <div id="attention"></div>
+    </section>
+
+    <section aria-labelledby="soon-h" style="margin-top:24px">
+      <div class="sec-head"><h2 id="soon-h">Coming up</h2><span class="meta">next 14 days</span></div>
+      <div id="soon"></div>
+    </section>
+
+    <section aria-labelledby="later-h" id="later-sec" style="margin-top:24px">
+      <div class="sec-head"><h2 id="later-h">Later</h2></div>
+      <div id="later"></div>
+    </section>
+
+    <section aria-labelledby="stopped-h" id="stopped-sec" style="margin-top:24px">
+      <div class="sec-head"><h2 id="stopped-h">Paused</h2><span class="meta">not recording</span></div>
+      <div id="stopped"></div>
+    </section>
+  </main>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount('home', { back: 'home.html', title: 'Recurring', action: `<a class="btn" href="recurring-form.html">${Shell.icon('plus', 18)} New</a>` });
+
+    // Monthly equivalent so weekly / yearly schedules add up honestly.
+    const perMonth = { daily: 30, weekly: 52 / 12, 'bi-weekly': 26 / 12, monthly: 1, yearly: 1 / 12 };
+    const active = F.recurring.filter((r) => r.active);
+    const monthly = Math.round(F.sum(active.filter((r) => r.type === 'expense').map((r) => ({ amount: r.amount * perMonth[r.freq] }))));
+    $('commit').textContent = `−${F.money(monthly)}`;
+    $('active-count').textContent = `${active.length} active`;
+    const dated = active.filter((r) => r.due).sort((a, b) => a.due.localeCompare(b.due));
+    const next = dated[0];
+    $('next-line').innerHTML = `${Shell.icon('clock', 14)} Next: ${next.desc}, ${F.shortDate(next.due)} (in ${F.inDays(next.due)} days)`;
+
+    const when = (r) => {
+      if (!r.active) return `Paused · last paid ${F.shortDate(r.last)}`;
+      if (!r.due) return `No next date · last paid ${F.shortDate(r.last)}`;
+      const n = F.inDays(r.due);
+      return `${F.freqLabel[r.freq]} · ${n === 0 ? 'today' : n === 1 ? 'tomorrow' : `${F.shortDate(r.due)}, in ${n} days`}`;
+    };
+    const row = (r) => `<a class="rec" href="recurring-view.html?id=${r.id}">
+      ${Shell.tile(r.cat, 22)}
+      <div class="body"><div class="desc" style="font-weight:500">${r.desc}</div><div class="line2"><span>${when(r)}</span>${r.autopay && r.active ? `<span>${Shell.icon('check', 12)} Auto-pay</span>` : ''}</div></div>
+      <div class="end"><span class="amt ${r.type === 'income' ? 'in' : 'out'}" ${r.active ? '' : 'style="color:var(--muted)"'}>${r.type === 'income' ? '+' : '−'}${F.money(r.amount)}</span>
+      ${!r.active ? `<span class="status off">${Shell.icon('pause', 12)} Paused</span>` : !r.due ? `<span class="status warn">${Shell.icon('alert', 12)} Fix</span>` : ''}</div>
+      <span data-icon="chevron" style="color:var(--faint)"></span></a>`;
+
+    const stalled = active.filter((r) => !r.due);
+    const soon = dated.filter((r) => F.inDays(r.due) <= 14);
+    const later = dated.filter((r) => F.inDays(r.due) > 14);
+    const paused = F.recurring.filter((r) => !r.active);
+    const card = (rows) => rows.length ? `<div class="day-card">${rows.map(row).join('')}</div>` : '';
+    $('attention').innerHTML = card(stalled);
+    $('soon').innerHTML = card(soon);
+    $('later').innerHTML = card(later);
+    $('stopped').innerHTML = card(paused);
+    $('attention-sec').hidden = !stalled.length;
+    $('later-sec').hidden = !later.length;
+    $('stopped-sec').hidden = !paused.length;
+    if (Shell.state === 'loading') {
+      const L = Shell.skLine;
+      $('commit').innerHTML = L('170px', 28); $('active-count').hidden = true; $('next-line').innerHTML = L('220px', 12);
+      $('attention-sec').hidden = true; $('later-sec').hidden = true; $('stopped-sec').hidden = true;
+      $('soon').innerHTML = `<span class="visually-hidden">Loading schedules</span><div class="day-card">${Shell.skRows(5)}</div>`;
+    }
+    Shell.paint();
+  </script>
+</body>
+</html>

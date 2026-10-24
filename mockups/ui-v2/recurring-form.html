@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Recurring form · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <!-- One form for /recurring/add and /recurring/edit/:id. Edit can change every field. -->
+  <main class="app has-save">
+    <form class="form" onsubmit="event.preventDefault()" aria-labelledby="form-h">
+      <h2 id="form-h" class="visually-hidden"></h2>
+      <p class="note" id="edit-note" hidden><span data-icon="info"></span><span>Changes apply from the next payment. Past payments stay as they were.</span></p>
+
+      <div class="seg full" role="group" aria-label="Type" id="type">
+        <button type="button" aria-pressed="true" data-type="expense">Expense</button>
+        <button type="button" aria-pressed="false" data-type="income">Income</button>
+      </div>
+
+      <div class="amount-block">
+        <label class="visually-hidden" for="amount">Amount in rupees</label>
+        <div class="amount-line"><span class="cur">₹</span><input id="amount" inputmode="decimal" /></div>
+        <p class="after" id="after"></p>
+      </div>
+
+      <div class="field">
+        <label class="label" for="desc">Name</label>
+        <input class="input" id="desc" placeholder="e.g. House rent" />
+      </div>
+
+      <div class="field">
+        <span class="label" id="cat-l">Category</span>
+        <div class="chips" role="group" aria-labelledby="cat-l" id="cats"></div>
+      </div>
+
+      <div class="field">
+        <span class="label" id="src-l">Paid with</span>
+        <div class="methods" role="group" aria-labelledby="src-l" id="src"></div>
+      </div>
+
+      <div class="field">
+        <span class="label" id="freq-l">Repeats</span>
+        <div class="freq" role="group" aria-labelledby="freq-l" id="freq"></div>
+      </div>
+
+      <div class="field">
+        <span class="label" id="due-l">Next payment</span>
+        <button class="input input-btn" type="button" id="due-btn" aria-haspopup="dialog" aria-labelledby="due-l due-v"><span data-icon="calendar"></span> <span id="due-v"></span><span style="margin-left:auto;color:var(--muted)" data-icon="down" data-size="16"></span></button>
+        <div class="chips" id="due-quick" aria-label="Quick dates"></div>
+      </div>
+
+      <label class="toggle-row" for="autopay">
+        <span data-icon="check" data-size="22" style="color:var(--muted)"></span>
+        <span class="body"><span style="display:block">Auto-pay</span><span class="sub" id="autopay-sub"></span></span>
+        <input class="switch" type="checkbox" role="switch" id="autopay" />
+      </label>
+    </form>
+  </main>
+
+  <div class="save-bar"><div class="inner"><button class="btn primary block" type="button" id="save"></button></div></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script src="assets/sheet.js"></script>
+  <script src="assets/datepicker.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    const editing = F.recurring.find((r) => r.id === new URLSearchParams(location.search).get('id'));
+    const s = editing ? { ...editing } : { type: 'expense', amount: 0, desc: '', cat: 'Bills', source: 'UPI', freq: 'monthly', due: '2026-11-01', autopay: false };
+    Shell.mount(false, { back: editing ? `recurring-view.html?id=${editing.id}` : 'recurring.html', title: editing ? 'Edit schedule' : 'New schedule' });
+    $('form-h').textContent = editing ? `Edit ${editing.desc}` : 'New recurring schedule';
+    $('edit-note').hidden = !editing;
+    $('amount').value = s.amount ? new Intl.NumberFormat('en-IN').format(s.amount) : '';
+    $('amount').placeholder = '0';
+    $('desc').value = s.desc;
+
+    const freqs = [['weekly', 'Weekly'], ['monthly', 'Monthly'], ['yearly', 'Yearly'], ['daily', 'Daily'], ['bi-weekly', 'Every 2 weeks']];
+    const ordinal = (n) => n + ([, 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1) && n % 10] || 'th');
+    function draw() {
+      $('type').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.type === s.type)));
+      // Only categories that fit the type: no "Income" chip on an expense.
+      const cats = Object.keys(F.categories).filter((c) => (s.type === 'income') === (c === 'Income'));
+      if (!cats.includes(s.cat)) s.cat = cats[0];
+      $('cats').innerHTML = cats.map((c) => `<button type="button" class="chip" data-cat="${c}" aria-pressed="${c === s.cat}">${Shell.tile(c, 18)}${c}</button>`).join('')
+        + `<button type="button" class="chip plain">${Shell.icon('plus', 16)} New category</button>`;
+      $('src').innerHTML = [['UPI', 'upi'], ['Card', 'card'], ['Cash', 'cash'], ['Bank', 'bank']]
+        .map(([l, ic]) => `<button type="button" class="method" data-src="${l}" aria-pressed="${l === s.source}">${Shell.icon(ic, 22)}${l}</button>`).join('');
+      $('freq').innerHTML = freqs.map(([v, l]) => `<button type="button" class="chip plain" data-freq="${v}" aria-pressed="${v === s.freq}" ${v === 'bi-weekly' ? 'style="grid-column:span 2"' : ''}>${l}</button>`).join('');
+      const d = new Date(s.due + 'T00:00:00');
+      $('due-v').textContent = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      $('due-quick').innerHTML = ['2026-11-01', '2026-11-05', '2026-12-01'].map((q) => `<button type="button" class="chip plain" data-due="${q}" aria-pressed="${q === s.due}">${F.shortDate(q)}</button>`).join('');
+      $('autopay').checked = s.autopay;
+      $('autopay-sub').textContent = s.autopay ? `Recorded automatically on the ${ordinal(d.getDate())}. You get a note when it's done.` : `Off: we remind you the day before, you mark it paid.`;
+      const amt = +String($('amount').value).replace(/,/g, '') || 0;
+      const perMonth = Math.round(amt * { daily: 30, weekly: 52 / 12, 'bi-weekly': 26 / 12, monthly: 1, yearly: 1 / 12 }[s.freq]);
+      $('after').textContent = !amt ? 'How much each time?' : s.freq === 'monthly' ? `Every month on the ${ordinal(d.getDate())}` : `${F.freqLabel[s.freq]} · about ${F.money(perMonth)} a month`;
+      $('save').textContent = editing ? 'Save changes' : `Create schedule${amt ? ` · ${s.type === 'income' ? '+' : '−'}${F.money(amt)} ${F.freqLabel[s.freq].toLowerCase()}` : ''}`;
+    }
+    document.querySelector('.form').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.type) s.type = b.dataset.type;
+      if (b.dataset.cat) s.cat = b.dataset.cat;
+      if (b.dataset.src) s.source = b.dataset.src;
+      if (b.dataset.freq) s.freq = b.dataset.freq;
+      if (b.dataset.due) s.due = b.dataset.due;
+      const key = Object.keys(b.dataset)[0], val = b.dataset[key];
+      draw();
+      if (key) document.querySelector(`[data-${key}="${val}"]`)?.focus();
+    });
+    // Next payment: the picker blocks past days (a schedule starts today or later).
+    $('due-btn').addEventListener('click', (e) => DatePicker.open({ title: 'Next payment', mode: 'single', value: s.due, min: DatePicker.today, opener: e.currentTarget,
+      shortcuts: [['1 Nov', '2026-11-01'], ['5 Nov', '2026-11-05'], ['1 Dec', '2026-12-01']], onDone: (d) => { s.due = d; draw(); } }));
+    $('autopay').addEventListener('change', (e) => { s.autopay = e.target.checked; draw(); });
+    const fit = () => { $('amount').style.width = `${Math.max(2, $('amount').value.length) + 0.4}ch`; draw(); };
+    $('amount').addEventListener('input', fit); fit();
+    Shell.paint();
+  </script>
+</body>
+</html>

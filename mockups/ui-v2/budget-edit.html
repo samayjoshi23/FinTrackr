@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Edit budget · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app has-save">
+    <form class="form" onsubmit="event.preventDefault()" aria-labelledby="form-h">
+      <h2 id="form-h" class="visually-hidden">Monthly budget plan</h2>
+      <div class="field">
+        <label class="label" for="total">Monthly budget</label>
+        <div class="total-input"><span>₹</span><input id="total" inputmode="numeric" value="60,000" /></div>
+        <span class="meta">Repeats every month from October. Past months keep their own limits.</span>
+      </div>
+
+      <div class="alloc" aria-live="polite">
+        <div class="top"><span>Allocated <b id="alloc"></b> of <b id="total-out"></b></span><span id="unalloc"></span></div>
+        <div class="track" style="margin-top:10px"><i id="alloc-bar"></i></div>
+      </div>
+
+      <section aria-labelledby="cats-h">
+        <div class="sec-head"><h2 id="cats-h">Category limits</h2><button class="link" type="button" style="border:0;background:none;cursor:pointer" id="split-even">Split the rest evenly</button></div>
+        <div id="rows"></div>
+        <a class="btn" href="#" style="margin-top:12px"><span data-icon="plus" data-size="16"></span> Add a category</a>
+      </section>
+    </form>
+  </main>
+
+  <div class="save-bar"><div class="inner"><button class="btn primary block" type="button">Save budget</button></div></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount(false, { back: 'budgets.html', title: 'Edit budget' });
+    const fmt = (n) => new Intl.NumberFormat('en-IN').format(n);
+    $('rows').innerHTML = F.plan.slice().sort((a, b) => b.planned - a.planned).map((p) => `<div class="edit-row">${Shell.tile(p.name)}
+      <div><div style="font-weight:500">${p.name}</div><div class="hint">Spent ${F.money(p.spent)} this month</div></div>
+      <label class="money-input"><span>₹</span><input inputmode="numeric" value="${fmt(p.planned)}" aria-label="${p.name} limit" data-limit /></label></div>`).join('');
+
+    function update() {
+      const total = +$('total').value.replace(/[^\d]/g, '') || 0;
+      const alloc = [...document.querySelectorAll('[data-limit]')].reduce((s, i) => s + (+i.value.replace(/[^\d]/g, '') || 0), 0);
+      $('alloc').textContent = F.money(alloc);
+      $('total-out').textContent = F.money(total);
+      const rest = total - alloc;
+      $('unalloc').innerHTML = rest === 0 ? '<span class="pill ok">Fully allocated</span>' : rest > 0 ? `${F.money(rest)} free` : `<span style="color:var(--negative)">${F.money(-rest)} over</span>`;
+      $('alloc-bar').style.width = `${Math.min(100, total ? (alloc / total) * 100 : 0)}%`;
+    }
+    document.addEventListener('input', update);
+    update();
+    Shell.paint();
+  </script>
+</body>
+</html>

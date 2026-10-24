@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Notification settings · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <!-- Same five preference keys as today (notificationPreferences.*); only labels, grouping and wording change.
+       Labels now say what each switch really controls (see NOTIFICATION_TYPE_TO_PREF_KEY in functions/src/types.ts). -->
+  <main class="app">
+    <p class="note"><span data-icon="phone"></span><span>These choose what reaches your <b style="color:var(--text)">phone</b>. Everything still shows in Notifications inside the app.</span></p>
+    <div id="groups"></div>
+  </main>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount('settings', { back: 'settings.html', title: 'Notifications' });
+    const groups = [
+      ['Money', [
+        ['budgetWarnings', 'pie', 'Budget alerts', 'When a category reaches 80% and when it goes over', true],
+        ['billReminders', 'repeat', 'Bills and recurring', 'The day before a bill is due, and when auto-pay records one', true],
+        ['expenseAlerts', 'chart', 'Goals and monthly review', 'When you reach a goal, and your month in review', true],
+      ]],
+      ['People', [
+        ['transactionUpdates', 'users', 'Shared accounts', 'Invites, and members joining or leaving', true],
+        ['groupActivity', 'split', 'Groups', 'Group invites, payment requests and settlements', true],
+      ]],
+    ];
+    $('groups').innerHTML = groups.map(([g, rows]) => `<section style="margin-top:24px" aria-labelledby="g-${g}">
+      <div class="sec-head"><h2 id="g-${g}">${g}</h2></div>
+      <div class="menu">${rows.map(([key, ic, title, sub, on]) => `<label class="menu-row" for="p-${key}" style="cursor:pointer;min-height:64px">
+          <span class="ic">${Shell.icon(ic, 20)}</span>
+          <span class="body"><span style="display:block">${title}</span><span class="sub">${sub}</span></span>
+          <input class="switch" type="checkbox" role="switch" id="p-${key}" ${on ? 'checked' : ''} />
+        </label>`).join('')}</div></section>`).join('');
+    Shell.paint();
+  </script>
+</body>
+</html>

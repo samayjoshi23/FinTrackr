@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>New account · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <!-- /user/settings/accounts/new. The member search is a combobox: the input keeps focus, results open
+       under it, ArrowUp/Down move, Enter adds, Esc closes. Same pattern in onboarding and new group. -->
+  <main class="app has-save">
+    <form class="form" onsubmit="event.preventDefault()" aria-labelledby="form-h">
+      <h2 id="form-h" class="visually-hidden">New account</h2>
+      <div class="field"><label class="label" for="name">Account name</label><input class="input" id="name" value="Flat 3B" /></div>
+
+      <div class="field">
+        <span class="label" id="type-l">Who uses it?</span>
+        <div class="opt-cards" role="group" aria-labelledby="type-l" id="type">
+          <button type="button" class="opt-card" aria-pressed="false" data-t="solo"><span data-icon="user" style="color:var(--muted)"></span><span><span>Just me</span><span class="sub">Only you can see it</span></span></button>
+          <button type="button" class="opt-card" aria-pressed="true" data-t="shared"><span data-icon="users" style="color:#065f46"></span><span><span>Shared</span><span class="sub">Invite people who use FinTrackr</span></span></button>
+        </div>
+      </div>
+
+      <div class="field" id="invite-field">
+        <label class="label" for="q">Invite members</label>
+        <div class="combo">
+          <label class="search" style="height:46px;border-radius:14px"><span data-icon="search"></span>
+            <input id="q" type="search" autocomplete="off" placeholder="Search by name or email" role="combobox" aria-expanded="false" aria-controls="q-list" aria-autocomplete="list" />
+          </label>
+          <div class="popover" id="q-list" role="listbox" aria-label="Matching people" hidden></div>
+        </div>
+        <div class="chips" id="invited" aria-label="Invited" style="margin-top:4px"></div>
+        <p class="meta" id="invite-hint">They get an invite in Notifications and join when they accept.</p>
+      </div>
+
+      <div class="field"><label class="label" for="bal">Starting balance</label><input class="input" id="bal" inputmode="decimal" value="₹ 0" /></div>
+    </form>
+  </main>
+
+  <div class="save-bar"><div class="inner"><button class="btn primary block" type="button" id="save">Create account</button></div></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script src="assets/sheet.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount(false, { back: 'settings.html', title: 'New account' });
+    const invited = [F.directory[0]];
+    let active = 0, hits = [], searching = false;
+    const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const hl = (t, q) => q ? t.replace(new RegExp(`(${esc(q)})`, 'ig'), '<mark>$1</mark>') : t;
+
+    function drawInvited() {
+      $('invited').innerHTML = invited.map((u) => `<span class="removable"><span class="avatar sm ${u.tint}">${u.initial}</span>${u.name.split(' ')[0]}<button type="button" data-rm="${u.uid}" aria-label="Remove ${u.name}">${Shell.icon('x', 16)}</button></span>`).join('');
+    }
+    function drawList() {
+      const q = $('q').value.trim(), list = $('q-list');
+      const open = q.length > 0;
+      list.hidden = !open; $('q').setAttribute('aria-expanded', String(open));
+      if (!open) { $('q').removeAttribute('aria-activedescendant'); return; }
+      if (q.length < 2) { list.innerHTML = `<div class="status" role="status">Type at least 2 letters of a name or email</div>`; return; }
+      if (searching) { list.innerHTML = `<div class="status" role="status"><span class="spinner" aria-hidden="true"></span> Searching…</div>`; return; }
+      hits = F.directory.filter((u) => (u.name + ' ' + u.email).toLowerCase().includes(q.toLowerCase()));
+      if (!hits.length) { list.innerHTML = `<div class="status" role="status">No one matches “${q}”. They need a FinTrackr account first.</div>`; return; }
+      active = Math.min(active, hits.length - 1);
+      list.innerHTML = hits.map((u, i) => {
+        const added = invited.some((x) => x.uid === u.uid);
+        return `<div role="option" id="hit-${i}" class="opt${i === active ? ' active' : ''}" data-i="${i}" aria-selected="false" ${added ? 'aria-disabled="true"' : ''}>
+          <span class="avatar ${u.tint}">${u.initial}</span><span class="body"><span>${hl(u.name, q)}</span><span class="sub">${hl(u.email, q)}</span></span>${added ? '<span class="meta">Added</span>' : ''}</div>`;
+      }).join('');
+      $('q').setAttribute('aria-activedescendant', `hit-${active}`);
+    }
+    let timer;
+    $('q').addEventListener('input', () => {
+      active = 0; searching = $('q').value.trim().length >= 2; drawList();
+      clearTimeout(timer); timer = setTimeout(() => { searching = false; drawList(); }, 450);
+    });
+    const add = (i) => {
+      const u = hits[i]; if (!u || invited.some((x) => x.uid === u.uid)) return;
+      invited.push(u); $('q').value = ''; drawList(); drawInvited(); Sheet.toast(`${u.name.split(' ')[0]} will be invited`);
+    };
+    $('q').addEventListener('keydown', (e) => {
+      if ($('q-list').hidden || !hits.length) { if (e.key === 'Escape') { $('q').value = ''; drawList(); } return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % hits.length; drawList(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + hits.length) % hits.length; drawList(); }
+      if (e.key === 'Enter') { e.preventDefault(); add(active); }
+      if (e.key === 'Escape') { e.preventDefault(); $('q-list').hidden = true; $('q').setAttribute('aria-expanded', 'false'); }
+    });
+    $('q-list').addEventListener('pointerdown', (e) => e.preventDefault()); // keep focus in the input
+    $('q-list').addEventListener('click', (e) => { const o = e.target.closest('[data-i]'); if (o) add(+o.dataset.i); });
+    $('invited').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rm]'); if (!b) return;
+      invited.splice(invited.findIndex((u) => u.uid === b.dataset.rm), 1); drawInvited(); $('q').focus();
+    });
+    $('type').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-t]'); if (!b) return;
+      $('type').querySelectorAll('[data-t]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      $('invite-field').hidden = b.dataset.t !== 'shared';
+    });
+    drawInvited();
+    // Demo states: ?q=ay (results), ?state=searching, ?state=nomatch
+    const p = new URLSearchParams(location.search);
+    if (p.get('q') || Shell.state) {
+      $('q').value = p.get('q') || (Shell.state === 'nomatch' ? 'zubin' : 'ay');
+      searching = Shell.state === 'searching'; drawList();
+      requestAnimationFrame(() => $('q').focus());
+    }
+    Shell.paint();
+  </script>
+</body>
+</html>

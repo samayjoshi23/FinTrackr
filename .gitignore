@@ -45,3 +45,6 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# taste-skill working files (screenshots, inspector reports)
+/.taste-skill/

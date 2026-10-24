@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Transactions · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app has-footer">
+    <p class="offline" id="offline" hidden><span data-icon="info"></span><span>Offline · showing what's saved on this phone (updated 9:41 am). New entries sync when you're back online.</span></p>
+    <div class="filters" role="search">
+      <div class="filter-row">
+        <label class="search"><span data-icon="search"></span><input type="search" placeholder="Search transactions" aria-label="Search transactions" /></label>
+        <button class="icon-btn filled" type="button" id="filter-btn" aria-haspopup="dialog" aria-controls="filter-sheet" aria-label="Filters. None applied"><span data-icon="filter" data-size="20"></span></button>
+      </div>
+      <div class="filter-row">
+        <button class="btn date-btn" type="button" id="period-btn" aria-haspopup="dialog" aria-controls="period-sheet"><span><span data-icon="calendar"></span> <span id="period-label">Oct 2026</span></span><span data-icon="down" data-size="16"></span></button>
+        <div class="seg" role="group" aria-label="Type" id="seg">
+          <button type="button" aria-pressed="true" data-type="all">All</button>
+          <button type="button" aria-pressed="false" data-type="income">In</button>
+          <button type="button" aria-pressed="false" data-type="expense">Out</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="by-person" aria-labelledby="who-h">
+      <div class="sec-head"><h2 id="who-h" style="font-size:14px;font-weight:500">Out by person · tap to filter</h2><span class="meta" id="who-total"></span></div>
+      <div class="split" id="split" role="img"></div>
+      <div class="split-key" id="who"></div>
+    </section>
+
+    <section aria-labelledby="list-h" style="margin-top:4px">
+      <h2 id="list-h" class="visually-hidden" tabindex="-1">Transactions in October</h2>
+      <div id="list" aria-busy="false"></div>
+      <div id="older-sk"></div>
+      <div class="load-older" id="older"><span id="older-text">Loaded since 1 Aug</span><button class="btn" type="button" id="older-btn">Load older</button></div>
+    </section>
+  </main>
+
+  <div class="totals-bar" aria-live="polite"><div class="inner"><span class="count" id="count"></span><span class="sums" id="sums"></span></div></div>
+
+  <!-- Transaction detail: one sheet whose content switches between details and the delete confirm -->
+  <div class="sheet" id="tx-sheet" role="dialog" aria-modal="true" aria-labelledby="tx-h" hidden></div>
+
+  <!-- Filters: category, payer, method. Results count on the button; nothing applies until "Show". -->
+  <div class="sheet" id="filter-sheet" role="dialog" aria-modal="true" aria-labelledby="filter-h" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <div class="sheet-head"><h2 id="filter-h">Filters</h2><button class="icon-btn" type="button" data-sheet-close aria-label="Close filters"><span data-icon="x" data-size="20"></span></button></div>
+    <div class="fsec"><h3 id="fc-h">Category</h3><div class="chips" role="group" aria-labelledby="fc-h" id="f-cat"></div></div>
+    <div class="fsec"><h3 id="fp-h">Paid by</h3><div class="chips" role="group" aria-labelledby="fp-h" id="f-by"></div></div>
+    <div class="fsec"><h3 id="fm-h">Paid with</h3><div class="chips" role="group" aria-labelledby="fm-h" id="f-src"></div></div>
+    <div class="sheet-actions"><button class="btn" type="button" id="f-clear">Clear all</button><button class="btn primary" type="button" id="f-apply"></button></div>
+  </div>
+
+  <!-- Period: a short list; Custom opens the existing date picker sheet -->
+  <div class="sheet" id="period-sheet" role="dialog" aria-modal="true" aria-labelledby="period-h" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <div class="sheet-head"><h2 id="period-h">Period</h2><button class="icon-btn" type="button" data-sheet-close aria-label="Close period"><span data-icon="x" data-size="20"></span></button></div>
+    <div class="menu" role="radiogroup" aria-labelledby="period-h" id="periods" style="margin-top:8px"></div>
+  </div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script src="assets/sheet.js"></script>
+  <script src="assets/datepicker.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    Shell.mount('transactions', { back: 'home.html', title: 'Transactions' });
+    const closeIcon = Shell.icon('x', 20);
+
+    const rowsAll = [...F.tx];
+    const deleted = new Set();
+    let type = 'all', person = null;
+    let range = ['2026-10-01', '2026-10-31'], rangeLabel = 'Oct 2026';
+    const f = { cat: new Set(), by: new Set(), src: new Set() };
+    let draft = null;
+
+    $('who-total').textContent = F.money(F.spent);
+    $('split').innerHTML = F.paidBy.map((p) => `<span style="width:${(p.amount / F.spent) * 100}%"></span>`).join('');
+    $('split').setAttribute('aria-label', F.paidBy.map((p) => `${p.name} ${F.money(p.amount)}`).join(', '));
+    const drawWho = () => { $('who').innerHTML = F.paidBy.map((p) => `<button type="button" data-person="${p.key}" aria-pressed="${person === p.key}">${Shell.avatar(p.key, 'sm')} ${p.name} <b>${F.money(p.amount)}</b></button>`).join(''); };
+    drawWho();
+    $('who').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      person = person === b.dataset.person ? null : b.dataset.person;
+      drawWho(); render();
+    });
+
+    const matches = (t, flt = f) => !deleted.has(t.id) && t.date >= range[0] && t.date <= range[1] && (type === 'all' || t.type === type) && (!person || t.by === person)
+      && (!flt.cat.size || flt.cat.has(t.cat)) && (!flt.by.size || flt.by.has(t.by)) && (!flt.src.size || flt.src.has(t.source));
+    const applied = () => f.cat.size + f.by.size + f.src.size + (person ? 1 : 0);
+
+    function render() {
+      const rows = rowsAll.filter((t) => matches(t));
+      const filtered = applied() > 0 || type !== 'all';
+      $('list').innerHTML = rows.length ? Shell.dayGroups(rows)
+        : filtered ? '<p class="note" style="margin-top:16px">No transactions match these filters. <button class="link" type="button" id="clear-inline" style="margin:-11px 0">Clear filters</button></p>'
+        : `<div class="note" style="margin-top:16px;display:grid;gap:12px"><span><b style="color:var(--text)">Nothing in ${rangeLabel}.</b> Entries you add for these dates show up here.</span><a class="btn primary" href="add-transaction.html" style="justify-self:start">${Shell.icon('plus', 18)} Add a transaction</a></div>`;
+      const inSum = F.sum(rows.filter((t) => t.type === 'income')), outSum = F.sum(rows.filter((t) => t.type === 'expense'));
+      $('count').textContent = `Showing ${rows.length} · ${rangeLabel}${person ? ' · ' + F.people[person].name : ''}`;
+      $('sums').innerHTML = (inSum ? `<span class="in">+${F.money(inSum)}</span>` : '') + (outSum ? `<span class="out">−${F.money(outSum)}</span>` : '');
+      const n = applied();
+      $('filter-btn').setAttribute('aria-label', `Filters. ${n ? n + ' applied' : 'None applied'}`);
+      $('filter-btn').querySelector('.badge')?.remove();
+      if (n) $('filter-btn').insertAdjacentHTML('beforeend', `<span class="badge" aria-hidden="true">${n}</span>`);
+    }
+    $('seg').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      $('seg').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      type = b.dataset.type; render();
+    });
+    document.addEventListener('click', (e) => { if (e.target.id === 'clear-inline') { f.cat.clear(); f.by.clear(); f.src.clear(); person = null; drawWho(); render(); } });
+
+    // ---------- transaction detail sheet ----------
+    const sheet = $('tx-sheet');
+    let open = null;
+    const detailView = (t) => {
+      const rec = F.recurring.find((r) => r.desc === t.desc);
+      return `<div class="grabber" aria-hidden="true"></div>
+      <div class="sheet-head"><h2 id="tx-h">Transaction</h2><button class="icon-btn" type="button" data-sheet-close aria-label="Close">${closeIcon}</button></div>
+      <div class="detail-hero">${Shell.tile(t.cat, 22)}<div style="flex:1;min-width:0"><div style="font-weight:600">${t.desc}</div><div class="meta">${F.longDate(t.date)}</div></div>
+        <span class="amt ${t.type === 'income' ? 'in' : 'out'}">${t.type === 'income' ? '+' : '−'}${F.money(t.amount)}</span></div>
+      <dl class="details">
+        <div><dt>Category</dt><dd>${t.cat}</dd></div>
+        <div><dt>Paid with</dt><dd>${t.source}</dd></div>
+        <div><dt>Paid by</dt><dd style="display:inline-flex;gap:6px;align-items:center">${Shell.avatar(t.by, 'sm')} ${t.by === 'samay' ? 'You' : F.people[t.by].name}</dd></div>
+        <div><dt>Account</dt><dd>Ghar</dd></div>
+      </dl>
+      ${rec ? `<div class="note" style="margin-top:12px">${Shell.icon('repeat', 18)}<span>Recorded by the <b>${rec.desc}</b> schedule. Editing here changes only this payment. <a class="link" href="recurring-view.html?id=${rec.id}" style="margin:-11px 0">Open schedule</a></span></div>` : ''}
+      <div class="sheet-actions">
+        <a class="btn" href="add-transaction.html?edit=${t.id}">${Shell.icon('edit', 18)} Edit</a>
+        <button class="btn danger" type="button" data-act="ask-delete">${Shell.icon('trash', 18)} Delete</button>
+      </div>`;
+    };
+    const confirmView = (t) => `<div class="grabber" aria-hidden="true"></div>
+      <div class="sheet-head"><h2 id="tx-h">Delete this transaction?</h2><button class="icon-btn" type="button" data-sheet-close aria-label="Close">${closeIcon}</button></div>
+      <p class="lead">“${t.desc}” · ${t.type === 'income' ? '+' : '−'}${F.money(t.amount)} on ${F.shortDate(t.date)}. Ghar's balance goes ${t.type === 'income' ? 'down' : 'back up'} by ${F.money(t.amount)}. You can undo for a few seconds.</p>
+      <div class="sheet-actions"><button class="btn" type="button" data-act="back" data-autofocus>Keep it</button><button class="btn danger-solid" type="button" data-act="delete">Delete</button></div>`;
+
+    document.getElementById('list').addEventListener('click', (e) => {
+      const a = e.target.closest('[data-tx]'); if (!a) return; e.preventDefault();
+      open = rowsAll.find((t) => t.id === a.dataset.tx);
+      sheet.innerHTML = detailView(open); Sheet.open(sheet, a);
+    });
+    sheet.addEventListener('click', (e) => {
+      const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return;
+      if (act === 'ask-delete') { sheet.innerHTML = confirmView(open); Sheet.focusFirst(); }
+      if (act === 'back') { sheet.innerHTML = detailView(open); Sheet.focusFirst(); }
+      if (act === 'delete') {
+        const t = open; deleted.add(t.id); Sheet.close(); render();
+        $('list-h').focus(); // the row that opened the sheet is gone; land on the list, not on <body>
+        // Soft delete (deletedAt/purgeAt already exist), so Undo just clears deletedAt.
+        Sheet.toast('Transaction deleted', { label: 'Undo', run: () => { deleted.delete(t.id); render(); } });
+      }
+    });
+
+    // ---------- filter sheet (draft until "Show") ----------
+    const methods = ['UPI', 'Card', 'Cash', 'Bank'];
+    const drawFilters = () => {
+      const cats = Object.keys(F.categories).filter((c) => type !== 'expense' || c !== 'Income').filter((c) => type !== 'income' || c === 'Income');
+      $('f-cat').innerHTML = cats.map((c) => `<button type="button" class="chip" data-k="cat" data-v="${c}" aria-pressed="${draft.cat.has(c)}">${Shell.tile(c, 18)}${c}</button>`).join('');
+      $('f-by').innerHTML = Object.keys(F.people).map((k) => `<button type="button" class="chip" data-k="by" data-v="${k}" aria-pressed="${draft.by.has(k)}">${Shell.avatar(k, 'sm')} ${F.people[k].name}</button>`).join('');
+      $('f-src').innerHTML = methods.map((m) => `<button type="button" class="chip plain" data-k="src" data-v="${m}" aria-pressed="${draft.src.has(m)}">${m}</button>`).join('');
+      const n = rowsAll.filter((t) => matches(t, draft)).length;
+      $('f-apply').textContent = `Show ${n}`;
+      $('f-apply').setAttribute('aria-label', `Show ${n} transaction${n === 1 ? '' : 's'}`);
+    };
+    $('filter-btn').addEventListener('click', (e) => {
+      draft = { cat: new Set(f.cat), by: new Set(f.by), src: new Set(f.src) };
+      drawFilters(); Sheet.open($('filter-sheet'), e.currentTarget);
+    });
+    $('filter-sheet').addEventListener('click', (e) => {
+      const c = e.target.closest('[data-k]'); if (!c) return;
+      const set = draft[c.dataset.k]; set.has(c.dataset.v) ? set.delete(c.dataset.v) : set.add(c.dataset.v);
+      drawFilters(); $('filter-sheet').querySelector(`[data-k="${c.dataset.k}"][data-v="${c.dataset.v}"]`).focus();
+    });
+    $('f-clear').addEventListener('click', () => { draft = { cat: new Set(), by: new Set(), src: new Set() }; drawFilters(); });
+    $('f-apply').addEventListener('click', () => { f.cat = draft.cat; f.by = draft.by; f.src = draft.src; Sheet.close(); render(); });
+
+    // ---------- period sheet; "Custom range…" opens the date picker in range mode ----------
+    const periods = [
+      ['This month · Oct 2026', ['2026-10-01', '2026-10-31'], 'Oct 2026'], ['Last month · Sep 2026', ['2026-09-01', '2026-09-30'], 'Sep 2026'],
+      ['Last 3 months', ['2026-08-01', '2026-10-31'], 'Aug – Oct'], ['Last 6 months', ['2026-05-01', '2026-10-31'], 'May – Oct'], ['Custom range…', null, null],
+    ];
+    let period = 0;
+    const drawPeriods = () => { $('periods').innerHTML = periods.map(([p], i) => `<button type="button" class="menu-row" role="radio" aria-checked="${i === period}" data-i="${i}" style="width:100%;border:0;background:none;text-align:left;cursor:pointer"><span class="body">${i === 4 && period === 4 ? `Custom · ${rangeLabel}` : p}</span>${i === period ? Shell.icon('check', 20) : i === 4 ? Shell.icon('calendar', 20) : ''}</button>`).join(''); };
+    $('period-btn').addEventListener('click', (e) => { drawPeriods(); Sheet.open($('period-sheet'), e.currentTarget); });
+    $('periods').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-i]'); if (!b) return;
+      const i = +b.dataset.i;
+      if (i === 4) {
+        DatePicker.open({ title: 'Custom range', mode: 'range', value: period === 4 ? range : [null, null], max: DatePicker.today, opener: $('period-btn'),
+          shortcuts: [['Last 7 days', [DatePicker.add(DatePicker.today, -6), DatePicker.today]], ['Last 30 days', [DatePicker.add(DatePicker.today, -29), DatePicker.today]], ['This month', ['2026-10-01', DatePicker.today]]],
+          onDone: ([a, z]) => { period = 4; range = [a, z]; rangeLabel = DatePicker.span(a, z); $('period-label').textContent = rangeLabel; render(); } });
+        return;
+      }
+      period = i; range = periods[i][1]; rangeLabel = periods[i][2]; $('period-label').textContent = rangeLabel; Sheet.close(); render();
+    });
+
+    // ---------- loading states ----------
+    // Load older: the button shows progress, a skeleton day takes the place of the rows on their way.
+    $('older-btn').addEventListener('click', (e) => {
+      const b = e.currentTarget; b.setAttribute('aria-busy', 'true'); b.innerHTML = '<span class="spinner" aria-hidden="true"></span> Loading…';
+      $('older-sk').innerHTML = Shell.skDays([3]); $('older-sk').setAttribute('aria-label', 'Loading older transactions');
+      setTimeout(() => { $('older-sk').innerHTML = ''; b.removeAttribute('aria-busy'); b.hidden = true; $('older-text').textContent = 'Everything since 18 Jul is loaded'; }, 1600);
+    });
+    const st = Shell.state;
+    if (st === 'offline') $('offline').hidden = false;
+    if (st === 'empty') { rowsAll.length = 0; }
+
+    if (st === 'loading') {
+      // First load: skeletons in the exact shape of the content; footer and person bar wait too.
+      $('list').setAttribute('aria-busy', 'true'); $('list').innerHTML = `<span class="visually-hidden">Loading transactions</span>${Shell.skDays([2, 3, 2])}`;
+      $('who').innerHTML = Shell.skLine('40%', 14) + Shell.skLine('40%', 14); $('split').innerHTML = ''; $('split').className = 'split sk'; $('who-total').innerHTML = Shell.skLine('56px', 12);
+      $('count').innerHTML = Shell.skLine('120px', 12); $('older').hidden = true;
+    } else render();
+    Shell.paint();
+  </script>
+</body>
+</html>

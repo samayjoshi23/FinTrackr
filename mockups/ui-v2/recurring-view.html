@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Recurring detail · FinTrackr UI v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fintrackr.css" />
+</head>
+<body>
+  <main class="app">
+    <div id="state-note"></div>
+
+    <div class="detail-hero" style="border:0;padding-top:4px">
+      <span id="hero-icon"></span>
+      <div style="flex:1;min-width:0"><div class="meta" id="hero-sub"></div></div>
+      <span class="amt" id="hero-amt" style="font-size:28px;font-weight:600"></span>
+    </div>
+
+    <section class="next-card" id="next-card" aria-labelledby="next-h">
+      <div><h2 class="k" id="next-h" style="font-weight:400">Next payment</h2><p class="when" id="next-when"></p><p class="k" id="next-sub"></p></div>
+      <div class="row">
+        <button class="btn primary" type="button" id="mark-paid" aria-haspopup="dialog" aria-controls="rv-sheet">Mark paid</button>
+        <button class="btn" type="button" id="skip">Skip this one</button>
+      </div>
+    </section>
+
+    <section style="margin-top:24px" aria-labelledby="about-h">
+      <h2 id="about-h" class="visually-hidden">Schedule details</h2>
+      <dl class="details" id="details"></dl>
+    </section>
+
+    <section style="margin-top:24px" aria-labelledby="hist-h">
+      <div class="sec-head"><h2 id="hist-h">Payments</h2><span class="meta" id="hist-meta"></span></div>
+      <div id="history"></div>
+    </section>
+
+    <div class="danger-zone">
+      <button class="btn" type="button" id="pause" aria-haspopup="dialog" aria-controls="rv-sheet"></button>
+      <button class="btn danger" type="button" id="delete" aria-haspopup="dialog" aria-controls="rv-sheet"></button>
+    </div>
+  </main>
+
+  <div class="sheet" id="rv-sheet" role="dialog" aria-modal="true" aria-labelledby="rv-h" hidden></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/shell.js"></script>
+  <script src="assets/sheet.js"></script>
+  <script>
+    const F = FT, $ = (id) => document.getElementById(id);
+    const r = { ...(F.recurring.find((x) => x.id === new URLSearchParams(location.search).get('id')) || F.recurring[0]) };
+    Shell.mount('home', { back: 'recurring.html', title: r.desc, action: `<a class="btn" href="recurring-form.html?id=${r.id}">${Shell.icon('edit', 18)} Edit</a>` });
+    const sign = r.type === 'income' ? '+' : '−';
+    const head = (title) => `<div class="grabber" aria-hidden="true"></div><div class="sheet-head"><h2 id="rv-h">${title}</h2><button class="icon-btn" type="button" data-sheet-close aria-label="Close">${Shell.icon('x', 20)}</button></div>`;
+    const ordinal = (n) => n + ([, 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1) && n % 10] || 'th');
+    // Local calendar maths (toISOString would shift to UTC and lose a day in IST).
+    const addMonths = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setMonth(d.getMonth() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }; // taste-skill-ignore: ISO date parts
+
+    // Past payments: the schedule's own linked transactions, newest first (sample history).
+    const history = r.last ? [0, -1, -2].map((m) => ({ date: addMonths(r.last, m), amount: m === 0 ? r.amount : Math.round(r.amount * 0.95 / 100) * 100 })) : [];
+
+    function draw() {
+      $('hero-icon').innerHTML = Shell.tile(r.cat, 24).replace('cat-icon', 'cat-icon" style="width:48px;height:48px;border-radius:14px;background:var(--raised)');
+      $('hero-sub').innerHTML = `<span style="color:var(--text);font-weight:500;font-size:15px">${F.freqLabel[r.freq]}</span><br>${r.cat} · ${r.source}`;
+      $('hero-amt').textContent = sign + F.money(r.amount);
+      $('hero-amt').className = `amt ${r.type === 'income' ? 'in' : 'out'}`;
+      if (!r.active) $('hero-amt').style.color = 'var(--muted)';
+
+      // State first, in words, with the fix next to it.
+      $('state-note').innerHTML = !r.active
+        ? `<div class="note" style="margin-bottom:16px">${Shell.icon('pause', 18)}<span style="flex:1"><b style="color:var(--text)">Paused.</b> Nothing is recorded or reminded until you resume. Past payments stay.</span></div>`
+        : !r.due ? `<div class="note warn" style="margin-bottom:16px">${Shell.icon('alert', 18)}<span style="flex:1"><b>No next payment date.</b> Nothing has been recorded since ${F.shortDate(r.last)}. Set the next date, or mark a payment as paid.</span></div>` : '';
+      $('next-card').hidden = !r.active;
+      if (r.active) {
+        $('next-when').textContent = r.due ? new Date(r.due + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Not set';
+        $('next-sub').textContent = r.due ? `in ${F.inDays(r.due)} days · ${r.autopay ? 'auto-pay records it on the day' : 'we remind you the day before'}` : 'Choose when the next payment is due';
+        $('skip').textContent = r.due ? 'Skip this one' : 'Set next date';
+      }
+      $('details').innerHTML = [
+        ['Repeats', F.freqLabel[r.freq] + (r.due ? ` on the ${ordinal(new Date(r.due + 'T00:00:00').getDate())}` : '')],
+        ['Category', r.cat], ['Paid with', r.source],
+        ['Auto-pay', r.autopay ? 'On · recorded automatically' : 'Off · reminder only'],
+        ['Last paid', r.last ? F.longDate(r.last) : '—'],
+      ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+      $('hist-meta').textContent = `${history.length} recorded`;
+      $('history').innerHTML = history.length ? '<div class="day-card">' + history.map((h) => `<a class="tx" href="transactions.html">${Shell.tile(r.cat)}<div class="body"><div class="desc">${r.desc}</div><div class="line2">${F.longDate(h.date)} · ${r.source}</div></div><span class="amt out">${sign}${F.money(h.amount)}</span></a>`).join('') + '</div>'
+        : '<p class="note">No payments recorded yet.</p>';
+      $('pause').innerHTML = r.active ? `${Shell.icon('pause', 18)} Pause schedule` : `${Shell.icon('play', 18)} Resume schedule`;
+      if (!r.active) $('pause').classList.add('primary'); else $('pause').classList.remove('primary');
+      $('delete').innerHTML = `${Shell.icon('trash', 18)} Delete schedule`;
+    }
+    $('mark-paid').innerHTML = `${Shell.icon('check', 18)} Mark paid`;
+
+    // Mark paid: confirm the real amount (rent changes), writes a normal linked transaction and moves the date on.
+    const sheet = $('rv-sheet');
+    $('mark-paid').addEventListener('click', (e) => {
+      sheet.innerHTML = head(`Record ${r.desc}`) + `<p class="lead">Adds a transaction in Ghar and moves the next date to ${F.shortDate(addMonths(r.due || '2026-10-23', 1))}.</p>
+        <div class="form" style="gap:16px;margin-top:16px">
+          <label class="field"><span class="label">Amount</span><span class="money-input" style="height:52px"><span>₹</span><input id="pay-amt" inputmode="decimal" value="${new Intl.NumberFormat('en-IN').format(r.amount)}" style="text-align:left;font-size:20px" data-autofocus /></span></label>
+          <div class="field"><span class="label">Paid on</span><button class="input input-btn" type="button">${Shell.icon('calendar', 18)} Today, 23 Oct</button></div>
+        </div>
+        <div class="sheet-actions"><button class="btn" type="button" data-sheet-close>Cancel</button><button class="btn primary" type="button" data-act="record">Record payment</button></div>`;
+      Sheet.open(sheet, e.currentTarget);
+    });
+    $('skip').addEventListener('click', () => {
+      if (!r.due) { r.due = '2026-11-06'; draw(); Sheet.toast('Next date set to 6 Nov'); return; }
+      const prev = r.due; r.due = addMonths(r.due, 1); draw();
+      Sheet.toast(`Skipped ${F.shortDate(prev)}. Next: ${F.shortDate(r.due)}`, { label: 'Undo', run: () => { r.due = prev; draw(); } });
+    });
+    $('pause').addEventListener('click', (e) => {
+      if (!r.active) { r.active = true; if (!r.due) r.due = '2026-11-14'; draw(); Sheet.toast(`${r.desc} resumed`); return; }
+      sheet.innerHTML = head(`Pause ${r.desc}?`) + `<p class="lead">Nothing will be recorded or reminded until you resume. Past payments stay in Transactions.</p>
+        <div class="sheet-actions"><button class="btn" type="button" data-sheet-close data-autofocus>Keep it running</button><button class="btn primary" type="button" data-act="pause">Pause</button></div>`;
+      Sheet.open(sheet, e.currentTarget);
+    });
+    $('delete').addEventListener('click', (e) => {
+      sheet.innerHTML = head(`Delete ${r.desc}?`) + `<p class="lead">The schedule is removed. Its ${history.length} past payments stay in Transactions. To stop it for a while instead, pause it.</p>
+        <div class="sheet-actions"><button class="btn" type="button" data-sheet-close data-autofocus>Keep it</button><button class="btn danger-solid" type="button" data-act="delete">Delete schedule</button></div>`;
+      Sheet.open(sheet, e.currentTarget);
+    });
+    sheet.addEventListener('click', (e) => {
+      const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return;
+      if (act === 'record') { r.last = r.due || '2026-10-23'; r.due = addMonths(r.due || '2026-10-23', 1); history.unshift({ date: '2026-10-23', amount: r.amount }); Sheet.close(); draw(); Sheet.toast(`${r.desc} recorded · next ${F.shortDate(r.due)}`); }
+      if (act === 'pause') { r.active = false; Sheet.close(); draw(); Sheet.toast(`${r.desc} paused`, { label: 'Undo', run: () => { r.active = true; draw(); } }); }
+      if (act === 'delete') { location.href = 'recurring.html'; }
+    });
+    draw();
+    Shell.paint();
+  </script>
+</body>
+</html>
