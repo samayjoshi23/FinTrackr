@@ -537,3 +537,113 @@ The two dropdown patterns:
 | Popovers & sheets | Transaction detail, delete, filters, period, record payment, pause, delete schedule, switch account |
 | Dropdowns & date pickers | Paid by (3 people), member search (results, searching, no match), date, custom range |
 | Loading & system | Home, Transactions and Recurring loading; offline; empty period; deleted with Undo; saving |
+
+---
+
+## 12. Round 7: prototype wiring in Figma (24 Oct 2026)
+
+The Figma frames are linked by their actions, so the file plays as a prototype. **Nothing was added or moved**: the plugin only sets tap interactions. Run `mockups/figma/round7-plugin` after round 6, then press ▶ on the Screens page. It starts from **Sign in** (Login) or **Signed in** (Home).
+
+**Transitions.**
+- Tabs and "save and return" use a quick fade.
+- Drilling into a page pushes from the right.
+- A popover or sheet opens its state frame with Smart Animate, so only the scrim and the sheet appear over the same screen.
+- Back, Cancel, Keep it, the scrim and ✕ go back to the previous frame, so the animation reverses.
+
+### Global
+| Control | Goes to |
+|---|---|
+| Bottom bar: Home / Transactions / Groups / Settings | Home · Dashboard / Transactions / Groups / Settings |
+| Bottom bar: Add | Add transaction |
+| Top-bar Back arrow (every screen) | The previous screen |
+
+### Screens
+| From | Control | To |
+|---|---|---|
+| Login | Log in, Continue with Google | Home |
+| | Forgot password? | Reset password |
+| | Create an account | Create account |
+| Create account | Create account | Verify email |
+| | Continue with Google | Onboarding |
+| | Log in | Login |
+| Reset password | Send reset link | Login |
+| Verify email | I have verified | Onboarding |
+| | Use a different account · Log out | Login |
+| Onboarding | Continue, Skip for now | Home |
+| Home | Bell | Notifications |
+| | Account pill | Switch account (state) |
+| | Budget, Goals, Reports, Recurring | Those screens |
+| | Budget line, attention banner | Budget |
+| | Mark paid | Record payment (state) |
+| | All bills | Recurring |
+| | See all | Transactions |
+| | A transaction | Transaction detail (state) |
+| Transactions | Filter button | Filters (state) |
+| | Period | Period (state) |
+| | A transaction | Transaction detail (state) |
+| | Load older | Loading (state) |
+| Add transaction | Date | Date (state) |
+| | Add (footer) | Transactions |
+| Notifications | Bills is at 92% | Budget |
+| | Airtel Wi-Fi, Newspaper | View recurring |
+| | Mark paid | Record payment (state) |
+| | Accept | Home |
+| | Notification settings | Notification settings |
+| Budget | Edit | Edit budget |
+| | A category | Transactions |
+| Edit budget | Save budget | Budget |
+| | Add a category | New category |
+| Goals | New goal | New goal |
+| | Edit | Edit goal |
+| New goal, Edit goal | Footer button | Goals |
+| | Delete goal | Goals |
+| Categories | New | New category |
+| | A category | Edit category |
+| New category, Edit category | Footer button | Categories |
+| | Delete category | Categories |
+| Recurring | New | Add recurring |
+| | A schedule | View recurring |
+| Add recurring | Create | Recurring |
+| View recurring | Edit | Edit recurring |
+| | Mark paid | Record payment (state) |
+| | Pause schedule | Pause schedule (state) |
+| | Delete schedule | Delete schedule (state) |
+| | A payment | Transaction detail (state) |
+| Edit recurring | Save changes | View recurring |
+| Groups | A group | Group detail |
+| Group detail | Add expense | Add group expense |
+| Add group expense | Footer button | Group detail |
+| Reports | Budget (header action) | Budget |
+| Settings | Personal, Ghar | Account details |
+| | New account | New account |
+| | Categories, Notifications, Privacy & security, About | Those screens |
+| | Log out | Login |
+| New account | Create account | Settings |
+| Account details | See all | Transactions |
+| | Remove account | Settings |
+| Privacy & security | Change password | Reset password |
+| | Delete my profile | Login |
+| Not found | Go to Home / Go back | Home / the previous screen |
+
+### State frames (popovers, sheets, pickers)
+| State | Controls |
+|---|---|
+| Transaction detail | Edit → Add transaction · Delete → Delete transaction · ✕ / scrim → back |
+| Delete transaction | Keep it → back · Delete → Deleted · Undo |
+| Deleted · Undo | Undo → Transactions |
+| Filters | Show N → Transactions · Clear all, ✕, scrim → back |
+| Period | A period → Transactions · Custom range… → Custom range |
+| Custom range | Show … → Transactions · Cancel → back |
+| Record payment | Record payment → View recurring · Cancel → back |
+| Pause schedule | Pause → View recurring · Keep it running → back |
+| Delete schedule | Delete schedule → Recurring · Keep it → back |
+| Switch account | Manage accounts → Settings · New account → New account |
+| Add transaction · Date | Done → Add transaction · Cancel → back |
+| Paid by (3 people) | A person → Add transaction |
+
+**Not wired, on purpose:** text fields, toggles, segments, chips, pickers inside forms, the dropdown results, and anything that only changes data. The loading, offline, empty and saving frames are views, not steps.
+
+**Limits to know when presenting:**
+- Frames taller than the phone scroll, and the bottom bar sits at the end of the frame, so it isn't pinned.
+- A tab opens the same screen even from that tab.
+- A few deep taps (a group card, a row inside a sheet) may hit a slightly smaller area than the full row. The plugin lists any layer it couldn't find in the console.

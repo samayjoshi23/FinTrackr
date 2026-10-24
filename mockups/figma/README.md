@@ -60,6 +60,17 @@ It is safe to run again (screens are matched by name, the Read me frame is rebui
 4. builds **07 · States (not routes)** below the route sections — 21 real frames named
    "<Screen> — <State>" in three rows: popovers & sheets, dropdowns & date pickers, loading & system.
 
+## Round 7 update: prototype wiring (run once, after round 6)
+`round7-plugin/` — import its `manifest.json` and run **FinTrackr UI v2 · Round 7**. It only adds tap
+interactions: no frame is added, removed or moved. Then press ▶ (Present) on the Screens page.
+- bottom-bar tabs + Add button and every top-bar Back arrow are wired once, on the components;
+- route screens link to the screen the same action opens in the app (flow map in `UI_V2.md` §12);
+- popovers, sheets and pickers open their frame from "07 · States"; scrim, ✕, Cancel and Keep it go back;
+  each confirm button lands on the screen the app returns to;
+- flow starting points: **Sign in** (Login) and **Signed in** (Home);
+- frames taller than the phone scroll vertically in the prototype.
+The console lists any layer it could not find (skipped) and any target it could not resolve.
+
 ## Editing the plugins
-Sources: `shared/prelude.js` (ids + helpers), `round3/4/5/6-plugin/src/*.js`,
+Sources: `shared/prelude.js` (ids + helpers), `round3/4/5/6/7-plugin/src/*.js`,
 `readme-page.js`. Rebuild every `code.js` with `node mockups/figma/build.mjs`.

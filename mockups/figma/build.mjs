@@ -12,7 +12,7 @@ const readme = read('./readme-page.js')
   .replace('Updated 24 Oct 2026.', 'Updated 24 Oct 2026 (round 3: placement and 44px targets).')
   .replace('an account pill (“Ghar · SJ”) that opens Settings', 'an account pill (“Ghar · SJ”) that opens the account switcher');
 
-for (const name of ['round3', 'round4', 'round5', 'round6']) {
+for (const name of ['round3', 'round4', 'round5', 'round6', 'round7']) {
   let src = read(`./${name}-plugin/src/${name}.js`);
   if (!src.includes('/*__PRELUDE__*/')) throw new Error(`prelude marker missing in ${name}`);
   src = src.replace('/*__PRELUDE__*/', prelude).replace('/*__README_BODY__*/', readme.trim().replace(/\n/g, '\n  '));
