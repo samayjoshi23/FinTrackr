@@ -22,13 +22,14 @@
       </div>
       <div class="flex items-center gap-1 shrink-0">
         @if (unreadCount() > 0) {
-          <a
-            class="mark-all-read flex items-center gap-1.5 text-xs font-medium text-primary px-2 py-1.5 rounded-lg cursor-pointer"
+          <button
+            type="button"
+            class="mark-all-read flex items-center gap-1.5 text-xs font-medium text-primary px-2 py-2.5 rounded-lg cursor-pointer"
             (click)="markAllRead()"
           >
             <ico name="tick" size="xs"></ico>
             Mark all read
-          </a>
+          </button>
         }
       </div>
     </div>
@@ -108,13 +109,13 @@
             <!-- Account label -->
             @if (n.accountId) {
               <span
-                class="account-label text-[0.6rem] font-medium px-1.5 py-0.5 rounded-full w-fit"
+                class="account-label text-xs font-medium px-1.5 py-0.5 rounded-full w-fit"
               >
                 {{ accountName(n.accountId) }}
               </span>
             }
 
-            <p class="text-[0.6rem] text-secondary font-light pt-0.5">
+            <p class="text-xs text-secondary font-light pt-0.5">
               {{ relativeTime(n.createdAt) }}
             </p>
 
@@ -135,7 +136,7 @@
 
             <!-- ACTION_TAKEN badge -->
             @if (n.status === 'ACTION_TAKEN') {
-              <span class="text-[0.6rem] text-secondary italic pt-0.5">Action taken</span>
+              <span class="text-xs text-secondary italic pt-0.5">Action taken</span>
             }
           </div>
 

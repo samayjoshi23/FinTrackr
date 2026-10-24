@@ -43,7 +43,7 @@
       </div>
       <div class="flex flex-col items-center gap-1">
         <div class="h-10 w-10 card-light rounded-xl flex items-center justify-center">
-          <ico name="dollar-sign" size="md" class="text-secondary"></ico>
+          <ico name="wallet" size="md" class="text-secondary"></ico>
         </div>
         <span class="text-xs text-secondary font-light">Balance</span>
         <span class="text-sm font-semibold text-primary">
@@ -154,7 +154,7 @@
               <div class="flex items-center gap-1.5 min-w-0">
                 <span class="text-sm font-semibold truncate">{{ a.name }}</span>
                 @if (a.accountType === 'multi-user' && a.ownerId !== currentUid()) {
-                  <span class="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-primary-light text-primary shrink-0">
+                  <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-primary-light text-primary shrink-0">
                     Shared
                   </span>
                 }

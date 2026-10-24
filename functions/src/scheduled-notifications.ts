@@ -339,7 +339,8 @@ function buildMonthEndCopy(
   income: number,
   prevMonth: string,
 ): { title: string; body: string; trendLabel: 'great' | 'good' | 'watch' | 'concerning' } {
-  const label = prevMonth;
+  // prevMonth is 'YYYY-MM'; people read "August 2026", not "2026-08".
+  const label = new Date(`${prevMonth}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   let trendLabel: 'great' | 'good' | 'watch' | 'concerning' = 'good';
   let title = `Month in review · ${label}`;
   let body = '';

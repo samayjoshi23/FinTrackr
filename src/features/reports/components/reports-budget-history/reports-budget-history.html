@@ -18,7 +18,7 @@
               <p class="text-sm font-semibold title-font">{{ m.label }}</p>
               <div class="flex items-center gap-2">
                 @if (m.overspentCount > 0) {
-                  <span class="text-[0.6rem] font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                  <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-500">
                     {{ m.overspentCount }} over
                   </span>
                 }
@@ -41,19 +41,19 @@
             <!-- Income / Expense / Savings -->
             <div class="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Income</p>
+                <p class="text-xs uppercase tracking-wide text-secondary">Income</p>
                 <p class="text-xs font-semibold title-font text-income">
                   {{ m.totalIncome | signedAmount: null : currency : '1.0-0' }}
                 </p>
               </div>
               <div>
-                <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Spent</p>
+                <p class="text-xs uppercase tracking-wide text-secondary">Spent</p>
                 <p class="text-xs font-semibold title-font text-expense">
                   {{ m.totalExpense | signedAmount: null : currency : '1.0-0' }}
                 </p>
               </div>
               <div>
-                <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Saved</p>
+                <p class="text-xs uppercase tracking-wide text-secondary">Saved</p>
                 <p
                   class="text-xs font-semibold title-font"
                   [class.text-income]="m.savings >= 0"
@@ -114,7 +114,7 @@
                       [style.width.%]="c.used > 100 ? 100 : c.used"
                     ></div>
                   </div>
-                  <div class="flex justify-between text-[0.65rem] text-secondary font-light">
+                  <div class="flex justify-between text-xs text-secondary font-light">
                     <span>{{ c.amount | signedAmount: null : currency : '1.0-0' }} spent</span>
                     <span>
                       @if (c.budget != null && c.budget > 0) {

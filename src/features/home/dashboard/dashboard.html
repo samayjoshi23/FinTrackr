@@ -248,7 +248,7 @@
                   {{ transaction.description }}
                 </p>
                 <p class="text-xs text-secondary">
-                  {{ transaction.source }} · {{ transaction.createdAt | date: 'dd MMM, yyyy' }}
+                  {{ transaction.source }} · {{ (transaction.date || transaction.createdAt) | date: 'dd MMM, yyyy' }}
                 </p>
               </div>
             </div>

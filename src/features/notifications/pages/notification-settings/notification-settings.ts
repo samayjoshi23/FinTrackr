@@ -29,32 +29,32 @@ export class NotificationSettings {
     {
       key: 'expenseAlerts',
       icon: 'stock-down',
-      title: 'Expense alerts',
-      description: 'Notify when a large expense is detected',
+      title: 'Goals and monthly review',
+      description: 'When you reach a goal, and your month in review',
     },
     {
       key: 'budgetWarnings',
       icon: 'bullseye',
-      title: 'Budget warnings',
-      description: 'Alert when budget exceeds 80%',
+      title: 'Budget alerts',
+      description: 'When a category reaches 80% and when it goes over',
     },
     {
       key: 'billReminders',
       icon: 'bell',
-      title: 'Bill reminders',
-      description: 'Remind before recurring payments are due',
+      title: 'Bills and recurring',
+      description: 'When a bill is due, and when auto-pay records one',
     },
     {
       key: 'groupActivity',
       icon: 'user-group',
-      title: 'Group activity',
-      description: 'New expenses or settlements in groups',
+      title: 'Groups',
+      description: 'Group invites, payment requests and settlements',
     },
     {
       key: 'transactionUpdates',
       icon: 'credit-card',
-      title: 'Transaction updates',
-      description: 'Notify for every transaction',
+      title: 'Shared accounts',
+      description: 'Invites, and members joining or leaving',
     },
   ];
 

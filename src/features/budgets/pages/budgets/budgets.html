@@ -88,19 +88,19 @@
       <!-- Zero-based allocation strip: income → allocated → unbudgeted -->
       <div class="grid grid-cols-3 gap-2 text-center">
         <div class="rounded-xl bg-secondary-light/60 py-2">
-          <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Income</p>
+          <p class="text-xs uppercase tracking-wide text-secondary">Income</p>
           <p class="text-sm font-semibold title-font">
             {{ summary().income | signedAmount: null : currency() : '1.0-0' }}
           </p>
         </div>
         <div class="rounded-xl bg-secondary-light/60 py-2">
-          <p class="text-[0.6rem] uppercase tracking-wide text-secondary">Allocated</p>
+          <p class="text-xs uppercase tracking-wide text-secondary">Allocated</p>
           <p class="text-sm font-semibold title-font">
             {{ summary().totalLimit | signedAmount: null : currency() : '1.0-0' }}
           </p>
         </div>
         <div class="rounded-xl bg-secondary-light/60 py-2">
-          <p class="text-[0.6rem] uppercase tracking-wide text-secondary">
+          <p class="text-xs uppercase tracking-wide text-secondary">
             {{ summary().unbudgeted < 0 ? 'Over-allocated' : 'Unbudgeted' }}
           </p>
           <p

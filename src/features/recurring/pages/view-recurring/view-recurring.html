@@ -179,7 +179,7 @@
               <div class="flex flex-col gap-0.5 min-w-0 flex-1">
                 <p class="text-sm font-medium truncate">{{ tx.description || 'Transaction' }}</p>
                 <p class="text-xs text-secondary">
-                  {{ tx.date || (tx.createdAt | date: 'mediumDate') }}
+                  {{ (tx.date || tx.createdAt) | date: 'mediumDate' }}
                 </p>
               </div>
               <p

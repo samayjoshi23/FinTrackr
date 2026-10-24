@@ -59,8 +59,10 @@
                 {{ frequencyLabel(rec.recurringFrequency) }}
                 @if (rec.nextPaymentDate) {
                   <span class="text-secondary">
-                    · {{ rec.lastPaymentDate | date: 'mediumDate' }}
+                    · next {{ rec.nextPaymentDate | date: 'd MMM' }}
                   </span>
+                } @else if (rec.isActive) {
+                  <span class="text-amber-700">· no next date, open to set it</span>
                 }
               </p>
             </div>

@@ -10,7 +10,7 @@
   --color-placeholder: var(--color-slate-500);
   --color-primary: var(--color-emerald-600);
   --color-primary-pressed: var(--color-emerald-700);
-  --color-secondary: var(--color-slate-500);
+  --color-secondary: var(--color-slate-600); /* slate-500 was 4.08:1 on --color-bg-elevated */
   --color-secondary-hover: var(--color-slate-600);
   --color-primary-hover: var(--color-emerald-600);
   --color-primary-soft: color-mix(in srgb, var(--color-emerald-600) 20%, transparent);
@@ -237,7 +237,7 @@ button {
 /* ----- Red ----- */
 .button-red {
   background-color: color-mix(in srgb, var(--color-red-400) 20%, transparent);
-  color: var(--color-red-500);
+  color: var(--color-red-700);
   display: flex;
   align-items: center;
   justify-content: center;

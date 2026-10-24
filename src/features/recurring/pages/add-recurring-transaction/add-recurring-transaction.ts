@@ -18,7 +18,7 @@ import { NotifierService } from '../../../../shared/components/notifier/notifier
 import { ReportsService } from '../../../reports/reports.service';
 import { date } from '../../../../core/date';
 import { paymentSourceOptions, recurringFrequencyOptions } from '../../../transactions/types';
-import { DatePicker } from '../../../../shared/components/date-picker/date-picker';
+import { DatePicker, parseIsoLocal } from '../../../../shared/components/date-picker/date-picker';
 import { FORM_LIMITS } from '../../../../shared/constants/form-limits';
 
 @Component({
@@ -52,7 +52,8 @@ export class AddRecurringTransaction {
   category = signal('');
   icon = signal<string | null>(null);
   recurringFrequency = signal('');
-  nextPaymentDate = signal<Date | null>(null);
+  /** The date picker's value: a 'YYYY-MM-DD' string (converted to a Date before saving). */
+  nextPaymentDate = signal<string | null>(null);
   isAutoPay = signal(false);
   saving = signal(false);
 
@@ -137,7 +138,9 @@ export class AddRecurringTransaction {
       return;
     }
 
-    const nextPay = this.nextPaymentDate();
+    // Must reach Firestore as a Timestamp: the daily job queries `nextPaymentDate < today`, which never
+    // matches a string, so a schedule saved with the picker's raw string was never processed.
+    const nextPay = parseIsoLocal(this.nextPaymentDate() ?? '');
     if (!nextPay) {
       this.notifier.error('Select a next payment date.');
       return;

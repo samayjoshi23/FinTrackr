@@ -5,6 +5,10 @@ import { docCalendarDate } from '../../core/date';
 export function asFirestoreDate(v: unknown): Date | null {
   if (v == null) return null;
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
   const fn = (v as { toDate?: () => Date }).toDate;
   if (typeof fn === 'function') {
     const d = fn.call(v);

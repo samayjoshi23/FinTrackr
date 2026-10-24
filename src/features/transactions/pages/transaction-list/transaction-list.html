@@ -23,21 +23,25 @@
         />
       </div>
       @if (isFilterActive()) {
-        <div
+        <button
+          type="button"
           class="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-primary-light text-primary cursor-pointer"
           (click)="setIsFilterActive(false)"
-          aria-label="Clear search"
+          aria-label="Hide filters"
+          aria-expanded="true"
         >
           <ico name="times" size="sm"></ico>
-        </div>
+        </button>
       } @else {
-        <div
+        <button
+          type="button"
           class="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-secondary-light text-secondary cursor-pointer"
           (click)="setIsFilterActive(true)"
-          aria-label="Clear search"
+          aria-label="Show filters"
+          aria-expanded="false"
         >
           <ico name="sliders" size="sm"></ico>
-        </div>
+        </button>
       }
     </div>
   </header>
@@ -63,7 +67,7 @@
   @if (isFilterActive()) {
     <!-- Date -->
     <div class="flex flex-col gap-2">
-      <p class="text-[0.65rem] uppercase tracking-wide text-secondary font-medium">Date</p>
+      <p class="text-xs uppercase tracking-wide text-secondary font-medium">Date</p>
       <div class="flex flex-wrap gap-2">
         @for (item of dateFilters; track item.value) {
           <div
@@ -113,7 +117,7 @@
 
     <!-- Category -->
     <div class="flex flex-col gap-2">
-      <p class="text-[0.65rem] uppercase tracking-wide text-secondary font-medium">Category</p>
+      <p class="text-xs uppercase tracking-wide text-secondary font-medium">Category</p>
       <div class="flex flex-wrap gap-2">
         @for (label of categoryChipLabels(); track label) {
           <div
@@ -134,7 +138,7 @@
     @if (isMultiUser()) {
       <!-- Paid by (multi-user accounts) -->
       <div class="flex flex-col gap-2">
-        <p class="text-[0.65rem] uppercase tracking-wide text-secondary font-medium">By user</p>
+        <p class="text-xs uppercase tracking-wide text-secondary font-medium">By user</p>
         <div class="flex flex-wrap gap-2">
           <div
             class="rounded-full px-3 py-1 text-xs cursor-pointer flex items-center justify-center {{
@@ -205,7 +209,7 @@
                   <span class="truncate">{{ t.description }}</span>
                 </p>
                 <p class="text-xs text-secondary truncate">
-                  {{ sourceLabel(t) }} · {{ t.createdAt | date: 'MMM d, yyyy' }}
+                  {{ sourceLabel(t) }} · {{ (t.date || t.createdAt) | date: 'MMM d, yyyy' }}
                 </p>
               </div>
             </div>

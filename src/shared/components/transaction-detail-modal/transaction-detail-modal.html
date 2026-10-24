@@ -18,7 +18,7 @@
 
         <div class="field-wrapper before">
           <span class="field-icon before">
-            <ico name="dollar-sign" size="sm"></ico>
+            <ico name="wallet" size="sm"></ico>
           </span>
           <input
             type="number"
@@ -70,22 +70,24 @@
           }
           <div class="flex items-center gap-1.5 shrink-0">
             @if (!isLinkedToRecurring(tx) && !isLinkedToGroup(tx)) {
-              <div
+              <button
                 type="button"
-                class="h-8 w-8 rounded-lg text-secondary button-yellow"
+                class="h-10 w-10 rounded-lg text-secondary button-yellow"
                 (click)="onEditStart(tx)"
+                aria-label="Edit amount"
               >
                 <ico name="pencil" size="sm"></ico>
-              </div>
-              <div
+              </button>
+              <button
                 type="button"
-                class="h-8 w-8 rounded-lg text-secondary button-red"
+                class="h-10 w-10 rounded-lg button-red"
                 (click)="onDeleteRequested()"
+                aria-label="Delete transaction"
               >
                 <ico name="trash" size="sm"></ico>
-              </div>
+              </button>
             } @else {
-              <div
+              <button
                 type="button"
                 class="rounded-lg button-primary px-2 py-1"
                 (click)="goToLinkedObject(tx)"
@@ -98,7 +100,7 @@
                   }
                 </span>
                 <ico name="chevron-right" size="xs"></ico>
-              </div>
+              </button>
             }
           </div>
         </div>
@@ -170,7 +172,7 @@
   [(open)]="deletePromptOpen"
   [(isLoading)]="deleting"
   title="Delete transaction?"
-  message="This will permanently remove this transaction and reverse its effect on your account balance."
+  message="This removes the transaction and reverses its effect on your account balance."
   icon="trash"
   confirmText="Delete"
   loadingText="Deleting…"

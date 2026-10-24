@@ -138,21 +138,21 @@
               @switch (m.status) {
                 @case ('active') {
                   <span
-                    class="text-[0.65rem] font-semibold px-2 py-1 rounded-full bg-primary-light card-light text-primary shrink-0"
+                    class="text-xs font-semibold px-2 py-1 rounded-full bg-primary-light card-light text-primary shrink-0"
                   >
                     Active
                   </span>
                 }
                 @case ('inactive') {
                   <span
-                    class="text-[0.65rem] font-semibold px-2 py-1 rounded-full bg-secondary-light text-secondary shrink-0"
+                    class="text-xs font-semibold px-2 py-1 rounded-full bg-secondary-light text-secondary shrink-0"
                   >
                     Inactive
                   </span>
                 }
                 @case ('invited') {
                   <span
-                    class="text-[0.65rem] font-semibold px-2 py-1 rounded-full card-light button-orange shrink-0"
+                    class="text-xs font-semibold px-2 py-1 rounded-full card-light button-orange shrink-0"
                   >
                     Invited
                   </span>
@@ -469,7 +469,7 @@
         <label for="editBalance" class="text-xs text-secondary font-light">Current balance</label>
         <div class="field-wrapper before">
           <span class="field-icon before">
-            <ico name="dollar-sign" size="sm"></ico>
+            <ico name="wallet" size="sm"></ico>
           </span>
           <input
             id="editBalance"

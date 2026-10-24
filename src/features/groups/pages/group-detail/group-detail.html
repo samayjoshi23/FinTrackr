@@ -46,7 +46,7 @@
           >
             {{ initials(m.memberDisplayName) }}
           </div>
-          <p class="text-[0.6rem] text-secondary font-light truncate max-w-[3.5rem] text-center">
+          <p class="text-xs text-secondary font-light truncate max-w-[3.5rem] text-center">
             {{ m.memberId === currentUserId() ? 'You' : m.memberDisplayName.split(' ')[0] }}
           </p>
         </div>
